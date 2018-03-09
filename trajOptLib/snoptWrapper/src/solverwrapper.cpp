@@ -42,12 +42,12 @@ PYBIND11_MODULE(libsnopt, m){
         .def(py::init<>())
         .def(py::init<int, int>())
         .def(py::init<int, int, int>())
-        .def("__callf__", (void (ProblemFun::*)(cRefV, RefV)) &pyProbFun::operator())
-        .def("__callg__", (void (ProblemFun::*)(cRefV, RefV, RefV, RefVi, RefVi, bool, bool)) &pyProbFun::operator())
-        .def_readwrite("nx", &pyProbFun::nx)
-        .def_readwrite("nf", &pyProbFun::nf)
-        .def_readwrite("nG", &pyProbFun::nG)
-        .def_readwrite("grad", &pyProbFun::grad)
+        .def("__callf__", (void (funBase::*)(cRefV, RefV)) &pyFunBase::operator())
+        .def("__callg__", (void (funBase::*)(cRefV, RefV, RefV, RefVi, RefVi, bool, bool)) &pyFunBase::operator())
+        .def_readwrite("nx", &funBase::nx)
+        .def_readwrite("nf", &funBase::nf)
+        .def_readwrite("nG", &funBase::nG)
+        .def_readwrite("grad", &funBase::grad);
 
     py::class_<ProblemFun, pyProbFun>(m, "probFun")
         .def(py::init<>())
