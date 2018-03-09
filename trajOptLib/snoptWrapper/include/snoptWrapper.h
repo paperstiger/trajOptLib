@@ -8,6 +8,8 @@
 #include <iostream>
 #include <fstream>
 #include <cstdio>
+#include <vector>
+#include <string>
 #include "toyfunction.hh"
 #include "snfilewrapper.hh"
 #include "snopt.hh"
@@ -16,15 +18,22 @@
 #include "TigerTools/TigerEigen.h"
 
 
-//#define DEBUG
+class optResult{
+    public:
+        int flag;
+        double val;
+        VX sol;
+        VX c;
+        optResult(){}
+};
 
 
+// a functor which defines problems
 class ProblemFun{
-    protected:
+    public:
         int nx, nf;
         bool grad = false;
         int nG = 0;
-    public:
         VX lb, ub;
         VX xlb, xub;
 
@@ -83,6 +92,26 @@ class ProblemFun{
 };
 
 
+class snoptConfig{
+    typedef std::pair<std::string, int> intOption;
+    typedef std::pair<std::string, double> floatOption;
+public:
+    std::string name = std::string("Toy");
+    std::string printFile;
+    std::vector<intOption> intOptions;
+    std::vector<floatOption> floatOptions;
+    int printlevel = 0;
+    double optTol = 1e-6;
+    double feaTol = 1e-6;
+    void addIntOption(const std::string &nm, int value){
+        intOptions.push_back(std::make_pair(nm, value));
+    }
+    void addFloatOption(const std::string &nm, double value){
+        floatOptions.push_back(std::make_pair(nm, value));
+    }
+};
+
+
 extern ProblemFun *PROB;
 
 class snoptWrapper{
@@ -93,6 +122,7 @@ private:
     char *xnames, *Fnames;
 public:
     ProblemFun *prob;
+    snoptConfig *snpcfg;
     snoptProblem2 ToyProb;
     double *getFmul() const {return Fmul;};
     double *getX() const {return x;};
@@ -104,7 +134,7 @@ public:
     double *getFlow() const{return Flow;}
     double *getFupp() const{return Fupp;}
     //Construction function
-    snoptWrapper(ProblemFun *pfun): prob(pfun){
+    snoptWrapper(ProblemFun *pfun, snoptConfig *cfg=nullptr): prob(pfun), snpcfg(cfg){
         PROB = pfun;
         n = pfun->getNx();
         neF = pfun->getNf();
@@ -177,9 +207,6 @@ public:
         ToyProb.setFNames     ( Fnames, nFnames );
         ToyProb.setProbName   ( "Toy0" );
         ToyProb.setUserFun    ( toyusrf_ );
-        // snopta will compute the Jacobian by finite-differences.
-        // The user has the option of calling  snJac  to define the
-        // coordinate arrays (iAfun,jAvar,A) and (iGfun, jGvar).
         if(!pfun->getGrad()){
             ranGenX();
             ToyProb.computeJac();
@@ -188,12 +215,29 @@ public:
             ToyProb.setIntParameter( "Derivative option", 1 );
         else
             ToyProb.setIntParameter( "Derivative option", 0 );
-        ToyProb.setIntParameter( "Verify level", 0 );
-	    ToyProb.setIntParameter( "Major print level", 0 );
-	    ToyProb.setIntParameter( "Major iterations limit", 3000);
-        ToyProb.setIntParameter( "Minor print level", 0 );
-        ToyProb.setRealParameter("Major optimality tolerance", 1e-6);
-        ToyProb.setRealParameter("Major feasibility tolerance", 1e-6);
+        if(snpcfg == nullptr){
+            ToyProb.setIntParameter( "Verify level", 0 );
+            ToyProb.setIntParameter( "Major print level", 0 );
+            ToyProb.setIntParameter( "Major iterations limit", 3000);
+            ToyProb.setIntParameter( "Minor print level", 0 );
+            ToyProb.setRealParameter("Major optimality tolerance", 1e-6);
+            ToyProb.setRealParameter("Major feasibility tolerance", 1e-6);
+        }
+        else{
+            ToyProb.setProbName(snpcfg->name.c_str());
+            ToyProb.setRealParameter("Major optimality tolerance", snpcfg->optTol);
+            ToyProb.setRealParameter("Major feasibility tolerance", snpcfg->feaTol);
+            ToyProb.setIntParameter( "Major print level", snpcfg->printlevel);
+            if(snpcfg->printFile.size() > 0){
+                ToyProb.setPrintFile(snpcfg->printFile.c_str());
+            }
+            for(auto &icfg : snpcfg->intOptions){
+                ToyProb.setIntParameter(std::get<0>(icfg).c_str(), std::get<1>(icfg));
+            }
+            for(auto &fcfg : snpcfg->floatOptions){
+                ToyProb.setRealParameter(std::get<0>(fcfg).c_str(), std::get<1>(fcfg));
+            }
+        }
     }
 
     void setX(const double *xin){
@@ -320,6 +364,9 @@ public:
             xstate[i] = 0;
             xmul[i] = 0;
         }
+#ifdef DEBUG
+        std::cout << "solve from random guess\n";
+#endif
         //Generate initial guess using the method in TrajOpt.h
         ranGenX();
         ToyProb.setF          ( F, Flow, Fupp, Fmul, Fstate );
@@ -329,6 +376,9 @@ public:
     };
     //Solve the problem. given the solution, lmdF
     int solve(double *_x, double *_Fmul = NULL){
+#ifdef DEBUG
+        std::cout << "solve with guess\n";
+#endif
         setxbound();//As always, do this
         for (int i = 0; i < neF; ++i){
             F[i] = 0;

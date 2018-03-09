@@ -2,7 +2,6 @@
 #include "stdlib.h"
 #include <string.h>
 #include "snopt.hh"
-#include "toyfunction.h"
 #include "snoptProblem.hh"
 #include "Tools/VecMat.h"
 #include "snoptWrapper.h"
@@ -34,8 +33,5 @@ int toyusrf_(integer    *Status, integer *n,    doublereal x[],
     else{
         PROB->operator()(Mx, c);
     }
-#ifdef DEBUG
-    std::cout << "Mx " << Mx << "\nc " << c << "\n";
-#endif
     return 0;
 }

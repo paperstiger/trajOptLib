@@ -35,6 +35,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Script)
 set(CMAKE_BUILD_DIRECTORY ${PROJECT_SOURCE_DIR}/Build)
 
+option(DEBUG "Debug" OFF)
+if(DEBUG)
+    add_definitions(-DDEBUG)
+endif(DEBUG)
+
 include_directories(${INCDIR})
 include_directories(${JSONINC})
 include_directories(${SNPINC})
@@ -46,7 +51,7 @@ link_directories(/usr/local/lib)
 
 set(tqt_FILES
     src/snoptTest.cpp src/toyfunction.cpp
-        include/snoptWrapper.h include/toyfunction.hh)
+        include/snoptWrapper.h)
 add_executable(tqt ${tqt_FILES})
 target_link_libraries(tqt
         ${COMLIB} ${JSONOBJ} ${SNOBJ} ${SNPLIB})
@@ -56,8 +61,8 @@ include_directories("/usr/include/python2.7")
 include_directories("/usr/local/include/eigen3")
 include_directories("/usr/include/eigen3")
 set(server_FILES
-    src/toyfunction.cpp src/solverwrapper.cpp
-    include/snoptWrapper.h include/toyfunction.hh)
+    src/toyfunction.cpp src/solverwrapper.cpp src/funcStyle.cpp src/classStyle.cpp
+    include/snoptWrapper.h include/funcStyle.h include/classStyle.h)
 add_library(snopt SHARED ${server_FILES})
 target_link_libraries(snopt python2.7 ${JSONOBJ} ${COMLIB} ${SNPLIB})
 
