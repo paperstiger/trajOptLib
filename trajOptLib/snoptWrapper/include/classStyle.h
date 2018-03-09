@@ -10,6 +10,7 @@
 
 
 #include "snoptWrapper.h"
+#include "functionBase.h"
 #include "pybind11/functional.h"
 
 
@@ -27,13 +28,13 @@ class pyProbFun: public ProblemFun{
                     );
         }
 
-        void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, int rowadd, int nGadd, bool rec, bool needg) override {
+        void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) override {
             PYBIND11_OVERLOAD_PURE_NAME(
                     void,
                     ProblemFun,
                     "__callg__",
                     operator(),
-                    x, F, G, row, col, rowadd, nGadd, rec, needg
+                    x, F, G, row, col, rec, needg
                     );
         }
 };
@@ -66,6 +67,32 @@ class pySnoptWrapper: public snoptWrapper{
         }
         VX fEval(RefV x){
             return snoptWrapper::fEval(x.data());
+        }
+};
+
+
+class pyFunBase: public funBase{
+    public:
+        using funBase::funBase;
+
+        void operator()(cRefV x, RefV F) override{
+            PYBIND11_OVERLOAD_PURE_NAME(
+                    void,
+                    funBase,
+                    "__callf__",
+                    operator(),
+                    x, F
+                    );
+        }
+
+        void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) override {
+            PYBIND11_OVERLOAD_PURE_NAME(
+                    void,
+                    funBase,
+                    "__callg__",
+                    operator(),
+                    x, F, G, row, col, rec, needg
+                    );
         }
 };
 

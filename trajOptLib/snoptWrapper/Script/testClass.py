@@ -32,7 +32,7 @@ class problem(probFun):
         y[0] = x[0] ** 2 + x[1] ** 2
         y[1] = x[0] + x[1]
 
-    def __callg__(self, x, y, G, row, col, rowAdd, GAdd, rec, needg):
+    def __callg__(self, x, y, G, row, col, rec, needg):
         y[0] = x[0] ** 2 + x[1] ** 2
         y[1] = x[0] + x[1]
         G[:2] = 2 * x

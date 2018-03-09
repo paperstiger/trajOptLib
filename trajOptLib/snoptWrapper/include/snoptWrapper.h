@@ -13,6 +13,7 @@
 #include "toyfunction.hh"
 #include "snfilewrapper.hh"
 #include "snopt.hh"
+#include "functionBase.h"
 #include "snoptProblem.hh"
 #include "TigerTools/TigerTools.h"
 #include "TigerTools/TigerEigen.h"
@@ -29,33 +30,15 @@ class optResult{
 
 
 // a functor which defines problems
-class ProblemFun{
+class ProblemFun : public funBase{
     public:
-        int nx, nf;
-        bool grad = false;
-        int nG = 0;
         VX lb, ub;
         VX xlb, xub;
-
-        ProblemFun(){}
-        ProblemFun(int nx_, int nf_): nx(nx_), nf(nf_){
-        }
-        void setNx(int nx_){
-            nx = nx_;
-        }
-        void setNf(int nf_){
-            nf = nf_;
-        }
-        void setGrad(bool grad_){
-            grad = grad_;
-        }
-        void setNg(int ng_){
-            nG = ng_;
-        }
+        using funBase::funBase;
 
         virtual void operator()(cRefV x, RefV F) = 0;  // A function to be overwritten by subclass, this is called to evaluate
 
-        virtual void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, int rowadd, int nGadd, bool rec, bool needg) = 0;  // A function to be overwritten by subclass, this is called for both assigning structure.
+        virtual void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) = 0;  // A function to be overwritten by subclass, this is called for both assigning structure.
 
         void batchSetLb(cRefV lb_, int ind0=0){
             if(lb_.size() + ind0 > lb.size())
@@ -84,11 +67,6 @@ class ProblemFun{
             else
                 xub.segment(ind0, ub_.size()) = ub_;
         }
-
-        int getNx() const {return nx;}
-        int getNf() const {return nf;}
-        bool getGrad() const {return grad;}
-        int getNg() const {return nG;};
 };
 
 
@@ -188,7 +166,7 @@ public:
             MapV Gvalue(G, lenG);
             ranGenX();  // randomly generate an initial guess
             MapV mX(x, n);
-            pfun->operator()(mX, mV, Gvalue, row, col, 0, 0, true, true);
+            pfun->operator()(mX, mV, Gvalue, row, col, true, true);
         }
         // Set the problem, what's left is the initial guess
         if(pfun->getGrad()){
@@ -411,7 +389,7 @@ public:
         if(prob->getGrad()){
             MapM g(G, 1, lenG);
             VXi row(1), col(1);
-            prob->operator()(Mx, c, value, row, col, 0, 0, false, true);
+            prob->operator()(Mx, c, value, row, col, false, false);
         }
         else{
             prob->operator()(Mx, c);

@@ -27,7 +27,7 @@ public:
         F(0) = x(0) * x(0) + x(1) * x(1);
         F(1) = x(0) + x(1);
     }
-    void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, int rowadd, int nGadd, bool rec, bool needg){
+    void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg){
         F(0) = x(0) * x(0) + x(1) * x(1);
         F(1) = x(0) + x(1) - 1.0;
         if(rec){
@@ -40,10 +40,12 @@ public:
             col(2) = 0;
             col(3) = 1;
         }
-        G(0) = 2 * x(0);
-        G(1) = 2 * x(1);
-        G(2) = 1;
-        G(3) = 1;
+        if(needg){
+            G(0) = 2 * x(0);
+            G(1) = 2 * x(1);
+            G(2) = 1;
+            G(3) = 1;
+        }
     }
 };
 

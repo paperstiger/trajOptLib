@@ -99,7 +99,8 @@ public:
         }
     }
 
-    void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, int rowadd, int nGadd, bool rec, bool needg){
+    void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg){
+        int nGadd = 0, rowadd = 0;
         if(mode == GRAD){
             if(rec){
                 assignG(row, col, rowadd, nGadd);
@@ -118,9 +119,9 @@ public:
         }
         else if(mode == SPGRAD){
             std::tuple<VX, SpMX> rst = spgradfun(x);
+            int nG = nGadd;
             F = std::get<0>(rst);
             SpMX mat = std::get<1>(rst);
-            int nG = nGadd;
             for (int k=0; k<mat.outerSize(); ++k){
                 for (Eigen::SparseMatrix<double>::InnerIterator it(mat,k); it; ++it){
                     G(nG) = it.value();

@@ -25,7 +25,7 @@ int toyusrf_(integer    *Status, integer *n,    doublereal x[],
     if(PROB->getGrad()){
         MapV value(G, *neG);
         VXi row(1), col(1);
-        PROB->operator()(Mx, c, value, row, col, 0, 0, false, true);
+        PROB->operator()(Mx, c, value, row, col, false, true);
 #ifdef DEBUG
         std::cout << "grad mode\n";
 #endif
