@@ -77,6 +77,11 @@ class trajOptProblem(probFun):
         if self.fixtf:
             numT -= 1
         numSol = numX + numU + numP + numT
+        self.numX = numX
+        self.numU = numU
+        self.numP = numP
+        self.numT = numT
+        self.numSol = numSol
         numObjG = numSol  # G from objective, assume dense
         # summarize number of pure linear constraints
         # TODO: implement linear objective and constraint
@@ -95,9 +100,13 @@ class trajOptProblem(probFun):
         # TODO: implement gradient
         # currently try a case with only finite difference gradient
         super(trajOptProblem, self).__init__(numSol, numF)  # not providing G means we use finite-difference
+
+
+    def setxbound(self):
+        """Set bounds on decision variables."""
         # create bound on x
-        xlb = np.zeros(numSol)
-        xub = np.zeros(numSol)
+        xlb = np.zeros(self.numSol)
+        xub = np.zeros(self.numSol)
         if self.xbd[0] is not None:
             stateLb = np.reshape(xlb[:numX], (self.N, self.dimx))
             for i in range(self.dimx):
@@ -158,10 +167,6 @@ class trajOptProblem(probFun):
         self.ub = cub
         self.xlb = xlb
         self.xub = xub
-        self.numX = numX
-        self.numU = numU
-        self.numP = numP
-        self.numT = numT
 
     def __callf__(self, x, y):
         """Evaluate those constraints and objective functions."""
