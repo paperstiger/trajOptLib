@@ -67,6 +67,27 @@ class ProblemFun : public funBase{
             else
                 xub.segment(ind0, ub_.size()) = ub_;
         }
+
+        VX randomGenX(){
+            VX mX = VX::Zero(nx);
+            mX.setRandom();
+            double *xlow = xlb.data(), *xupp = xub.data(), *x = mX.data();
+            // move to bound
+            if(xlb.size() > 0 && xub.size() > 0){
+                for(int i = 0; i < nx; i++){
+                    if(x[i] < xlow[i] || x[i] > xupp[i]){
+                        if(xlow[i] == -1e20)
+                            x[i] = xupp[i] - 1e-3*rand()/RAND_MAX;
+                        else if(xupp[i] == 1e20)
+                            x[i] = xlow[i] + 1e-3*rand()/RAND_MAX;
+                        else{
+                            x[i] = (xlow[i] + xupp[i]) / 2.0;
+                        }
+                    }
+                }
+            }
+            return mX;
+        }
 };
 
 

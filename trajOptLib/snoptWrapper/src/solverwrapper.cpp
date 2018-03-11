@@ -57,6 +57,7 @@ PYBIND11_MODULE(libsnopt, m){
         .def("batchSetUb", &pyProbFun::batchSetUb)
         .def("batchSetXlb", &pyProbFun::batchSetXlb)
         .def("batchSetXub", &pyProbFun::batchSetXub)
+        .def("randomGenX", &pyProbFun::randomGenX)
         .def("__callf__", (void (ProblemFun::*)(cRefV, RefV)) &pyProbFun::operator())
         .def("__callg__", (void (ProblemFun::*)(cRefV, RefV, RefV, RefVi, RefVi, bool, bool)) &pyProbFun::operator())
         .def_readwrite("nx", &pyProbFun::nx)

@@ -48,11 +48,11 @@ include_directories("/usr/local/include/python2.7")
 include_directories("/usr/include/python2.7")
 include_directories("/usr/local/include/eigen3")
 include_directories("/usr/include/eigen3")
-set(server_FILES
-    src/toyfunction.cpp src/solverwrapper.cpp
-    include/snoptWrapper.h include/toyfunction.hh)
-add_library(server SHARED ${server_FILES})
-target_link_libraries(server python2.7 ${JSONOBJ} ${COMLIB} ${SNPLIB})
+set(Rotor_FILES
+    src/solverwrapper.cpp
+    )
+add_library(Rotor SHARED ${Rotor_FILES})
+target_link_libraries(Rotor python2.7 ${JSONOBJ} ${COMLIB} ${SNPLIB})
 
-install(TARGETS snopt
+install(TARGETS Rotor
     DESTINATION ${PROJECT_SOURCE_DIR}/Script)

@@ -44,12 +44,22 @@ class system(object):
         assert method in system.odes
         self.ode = method
 
-    def dyn(self, t, x, u, p=None):
+    def dyn(self, t, x, u, p=None, h=None):
         """Dynamics function that has to be overriden.
         :param t: float, time when evaluating system dynamics
         :param x: np.ndarray, (nx,) state variable
         :param u: np.ndarray, (nu,) control variable
         :param p: np.ndarray, (np,) additional optimizing variable
+        :param h: float, used for discretized system. Integration step size
+        :rtype y: either dotx or x_k+1
+        """
+        raise NotImplementedError
+
+    def Jdyn(self, t, x, u, p=None, h=None):
+        """Dynamics function with Jacobian return.
+        :param t, x, u, p, h: see dyn
+        :rtype y: ndarray, either dotx or x_k+1
+        :rtype J: ndarray/spmatrix, returning Jacobian of this function evaluation
         """
         raise NotImplementedError
 
@@ -128,7 +138,7 @@ class nonLinObj(baseFun):
         baseFun.__init__(self, nsol, 1, gradmode, nG)
 
 
-class pointObj(baseFun):
+class nonPointObj(baseFun):
     """Class for defining point objective function"""
     def __init__(self, index, nx, nu, np=0, gradmode='user', nG=None):
         """Constructor for nonlinear objective function.
