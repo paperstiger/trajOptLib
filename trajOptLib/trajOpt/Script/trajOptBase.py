@@ -13,7 +13,7 @@ Classes ready to be used for trajectory optimization.
 """
 import sys, os, time
 import numpy as np
-from scipy.sparse import spmatrix, csr_matrix, csc_matrix
+from scipy.sparse import spmatrix, csr_matrix, csc_matrix, coo_matrix
 import matplotlib.pyplot as plt
 import logging
 from libsnopt import funBase, snoptConfig, result, probFun, solver
@@ -152,18 +152,80 @@ class nonPointObj(baseFun):
         self.index = index
 
 
+class lqrObj(object):
+    """Class for LQR objective since it is so common. It is treated independently with pathObj."""
+    def __init__(self, F, Q, R, xfbase=None, xbase=None, ubase=None, tfweight=None, P=None, pbase=None):
+        """Constructor for LQR objective function.
+        c=\|x_f-x_{fbase}\|_F + \Sigma (\|x-x_{base}\|_Q + \|u-u_{base}\|_R + \|p-p_{base}\|_P) * h
+        :param F, Q, R: cost for terminal, path state, path ctrl.
+        :param xfbase, xbase, ubase: the basis.
+        :param P: might be None if we do not penalize p
+        :param pbase: might be None if we do not penalize p
+        """
+        assert F.ndim == 1 and Q.ndim == 1 and R.ndim == 1
+        assert F.shape[0] == Q.shape[0]
+        self.nx = len(F)
+        self.nu = len(R)
+        self.F = coo_matrix(F)
+        self.Q = coo_matrix(Q)
+        self.R = coo_matrix(R)
+        self.tfweight = tfweight
+        if self.F.nnz > 0:
+            self.xfbase = xfbase
+            if self.xfbase is None:
+                self.xfbase = np.zeros(self.nx)
+        if self.Q.nnz > 0:
+            self.xbase = xbase
+            if self.xbase is None:
+                self.xbase = np.zeros(self.nx)
+        if self.R.nnz > 0:
+            self.ubase = ubase
+            if self.ubase is None:
+                self.ubase = np.zeros(self.nu)
+        if P is not None:
+            assert P.ndim == 1
+            self.P = coo_matrix(P)
+            self.np = len(P)
+            if pbase is None:
+                self.pbase = np.zeros(self.np)
+        else:
+            self.P = None
+
+
+class nonDiagLQRObj(object):
+    """Class for LQR objective with non-diagonal entries"""
+    # TODO: implement me
+    pass
+
+
 class pointConstr(baseFun):
     """Class for defining point constraint function."""
     def __init__(self, index, nc, nx, nu, np=0, lb=None, ub=None, gradmode='user', nG=None):
-        """Constructor for nonlinear point constraint.
+        """Constructor for nonlinear point constraint. Also serve as path constraint.
         :param index: int, at which point is objective calculated
         :param nc: int, dimension of constraint function
         :param nx, nu, np: int, dimensions
+        :param lb, ub: lower and upper bound of the constraint function. None means equal to 0
         :param gradmode: str, how gradient is provided
         :param nG, int, number of nnz of Jacobian
         """
         xdim = 1 + nx + nu + np
         baseFun.__init__(self, xdim, nc, gradmode, nG)
         self.index = index
+        self.lb = lb
+        self.ub = ub
+
+
+class nonLinConstr(baseFun):
+    """Class for defining constraint function in a general form."""
+    def __init__(self, nsol, nc, lb=None, ub=None, gradmode='user', nG=None):
+        """Constructor for general nonlinear constraint.
+        :param nsol: int, length of the solution vector, used to initialize baseFun
+        :param nc: int, dimension of constraint function
+        :param lb, ub: lower and upper bound of the constraint function. None means equal to 0
+        :param gradmode: str, how gradient is provided
+        :param nG, int, number of nnz of Jacobian
+        """
+        baseFun.__init__(self, nsol, nc, gradmode, nG)
         self.lb = lb
         self.ub = ub
