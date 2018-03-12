@@ -15,7 +15,7 @@ import numpy as np
 import logging
 from .trajOptBase import system, linearObj, linearPointObj, nonLinObj, nonPointObj, pointConstr, nonLinConstr, lqrObj
 from .libsnopt import snoptConfig, probFun, solver
-from utility import parseX
+from .utility import parseX
 from scipy import sparse
 from scipy.sparse import spmatrix, coo_matrix
 

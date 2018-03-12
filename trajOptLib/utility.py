@@ -15,7 +15,7 @@ import sys, os, time
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
-import pyLib.plot as pld
+from . import plot as pld
 
 
 def parseX(x, N, dimx, dimu, dimp, uset0, usetf, setfinal=True):

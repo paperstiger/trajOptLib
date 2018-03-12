@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include "stdlib.h"
 #include <string.h>
-#include "snopt.hh"
-#include "snoptProblem.hh"
 #include "snoptWrapper.h"
 
 ProblemFun *PROB;
@@ -16,9 +14,6 @@ int toyusrf_(integer    *Status, integer *n,    doublereal x[],
          doublereal ru[],    integer *lenru )
 {
     //convert x to traj
-#ifdef __APPLE__
-    typedef Eigen::Matrix<long, -1, 1> VXi;
-#endif
     MapV c(F, *neF);
     MapV Mx(x, *n);
     if(PROB->getGrad()){

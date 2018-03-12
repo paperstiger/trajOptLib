@@ -10,12 +10,12 @@
 #include <cstdio>
 #include <vector>
 #include <string>
+#include "TigerTools/TigerEigen.h"
 #include "toyfunction.hh"
 #include "snfilewrapper.hh"
 #include "snopt.hh"
 #include "functionBase.h"
 #include "snoptProblem.hh"
-#include "TigerTools/TigerEigen.h"
 
 
 class optResult{
@@ -196,9 +196,6 @@ public:
         std::cout << "get gradient information\n";
 #endif
         /***Gradients, depends on how we are defining the problem***/
-#ifdef __APPLE__
-        typedef Eigen::Map<Eigen::Matrix<long, -1, 1> > MapVi;
-#endif
         if(pfun->getGrad()){
             MapV mV(F, neF);
             MapVi row(iGfun, lenG), col(jGvar, lenG);

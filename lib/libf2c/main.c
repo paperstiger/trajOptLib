@@ -135,7 +135,7 @@ f_init();
 #ifndef NO_ONEXIT
 ONEXIT(f_exit);
 #endif
-MAIN__();
+//MAIN__();
 #ifdef NO_ONEXIT
 f_exit();
 #endif

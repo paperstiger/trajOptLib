@@ -15,12 +15,12 @@ import sys, os, time
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
-from pyLib.io import getOnOffArgs
 sys.path.append('../')
+from trajOptLib.io import getOnOffArgs
 from trajOptLib.trajOptBase import system, nonPointObj, lqrObj
 from trajOptLib.trajOptProblem import trajOptProblem
 from trajOptLib.libsnopt import snoptConfig, probFun, solver
-from utility import showSol
+from trajOptLib.utility import showSol
 from scipy.sparse import coo_matrix
 
 
