@@ -20,10 +20,12 @@ import pyLib.plot as pld
 
 def parseX(x, N, dimx, dimu, dimp, uset0, usetf, setfinal=True):
     """Parse the solution into a dict of time, state, control, parameter.
+
     :param x: ndarray, solution found by SNOPT
     :param N, dimx, dimu, dimp: discretization of the problem
     :param uset0, usetf: float/array like, specification of initial and final time
     :param setfinal: if we set the final element of u/p the same with second last
+    :returns: a dictionary of keys 't', 'x', 'u', 'p'
     """
     if np.isscalar(uset0):
         fixt0 = True
@@ -65,10 +67,12 @@ def parseX(x, N, dimx, dimu, dimp, uset0, usetf, setfinal=True):
 
 def showSol(solDict, xsplit=None, usplit=None, psplit=None):
     """Plot the parsed solution.
+
     :param solDict: dict, returned from solParse; or a list of such dict. Then they are compared
     :param xsplit: if state space is large, this splits it into several images it's a list of int like (3, 6). None means no split
     :param usplit: similar to xsplit, apply for control
     :param psplit: similar to xsplit, apply for parameter
+
     """
     assert isinstance(solDict, (dict, list))
     if isinstance(solDict, dict):

@@ -16,9 +16,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import logging
 from pyLib.io import getOnOffArgs
-from trajOptBase import system, nonPointObj
-from trajOptProblem import trajOptProblem
-from libsnopt import snoptConfig, probFun, solver
+sys.path.append('../')
+from trajOptLib.trajOptBase import system, nonPointObj, lqrObj
+from trajOptLib.trajOptProblem import trajOptProblem
+from trajOptLib.libsnopt import snoptConfig, probFun, solver
 from utility import showSol
 from scipy.sparse import coo_matrix
 
@@ -83,16 +84,16 @@ class quadCost(nonPointObj):
 
 
 def main():
-    args = getOnOffArgs('fd', 'grad', 'pen')
+    args = getOnOffArgs('fd', 'grad', 'pen', 'lqr')
     if args.fd:
-        fdmode()
+        fdmode(args.lqr)
     if args.grad:
-        gradmode()
+        gradmode(args.lqr)
     if args.pen:
-        penMode()
+        penMode(args.lqr)
 
 
-def penMode():
+def penMode(lqr):
     """Run pendulum swing-up problem"""
     sys = pendulum()
     cost = quadCost()
@@ -104,10 +105,15 @@ def penMode():
     prob.ubd = [np.array([-1.0]), np.array([1.0])]
     prob.x0bd = [np.array([0, 0]), np.array([0, 0])]
     prob.xfbd = [np.array([np.pi, 0]), np.array([np.pi, 0])]
-    prob.addNonPointObj(cost, True)  # add a path cost
+    if not lqr:
+        prob.addNonPointObj(cost, True)  # add a path cost
+    else:
+        lqr = lqrObj(R=np.ones(1))
+        prob.addLQRObj(lqr)
     prob.preProcess()  # construct the problem
     # construct a solver for the problem
     cfg = snoptConfig()
+    cfg.printLevel = 1
     slv = solver(prob, cfg)
     rst = slv.solveRand()
     print(rst.flag)
@@ -118,7 +124,7 @@ def penMode():
         showSol(sol)
 
 
-def gradmode():
+def gradmode(lqr):
     """Solve the simple problem with gradient."""
     sys = oneDcase()
     cost = quadCost()
@@ -130,7 +136,11 @@ def gradmode():
     prob.ubd = [np.array([-1e20]), np.array([1e20])]
     prob.x0bd = [np.array([0, 0]), np.array([0, 0])]
     prob.xfbd = [np.array([1, 0]), np.array([1, 0])]
-    prob.addNonPointObj(cost, True)  # add a path cost
+    if not lqr:
+        prob.addNonPointObj(cost, True)  # add a path cost
+    else:
+        lqr = lqrObj(R=np.ones(1))
+        prob.addLQRObj(lqr)
     prob.preProcess()  # construct the problem
     # construct a solver for the problem
     cfg = snoptConfig()
@@ -143,7 +153,7 @@ def gradmode():
         showSol(sol)
 
 
-def fdmode():
+def fdmode(lqr):
     """Solve the simple problem with finite difference."""
     sys = oneDcase()
     cost = quadCost()
@@ -155,10 +165,15 @@ def fdmode():
     prob.ubd = [np.array([-1e20]), np.array([1e20])]
     prob.x0bd = [np.array([0, 0]), np.array([0, 0])]
     prob.xfbd = [np.array([1, 0]), np.array([1, 0])]
-    prob.addNonPointObj(cost, True)  # add a path cost
+    if not lqr:
+        prob.addNonPointObj(cost, True)  # add a path cost
+    else:
+        lqr = lqrObj(R=np.ones(1))
+        prob.addLQRObj(lqr)
     prob.preProcess()  # construct the problem
     # construct a solver for the problem
     cfg = snoptConfig()
+    cfg.printLevel = 1
     slv = solver(prob, cfg)
     rst = slv.solveRand()
     print(rst.flag, rst.sol)

@@ -13,25 +13,45 @@ Class for describing the trajectory optimization problems.
 """
 import numpy as np
 import logging
-from trajOptBase import system, linearObj, linearPointObj, nonLinObj, nonPointObj, pointConstr, nonLinConstr, lqrObj
-from libsnopt import snoptConfig, probFun, solver
+from .trajOptBase import system, linearObj, linearPointObj, nonLinObj, nonPointObj, pointConstr, nonLinConstr, lqrObj
+from .libsnopt import snoptConfig, probFun, solver
 from utility import parseX
 from scipy import sparse
 from scipy.sparse import spmatrix, coo_matrix
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
 class trajOptProblem(probFun):
-    """A class for definition of trajectory optimization problem."""
+    """A class for definition of trajectory optimization problem.
+
+    A general framework for using this class is to:
+
+    1. Define a class inherited from system and write dyn/Jdyn method.
+    2. Optionally, write desired cost function by inheriting/creating from the list of available cost functions.
+    3. Optinally, write desired constraint functions by inheriting from available constraints.
+    4. Create this class with selected system, discretization, t0, tf range, gradient option
+    5. Set bounds for state, control, parameters, x0 and xf
+    6. Add objective functions and constraints to this class
+    7. Call preProcess method explicitly
+    8. Create snoptConfig instance and choose desired options
+    9. Construct the solver
+    10. Use the solver to solve with either automatic guess or user provided guess
+
+    :exclude-members: getSparsity
+
+    """
     def __init__(self, sys, N=20, t0=0.0, tf=1.0, gradmode=True):
         """Initialize problem by system, discretization grid size, and allowable time
+
         :param sys: system, describe system dynamics
         :param N: int, discretization grid size, a uniform grid
         :param t0: float/array like, allowable t0
         :param tf: float/array like, allowable tf
+        :param gradmode: bool, sets if we use gradient mode.
+
         """
         assert isinstance(sys, system)
         self.sys = sys
@@ -72,9 +92,6 @@ class trajOptProblem(probFun):
         self.pointConstr = []  # general constraint imposed at a certain point, such as initial and final point
         self.pathConstr = []  # general constraint imposed everywhere such as collision avoidance
         self.nonLinConstr = []  # stores general nonlinear constraint
-
-    def preProcess(self):
-        """Initialize the instances of probFun now we are ready."""
         # calculate number of variables to be optimized, time are always the last
         numX = self.N * self.dimx
         numU = self.N * self.dimu
@@ -91,6 +108,14 @@ class trajOptProblem(probFun):
         self.numP = numP
         self.numT = numT
         self.numSol = numSol
+
+    def preProcess(self):
+        """Initialize the instances of probFun now we are ready.
+
+        Call this function after the objectives and constraints have been set appropriately.
+        It calculate the space required for SNOPT and allocates sparsity structure if necessary.
+
+        """
         numDyn = self.dimx * (self.N - 1)  # constraints from system dynamics
         numC = 0
         for constr in self.pointConstr:
@@ -119,6 +144,7 @@ class trajOptProblem(probFun):
         else:
             self.indices = self.getObjSparsity(x0)
             numObjG = len(self.indices)  # G from objective, assume dense
+        self.objSparseMode = objSparseMode
         # summarize number of pure linear constraints
         numDynG = self.getDynSparsity(x0)
         numCG = 0  # G from C
@@ -136,7 +162,9 @@ class trajOptProblem(probFun):
 
     def getDynSparsity(self, x):
         """Set sparsity of the problem caused by system dynamics and other nonlinear constraints.
+
         :param x: ndarray, the guess/sol
+
         """
         # TODO: now sparsity is supported for Euler/ BackEuler/ Dis, RK4 needs to be done
         h, useT = self.__getTimeGrid__(x)
@@ -175,6 +203,7 @@ class trajOptProblem(probFun):
 
     def getObjSparsity(self, x):
         """Set sparsity structure of the problem from objective function.
+
         For objective function, we do calculation by assigning gradient to a vector of length numSol.
         The sparsity pattern is remembered which is a mask that is then used to assign G.
         This function also determines if it is safe to turn on aggressive mode where we directly assign G.
@@ -183,8 +212,10 @@ class trajOptProblem(probFun):
         - only one of nonLinObj, nonPointObj, nonPathObj, linearObj, linPointObj, linPathObj is non-empty
         In other cases, we still have to remember which maps to which and there is not much improvement compared with current implementation
         # TODO: add support such that user has option to safely insert an objective function. Such as path obj plus terminal cost. In long run, add linear obj support
+
         :param x: ndarray, the guess/sol
-        :rtype indices: ndarray, the indices with non-zero objective gradient
+        :returns: indices: ndarray, the indices with non-zero objective gradient
+
         """
         h, useT = self.__getTimeGrid__(x)
         useX, useU, useP = self.__parseX__(x)
@@ -282,11 +313,13 @@ class trajOptProblem(probFun):
 
     def __assignTo__(self, index, nnz, value, target, selfadd):
         """Assign a block of value to a target vector. This helps us finding sparsity/assigning values.
+
         :param index: int, index of a point constraint or -1 indicates it is overall
         :param nnz: indices of nnz elements. For point constraint only, it is within xdim
         :param value: scalar / ndarray, the values we want to assign. If ndarray, its length has to equal nnz
         :param target: ndarray, the target array to assign value to
         :param selfadd: bool, indicates if we eadd value to target, otherwise we assign
+
         """
         if np.isscalar(value):
             value = np.ones_like(nnz, dtype=type(value)) * value
@@ -404,9 +437,11 @@ class trajOptProblem(probFun):
 
     def __getTimeGrid__(self, x):
         """Based on initial guess x, get the time grid for discretization.
+
         :param x: ndarray, the guess/sol.
-        :rtype: h: float, grid size
-        :rtype: useT: the grid being used
+        :returns: h: float, grid size
+        :returns: useT: the grid being used
+
         """
         if self.fixt0:
             uset0 = self.t0
@@ -435,20 +470,25 @@ class trajOptProblem(probFun):
         h, useT = self.__getTimeGrid__(x)
         useX, useU, useP = self.__parseX__(x)
         # evaluate objective function
-        self.__objModeF__(0, h, useT, useX, useU, useP, y)
+        self.__objModeF__(0, h, useT, useX, useU, useP, x, y)
         # evaluate the system dynamics constraint
         curRow = 1
-        curRow = self.__dynconstrModeF__(h, curRow, useT, useX, useU, useP, x, y)
+        curRow = self.__dynconstrModeF__(curRow, h, useT, useX, useU, useP, y)
         # evaluate other constraints
         curRow = self.__constrModeF__(curRow, h, useT, useX, useU, useP, x, y)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("y is {}".format(y))
 
     def __objModeF__(self, curRow, h, useT, useX, useU, useP, x, y):
         """Calculate objective function. F mode
+
         :param curRow: int, index from which we write on
         :param h, useT, useX, useU, useP: parsed solution
         :param x: ndarray, the sol, it is used for linear constraints
         :param y: ndarray, the F to be written. The first row stores the objective function
+
         """
+        y[0] = 0.0
         tmpout = np.zeros(1)
         for obj in self.linearObj:
             y[0] += obj.A.dot(x)
@@ -471,22 +511,22 @@ class trajOptProblem(probFun):
             for i in range(self.N - 1):
                 tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
                 obj.__callf__(tmpx, tmpout)
-                y[0] += tmpout[0]
-        for obj in self.nonPathObj:
-            for i in range(self.N - 1):
-                tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
-                obj.__callf__(tmpx, tmpout)
                 y[0] += tmpout[0] * h
+        for obj in self.nonLinObj:
+            obj.__callf__(x, tmpout)
+            y[0] += tmpout[0]
         # add lqr cost, if applicable
         if self.lqrObj is not None:
             y[0] += self.lqrObj(h, useX, useU, useP)
 
     def __constrModeF__(self, curRow, h, useT, useX, useU, useP, x, y):
         """Calculate constraint function. F mode
+
         :param curRow: int, index from which we write on
         :param h, useT, useX, useU, useP: parsed solution
         :param y: ndarray, the F to be written
-        :rtype curRow: current row after we write on y
+        :returns: curRow: current row after we write on y
+
         """
         for constr in self.pointConstr:
             tmpx = np.concatenate(([useT[constr.index]], useX[constr.index], useU[constr.index], useP[constr.index]))
@@ -504,10 +544,12 @@ class trajOptProblem(probFun):
 
     def __dynconstrModeF__(self, curRow, h, useT, useX, useU, useP, y):
         """Calculate constraint from dynamics. F mode.
+
         :param curRow: int, index from which we write on
         :param h, useT, useX, useU, useP: the parsed sol
         :param y: ndarray, the F
-        :rtype curRow: current row after we write on y
+        :returns: curRow: current row after we write on y
+
         """
         # loop over all system dynamics constraint
         cDyn = np.reshape(y[curRow:curRow+(self.N - 1) * self.dimx], (self.N - 1, self.dimx))
@@ -519,17 +561,19 @@ class trajOptProblem(probFun):
 
     def __callg__(self, x, y, G, row, col, rec, needg):
         """Evaluate those constraints, objective functions, and constraints. It simultaneously allocates sparsity matrix.
+
         :param x: ndarray, the solution to the problem
         :param y: ndarray, return F
         :param G, row, col: ndarray, information of gradient
         :param rec, needg: if we record/ if we need gradient
+
         """
         h, useT = self.__getTimeGrid__(x)
         useX, useU, useP = self.__parseX__(x)
         # loop over all the objective functions
         curRow, curNg = self.__objModeG__(0, 0, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
         # loop over all system dynamics constraint
-        curRow, curNg = self.__dynconstrModeG__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
+        curRow, curNg = self.__dynconstrModeG__(curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
         curRow, curNg = self.__constrModeG__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
 
     def __dynconstrModeG__(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg):
@@ -630,6 +674,7 @@ class trajOptProblem(probFun):
             curRow, curNg = self.__objModeGUnknown__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
         else:
             curRow, curNg = self.__objModeGKnown__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
+        return curRow, curNg
 
     def __objModeGKnown__(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
         """Calculate objective function. G mode. Sparsity structure is known or easy to guess. Use indices to record. 
@@ -799,6 +844,7 @@ class trajOptProblem(probFun):
 
     def __constrModeG__(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
         """Calculate constraint function. G mode
+
         :param curRow: int, index from which we write on
         :param curNg: int, current index in G
         :param h, useT, useX, useU, useP: parsed solution
@@ -806,8 +852,9 @@ class trajOptProblem(probFun):
         :param G, row, col: ndarray, the G to be written and the locations
         :param rec: bool, if we record row and col
         :param needg: bool, if we need gradient information
-        :rtype curRow: current row after we write on y
-        :rtype curNg: current index in G after this
+        :returns: curRow: current row after we write on y
+        :returns: curNg: current index in G after this
+
         """
         # loop over other constraints
         for constr in self.pointConstr:
@@ -863,7 +910,9 @@ class trajOptProblem(probFun):
 
     def addLQRObj(self, lqrobj):
         """Add a lqr objective function to the problem. It changes lqrObj into a function being called in two modes...
+
         :param lqrobj: a lqrObj class.
+
         """
         Fcol = lqrobj.F.col
         Qcol = lqrobj.Q.col
@@ -884,10 +933,12 @@ class trajOptProblem(probFun):
 
         def __callf__(h, useX, useU, useP):
             """Calculate the lqr cost.
+
             :param h: float, grid size
             :param useX: ndarray, parsed X
             :param useU: ndarray, parsed U
             :param useP: ndarray, parsed P, might be empty
+
             """
             y = 0
             if useF > 0:
@@ -903,12 +954,14 @@ class trajOptProblem(probFun):
 
         def __callg__(h, useX, useU, useP, y, G, row, col, rec, needg):
             """Calculate the lqr cost with gradient information.
+
             :param h: float, grid size
             :param useX, useU, useP: ndarray, parsed X, U, P from x, the same with __call__F
             :param y: ndarray, a location to write the objective function onto
             :param G, row, col: the gradient information
             :param rec: if we record row and col
             :param needg: if we need gradient information.
+
             """
             if not needg:
                 y[0] = __callf__(h, useX, useU, useP)
@@ -921,21 +974,21 @@ class trajOptProblem(probFun):
                 curG = 0
                 if useQ > 0:
                     yQ = np.sum(lqrobj.Q.data * np.sum((useX[:-1, Qcol] - lqrobj.xbase[Qcol]) ** 2, axis=0)) * h
-                    G[curG: curG + (self.N - 1) * useQ] = 2.0 * ((useX[:-1, Qcol] - lqrobj.xbase[Qcol]) * lqrobj.Q.data).flatten()
+                    G[curG: curG + (self.N - 1) * useQ] = 2.0 * h * ((useX[:-1, Qcol] - lqrobj.xbase[Qcol]) * lqrobj.Q.data).flatten()
                     if rec:
                         row[curG: curG + useQ * (self.N - 1)] = 0
                         col[curG: curG + useQ * (self.N - 1)] = (Qcol + self.dimx*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()
                     curG += (self.N - 1) * useQ
                 if useR > 0:
                     yR = np.sum(lqrobj.R.data * np.sum((useU[:-1, Rcol] - lqrobj.ubase[Rcol]) ** 2, axis=0)) * h
-                    G[curG: curG + (self.N - 1) * useR] = 2.0 * ((useU[:-1, Rcol] - lqrobj.ubase[Rcol]) * lqrobj.R.data).flatten()
+                    G[curG: curG + (self.N - 1) * useR] = 2.0 * h * ((useU[:-1, Rcol] - lqrobj.ubase[Rcol]) * lqrobj.R.data).flatten()
                     if rec:
                         row[curG: curG + useR * (self.N - 1)] = 0
                         col[curG: curG + useR * (self.N - 1)] = (self.numX + Rcol + self.dimu*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()
                     curG += (self.N - 1) * useR
                 if useP > 0:
                     yP = np.sum(lqrobj.P.data * np.sum((useP[:-1, Pcol] - lqrobj.pbase[Pcol]) ** 2, axis=0)) * h
-                    G[curG: curG + (self.N - 1) * useP] = 2.0 * ((useU[:-1, Pcol] - lqrobj.ubase[Pcol]) * lqrobj.P.data).flatten()
+                    G[curG: curG + (self.N - 1) * useP] = 2.0 * h * ((useU[:-1, Pcol] - lqrobj.ubase[Pcol]) * lqrobj.P.data).flatten()
                     if rec:
                         row[curG: curG + useP * (self.N - 1)] = 0
                         col[curG: curG + useP * (self.N - 1)] = (self.numX + self.numU + Pcol + self.dimp*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()
@@ -948,13 +1001,13 @@ class trajOptProblem(probFun):
                         col[curG: curG + useF] = np.arange(self.numX - self.dimx, self.numX)
                     curG += useF
                 if self.t0ind > 0:
-                    G[curG] = -(yQ + yR + yP) / (self.N - 1) - tfweight
+                    G[curG] = -(yQ + yR + yP) / h / (self.N - 1) - tfweight
                     if rec:
                         row[curG: curG+1] = 0
                         col[curG: curG+1] = self.t0ind
                     curG += 1
                 if self.tfind > 0:
-                    G[curG] = (yQ + yR + yP) / (self.N - 1) + tfweight
+                    G[curG] = (yQ + yR + yP) / h / (self.N - 1) + tfweight
                     if rec:
                         row[curG: curG+1] = 0
                         col[curG: curG+1] = self.tfind
@@ -968,15 +1021,19 @@ class trajOptProblem(probFun):
 
     def addLinearObj(self, linObj):
         """Add linear objective function.
+
         :param linObj: linearObj class
+
         """
         assert isinstance(linObj, linearObj)
         self.linearObj.append(linObj)
 
     def addLinPointObj(self, linPointObj, path=False):
         """Add linear point objective function.
+
         :param linPointObj: linearPointObj class
         :param path: bool, if this is path obj (at every point except for final one)
+
         """
         assert isinstance(linPointObj, linearPointObj)
         if path:
@@ -986,15 +1043,19 @@ class trajOptProblem(probFun):
 
     def addNonLinObj(self, nonlinObj):
         """Add nonlinear objective function.
-        :param: nonLinObj: a nonLinObj class
+
+        :param nonLinObj: a nonLinObj class
+
         """
         assert isinstance(nonlinObj, nonLinObj)
         self.nonLinObj.append(nonlinObj)
 
     def addNonPointObj(self, nonPntObj, path=False):
         """Add nonlinear point objective.
+
         :param nonPntObj: nonLinObj class
         :param path: bool, if this obj is pointwise
+
         """
         assert isinstance(nonPntObj, nonPointObj)
         if path:
@@ -1004,8 +1065,10 @@ class trajOptProblem(probFun):
 
     def addPointConstr(self, pntConstr, path=False):
         """Add point constraint.
-        :param: pntConstr: pointConstr class
+
+        :param pntConstr: pointConstr class
         :param path: bool, if this obj
+
         """
         assert isinstance(pntConstr, pointConstr)
         if path:
@@ -1015,17 +1078,28 @@ class trajOptProblem(probFun):
 
     def addNonLinConstr(self, constr):
         """Add a general nonlinear constraint.
-        :param: constr: nonLinConstr class
+
+        :param constr: nonLinConstr class
+
         """
         assert isinstance(constr, nonLinConstr)
         self.nonLinConstr.append(constr)
 
     def setN(self, N):
-        """Set N"""
+        """Set N.
+
+        :param N: the size of discretization.
+
+        """
         self.N = N
 
     def sett0tf(self, t0, tf):
-        """Set t0 and tf"""
+        """Set t0 and tf.
+
+        :param t0: float/ndarray (2,) allowable t0
+        :param tf: float/ndarray (2,) allowable tf
+
+        """
         self.t0 = t0
         self.tf = tf
         if np.isscalar(tf):

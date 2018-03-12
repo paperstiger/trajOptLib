@@ -16,7 +16,7 @@ import sys, os, time
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
-import libsnopt
+from . import libsnopt
 
 
 logging.basicConfig(level=logging.INFO)
@@ -31,7 +31,6 @@ def parseResult(rst):
 def directSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=None):
     """Directly solve the optimization problem described using fun with guess x0
 
-    Usage::
     :param fun: A function like y = f(x) where x, y are np.ndarray
     :param x0: np.ndarray (nx,) the initial guess to the solver
     :param nf: int, length of y
@@ -40,7 +39,8 @@ def directSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=No
     :param clb: np.ndarray (nc,) lower bound on return function c
     :param cub: np.ndarray (nc,) upper bound on return function c
     :param cfg: libsnopt.snoptConfig, configuration of snopt solver
-    :rtype rst: a dictionary containing the solution
+    :returns: a dictionary containing the solution
+
     """
     nx = len(x0)
     if nf is None:
@@ -65,7 +65,6 @@ def directSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=No
 def inDirectSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=None):
     """Directly solve the optimization problem described using fun with guess x0
 
-    Usage::
     :param fun: A function like f(x, y) where x, y are np.ndarray
     :param x0: np.ndarray (nx,) the initial guess to the solver
     :param nf: int, length of y
@@ -74,7 +73,8 @@ def inDirectSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=
     :param clb: np.ndarray (nc,) lower bound on return function c
     :param cub: np.ndarray (nc,) upper bound on return function c
     :param cfg: libsnopt.snoptConfig, configuration of snopt solver
-    :rtype rst: a dictionary containing the solution
+    :returns: a dictionary containing the solution
+
     """
     nx = len(x0)
     if nf is None:
@@ -97,7 +97,6 @@ def inDirectSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=
 def gradSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=None):
     """Directly solve the optimization problem described using fun with guess x0
 
-    Usage::
     :param fun: A function like y, J = f(x) where x, y, J are np.ndarray
     :param x0: np.ndarray (nx,) the initial guess to the solver
     :param nf: int, length of y
@@ -106,7 +105,8 @@ def gradSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=None
     :param clb: np.ndarray (nc,) lower bound on return function c
     :param cub: np.ndarray (nc,) upper bound on return function c
     :param cfg: libsnopt.snoptConfig, configuration of snopt solver
-    :rtype rst: a dictionary containing the solution
+    :returns: a dictionary containing the solution
+
     """
     nx = len(x0)
     if nf is None:
@@ -131,7 +131,6 @@ def gradSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=None
 def inGradSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=None):
     """Directly solve the optimization problem described using fun with guess x0
 
-    Usage::
     :param fun: A function like f(x, y, J) where x, y, J are np.ndarray
     :param x0: np.ndarray (nx,) the initial guess to the solver
     :param nf: int, length of y
@@ -140,7 +139,8 @@ def inGradSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=No
     :param clb: np.ndarray (nc,) lower bound on return function c
     :param cub: np.ndarray (nc,) upper bound on return function c
     :param cfg: libsnopt.snoptConfig, configuration of snopt solver
-    :rtype rst: a dictionary containing the solution
+    :returns: a dictionary containing the solution
+
     """
     nx = len(x0)
     if nf is None:
@@ -163,7 +163,6 @@ def inGradSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=No
 def spGradSolve(fun, x0, nf=None, nG=None, xlb=None, xub=None, clb=None, cub=None, cfg=None):
     """Directly solve the optimization problem described using fun with guess x0
 
-    Usage::
     :param fun: A function like y, spJ = f(x) where x, y are np.ndarray, J is scipy.sparse.csc_matrix
     :param nf: int, length of y
     :param nG: int, nnz of spJ
@@ -173,7 +172,8 @@ def spGradSolve(fun, x0, nf=None, nG=None, xlb=None, xub=None, clb=None, cub=Non
     :param clb: np.ndarray (nc,) lower bound on return function c
     :param cub: np.ndarray (nc,) upper bound on return function c
     :param cfg: libsnopt.snoptConfig, configuration of snopt solver
-    :rtype rst: a dictionary containing the solution
+    :returns: a dictionary containing the solution
+
     """
     nx = len(x0)
     if nf is None:
@@ -204,7 +204,6 @@ def spGradSolve(fun, x0, nf=None, nG=None, xlb=None, xub=None, clb=None, cub=Non
 def inSpGradSolve(fun, x0, nf=None, nG=None, xlb=None, xub=None, clb=None, cub=None, cfg=None):
     """Directly solve the optimization problem described using fun with guess x0
 
-    Usage::
     :param fun: A function like f(x, y, G, row, col, rec) where x, y are np.ndarray, J is scipy.sparse.csc_matrix
     :param x0: np.ndarray (nx,) the initial guess to the solver
     :param nf: int, number of f
@@ -214,7 +213,8 @@ def inSpGradSolve(fun, x0, nf=None, nG=None, xlb=None, xub=None, clb=None, cub=N
     :param clb: np.ndarray (nc,) lower bound on return function c
     :param cub: np.ndarray (nc,) upper bound on return function c
     :param cfg: libsnopt.snoptConfig, configuration of snopt solver
-    :rtype rst: a dictionary containing the solution
+    :returns: a dictionary containing the solution
+
     """
     nx = len(x0)
     if nf is None:
@@ -233,7 +233,3 @@ def inSpGradSolve(fun, x0, nf=None, nG=None, xlb=None, xub=None, clb=None, cub=N
         cfg = libsnopt.snoptConfig()
     rst = libsnopt.inSpGradSolve(fun, x0, nx, nf, nG, xlb, xub, clb, cub, cfg)
     return parseResult(rst)
-
-
-if __name__ == '__main__':
-    main()

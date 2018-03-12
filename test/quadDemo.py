@@ -14,13 +14,13 @@ Use the classical model used everywhere else.
 """
 import sys, os, time
 import numpy as np
-# import matplotlib.pyplot as plt
 import logging
 from pyLib.io import getOnOffArgs
-from trajOptBase import system, nonPointObj, nonLinObj
-from trajOptProblem import trajOptProblem
-from libsnopt import snoptConfig, probFun, solver
-from utility import showSol
+sys.path.append('../')
+from trajOptLib.trajOptBase import system, nonPointObj, nonLinObj, lqrObj
+from trajOptLib.trajOptProblem import trajOptProblem
+from trajOptLib.libsnopt import snoptConfig, probFun, solver
+from trajOptLib.utility import showSol
 from scipy.sparse import coo_matrix
 from libRotor import Rotor
 
@@ -84,7 +84,11 @@ def main():
     prob.xfbd = [np.zeros(sys.nx), np.zeros(sys.nx)]
     prob.xfbd[0][:3] = 5
     prob.xfbd[1][:3] = 5
-    prob.addNonLinObj(cost)
+    if False:
+        prob.addNonLinObj(cost)
+    else:
+        lqr = lqrObj(R=np.ones(4))
+        prob.addLQRObj(lqr)
     prob.preProcess()
     # construct a solver for the problem
     cfg = snoptConfig()
