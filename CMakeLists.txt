@@ -1,16 +1,22 @@
 cmake_minimum_required(VERSION 2.8)
 project(trajOptLib)
 
-set(CMAKE_DEBUG_POSTFIX "d")
+# set(CMAKE_DEBUG_POSTFIX "d")
 set(CMAKE_CXX_STANDARD 11)
+
+option(DEBUG "Debug" ON)
+if(DEBUG)
+    add_definitions(-DDEBUG)
+    option(CMAKE_BUILD_TYPE "BType" Debug)
+endif(DEBUG)
 
 # prepare two libs, snopt and f2c
 
-set(TIGER_DIR "${PROJECT_SOURCE_DIR}/lib”)  # so I can #include “TigerTools/TigerEigen.h”
+set(TIGER_DIR "${PROJECT_SOURCE_DIR}/lib")  # so I can #include “TigerTools/TigerEigen.h”
 set(SNOPTDIR "snopt7")
 set(SNOPTPATH "${PROJECT_SOURCE_DIR}/lib/${SNOPTDIR}")
-set(SNPLIB "snoptc”)
-set(PYLIBDIR “${PROJECT_SOURCE_DIR}/trajOptLib)
+set(SNPLIB "snoptc")
+set(PYLIBDIR "${PROJECT_SOURCE_DIR}/trajOptLib")
 set(f2cPATH "${SNOPTPATH}/win64")  # this might change
 set(f2cLIB f2c)
 # set(INCDIR "${PROJECT_SOURCE_DIR}/Headers")
@@ -24,18 +30,18 @@ file(GLOB snoptcsrc
 	"${SNOPTPATH}/cppsrc/*.cpp"
 	"${SNOPTPATH}/cppsrc/*.cc"
 	)
-add_library(
-		${SNPLIB}
+add_library(${SNPLIB}
 		SHARED
 		${snoptcsrc}
 	)
 set_target_properties(${SNPLIB} PROPERTIES
-			 LIBRARY_OUTPUT_DIRECTORY  "${LIBDIR}”)
+			 LIBRARY_OUTPUT_DIRECTORY  "${LIBDIR}")
 target_include_directories(${SNPLIB} PUBLIC "${f2cPATH}")
+target_link_libraries(${SNPLIB} f2c)
 set(SNPLIBPATH ${LIBDIR})
 set(SNPINC ${SNOPTPATH}/cppsrc)
 
-add_subdirectory(Libs/F2CLIBS)
+add_subdirectory(lib/libf2c)
 add_subdirectory(trajOptLib/snoptCpp)  # so I can make libsnopt which contains class definition
 
 

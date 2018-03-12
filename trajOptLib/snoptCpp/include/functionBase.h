@@ -16,10 +16,20 @@ class funBase{
         bool grad = false;
         int nG = 0;
 
-        funBase(){}
+        funBase(){
+#ifdef DEBUG
+            std::cout << "Entering construct of funBase\n";
+#endif
+        }
         funBase(int nx_, int nf_): nx(nx_), nf(nf_){
+#ifdef DEBUG
+            std::cout << "Entering construct of funBase\n";
+#endif
         }
         funBase(int nx_, int nf_, int ng_): nx(nx_), nf(nf_), nG(ng_), grad(true){
+#ifdef DEBUG
+            std::cout << "Entering construct of funBase\n";
+#endif
         }
 
         virtual void operator()(cRefV x, RefV F) = 0;  // A function to be overwritten by subclass, this is called to evaluate

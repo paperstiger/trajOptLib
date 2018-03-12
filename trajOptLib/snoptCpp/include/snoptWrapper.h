@@ -15,7 +15,6 @@
 #include "snopt.hh"
 #include "functionBase.h"
 #include "snoptProblem.hh"
-#include "TigerTools/TigerTools.h"
 #include "TigerTools/TigerEigen.h"
 
 
@@ -102,6 +101,11 @@ public:
     int printlevel = 0;
     double optTol = 1e-6;
     double feaTol = 1e-6;
+    snoptConfig(){
+#ifdef DEBUG
+        std::cout << "Entering construction of snopt config\n";
+#endif
+    }
     void addIntOption(const std::string &nm, int value){
         intOptions.push_back(std::make_pair(nm, value));
     }
@@ -133,7 +137,12 @@ public:
     double *getFlow() const{return Flow;}
     double *getFupp() const{return Fupp;}
     //Construction function
-    snoptWrapper(ProblemFun *pfun, snoptConfig *cfg=nullptr): prob(pfun), snpcfg(cfg){
+    snoptWrapper(ProblemFun *pfun, snoptConfig *cfg=nullptr){
+#ifdef DEBUG
+        std::cout << "Entering construction\n";
+#endif
+        prob = pfun;
+        snpcfg = cfg;
         PROB = pfun;
         n = pfun->getNx();
         neF = pfun->getNf();
@@ -142,6 +151,9 @@ public:
             lenA = 1;
         else
             lenA  = n * neF;
+#ifdef DEBUG
+        std::cout << "Allocate space\n";
+#endif
         iAfun = new integer[lenA];
         jAvar = new integer[lenA];
         mA  = new doublereal[lenA];
@@ -174,9 +186,15 @@ public:
         doublereal ObjAdd = 0;
 
         /***set bound on x and f***/
+#ifdef DEBUG
+        std::cout << "set bounds\n";
+#endif
         setxbound();
         setfbound();
 
+#ifdef DEBUG
+        std::cout << "get gradient information\n";
+#endif
         /***Gradients, depends on how we are defining the problem***/
 #ifdef __APPLE__
         typedef Eigen::Map<Eigen::Matrix<long, -1, 1> > MapVi;
@@ -196,6 +214,9 @@ public:
             ToyProb.setNeA         ( neA );
             ToyProb.setNeG         ( neG );
         }
+#ifdef DEBUG
+        std::cout << "set properties\n";
+#endif
         ToyProb.setProblemSize( n, neF );
         ToyProb.setObjective  ( ObjRow, ObjAdd );
         ToyProb.setA          ( lenA, iAfun, jAvar, mA );
@@ -237,6 +258,9 @@ public:
                 ToyProb.setRealParameter(std::get<0>(fcfg).c_str(), std::get<1>(fcfg));
             }
         }
+#ifdef DEBUG
+        std::cout << "finish construct\n";
+#endif
     }
 
     void setX(const double *xin){

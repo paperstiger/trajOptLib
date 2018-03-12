@@ -15,9 +15,9 @@ import sys, os, time
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
-import libsnopt
 sys.path.append('../..')
-from trajOptLib.snoptWrapper.snoptWrapper import directSolve, inDirectSolve, gradSolve, inGradSolve, spGradSolve, inSpGradSolve
+import trajOptLib.libsnopt as libsnopt
+from trajOptLib.snoptWrapper import directSolve, inDirectSolve, gradSolve, inGradSolve, spGradSolve, inSpGradSolve
 from scipy.sparse import csc_matrix
 from pyLib.io import getOnOffArgs
 

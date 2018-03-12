@@ -3,7 +3,6 @@
 #include <string.h>
 #include "snopt.hh"
 #include "snoptProblem.hh"
-#include "Tools/VecMat.h"
 #include "snoptWrapper.h"
 
 ProblemFun *PROB;

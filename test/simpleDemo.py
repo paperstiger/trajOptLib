@@ -157,6 +157,9 @@ def fdmode(lqr):
     """Solve the simple problem with finite difference."""
     sys = oneDcase()
     cost = quadCost()
+    x0 = np.random.random(2)
+    u = np.random.random(1)
+    print(sys.dyn(0, x0, u))
     N = 20
     t0 = 0.0
     tf = 2.0

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.6)
-project(trajOptWrapper)
+project(rotorWrapper)
 
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     IF(${PROJECT_SOURCE_DIR} MATCHES "^.*gt70.*$")
@@ -32,7 +32,7 @@ set(CMAKE_CXX_STANDARD 11)
 
 set(COMLIB minpack tigertools tools)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Script)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
 set(CMAKE_BUILD_DIRECTORY ${PROJECT_SOURCE_DIR}/Build)
 
 include_directories(${INCDIR})
@@ -49,10 +49,10 @@ include_directories("/usr/include/python2.7")
 include_directories("/usr/local/include/eigen3")
 include_directories("/usr/include/eigen3")
 set(Rotor_FILES
-    src/solverwrapper.cpp
+    src/rotorWrapper.cpp
     )
 add_library(Rotor SHARED ${Rotor_FILES})
 target_link_libraries(Rotor python2.7 ${JSONOBJ} ${COMLIB} ${SNPLIB})
 
 install(TARGETS Rotor
-    DESTINATION ${PROJECT_SOURCE_DIR}/Script)
+    DESTINATION ${PROJECT_SOURCE_DIR}/..)

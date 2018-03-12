@@ -42,7 +42,11 @@ class pyProbFun: public ProblemFun{
 
 class pySnoptWrapper: public snoptWrapper{
     public:
-        pySnoptWrapper(ProblemFun &fun, snoptConfig &cfg): snoptWrapper(&fun, &cfg){};
+        pySnoptWrapper(ProblemFun &fun, snoptConfig &cfg): snoptWrapper(&fun, &cfg){
+#ifdef DEBUG
+            std::cout << "Entering construct of pySnoptWrapper\n";
+#endif
+        };
         optResult solve(RefV x){
             int flag = snoptWrapper::solve(x.data());
             optResult rst;
