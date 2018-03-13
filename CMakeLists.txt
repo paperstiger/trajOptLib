@@ -7,10 +7,12 @@ find_package (Eigen3 REQUIRED)
 set(EIGEN_DIR ${EIGEN3_INCLUDE_DIR})
 
 option(DEBUG "Debug" OFF)
+set(PYBIND11_PYTHON_VERSION 2.7 CACHE STRING "")
 if(DEBUG)
     add_definitions(-DDEBUG)
     option(CMAKE_BUILD_TYPE "BType" Debug)
 endif(DEBUG)
+message("Python version is ${PYBIND11_PYTHON_VERSION}")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(CMAKE_CXX_STANDARD 11)
@@ -28,6 +30,12 @@ set(PYLIBDIR "${PROJECT_SOURCE_DIR}/trajOptLib")
 set(f2cPATH "${SNOPTPATH}/win64")  # this might change
 set(f2cLIB f2c)
 set(LIBDIR "${PROJECT_SOURCE_DIR}/lib")
+
+add_subdirectory(lib/pybind11)
+add_subdirectory(lib/libf2c)
+add_subdirectory(test/rotorWrapper)
+
+
 
 # Build a SNOPT library if necessary
 file(GLOB snoptcsrc
@@ -49,9 +57,6 @@ target_link_libraries(${SNPLIB} f2c)
 set(SNPLIBPATH ${LIBDIR})
 set(SNPINC ${SNOPTPATH}/win64 ${SNOPTPATH}/cppsrc)
 
-add_subdirectory(lib/pybind11)
-add_subdirectory(lib/libf2c)
-add_subdirectory(test/rotorWrapper)
 add_subdirectory(trajOptLib/snoptCpp)  # so I can make libsnopt which contains class definition
 
 include_directories(${SNPINC})
