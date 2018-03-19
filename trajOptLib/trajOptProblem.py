@@ -15,7 +15,7 @@ import numpy as np
 import logging
 from .trajOptBase import system, linearObj, linearPointObj, nonLinObj, nonPointObj, pointConstr, nonLinConstr, lqrObj
 from .libsnopt import snoptConfig, probFun, solver
-from .utility import parseX
+from .utility import parseX, randomGenInBound
 from scipy import sparse
 from scipy.sparse import spmatrix, coo_matrix
 
@@ -39,8 +39,6 @@ class trajOptProblem(probFun):
     8. Create snoptConfig instance and choose desired options
     9. Construct the solver
     10. Use the solver to solve with either automatic guess or user provided guess
-
-    :exclude-members: getSparsity
 
     """
     def __init__(self, sys, N=20, t0=0.0, tf=1.0, gradmode=True):
@@ -101,13 +99,13 @@ class trajOptProblem(probFun):
             numT -= 1
         if self.fixtf:
             numT -= 1
-        self.t0ind, self.tfind = self.__getTimeIndices__()
         numSol = numX + numU + numP + numT
         self.numX = numX
         self.numU = numU
         self.numP = numP
         self.numT = numT
         self.numSol = numSol
+        self.t0ind, self.tfind = self.__getTimeIndices__()
 
     def preProcess(self):
         """Initialize the instances of probFun now we are ready.
@@ -131,6 +129,36 @@ class trajOptProblem(probFun):
         if self.gradmode:  # in this case, we randomly generate a guess and use it to initialize everything
             randX = self.randomGenX()
             self.__turnOnGrad__(randX)
+
+    def randomGenX(self):
+        """A more reansonable approach to generate random guess for the problem.
+
+        It considers bounds on initial and final states so this is satisfied.
+        Then it linearly interpolate between states.
+        Controls are randomly generated within control bound, if it presents. Otherwise [-1, 1]
+
+        :return x: ndarray, (numSol, ) an initial guess of the solution
+        """
+        randX = np.zeros(self.numSol)
+        X = np.reshape(randX[:self.numX], (self.N, self.dimx))
+        U = np.reshape(randX[self.numX: self.numX + self.numU], (self.N, self.dimu))
+        # randomly generate x0 and xf
+        X[0] = randomGenInBound(self.x0bd, self.dimx)
+        X[-1] = randomGenInBound(self.xfbd, self.dimx)
+        # straight path go there
+        for i in range(self.dimx):
+            X[:, i] = np.linspace(X[0, i], X[-1, i], self.N)
+        for i in range(self.N):
+            U[i] = randomGenInBound(self.ubd, self.dimu)
+        if self.numP > 0:
+            P = np.reshape(randX[self.numX + self.numU: self.numX + self.numU + self.numP], (self.N, self.dimp))
+            for i in range(self.N):
+                P[i] = randomGenInBound(self.pbd, self.dimp)
+        if self.t0ind > 0:
+            randX[self.t0ind] = randomGenInBound(self.t0)
+        if self.tfind > 0:
+            randX[self.tfind] = randomGenInBound(self.tf)
+        return randX
 
     def __turnOnGrad__(self, x0):
         """Turn on gradient, this is called after an initial x0 has been generated"""
@@ -176,7 +204,7 @@ class trajOptProblem(probFun):
             nnz = nrow * ncol
             self.dynSparse = False
         elif isinstance(Jac, spmatrix):
-            nnz = Jac.nnz
+            nnz = Jac.nnz  # TODO: this is dangerous since nnz might be misleading
             self.dynSparse = True
         if not self.dynSparse:
             dynG = (self.N - 1) * self.dimx * (self.dimpoint + 1 + self.numT)  # G from dyn
@@ -633,7 +661,7 @@ class trajOptProblem(probFun):
                     Jac.data *= h  # as always, no damage to this
                     eyemat = sparse.diags(np.ones(self.dimx), offsets=1, shape=Jac.shape)
                     Jac += eyemat  # TODO: this assume forward Euler, backward needs update
-                    dynnnz = Jac.nnz - Jac.getcol(0).nnz
+                    dynnnz = Jac.nnz - Jac.getcol(0).nnz  # TODO: this might cause serious issues since it changes structure
                     # convention is to assign all but first column, then assign first column
                     if not sparse.isspmatrix_coo(Jac):
                         Jac = Jac.tocoo()
@@ -862,7 +890,7 @@ class trajOptProblem(probFun):
             pieceG = G[curNg: curNg + constr.nG]
             pieceRow = row[curNg: curNg + constr.nG]
             pieceCol = col[curNg: curNg + constr.nG]
-            constr.__evalg__(tmpx, y[curRow: curRow + constr.nf], pieceG, pieceRow, pieceCol, rec, needg)
+            constr.__callg__(tmpx, y[curRow: curRow + constr.nf], pieceG, pieceRow, pieceCol, rec, needg)
             if rec:
                 pieceRow += curRow
                 pieceCol[:] = self.__patchCol__(constr.index, pieceCol)
@@ -874,7 +902,7 @@ class trajOptProblem(probFun):
                 pieceG = G[curNg: curNg + constr.nG]
                 pieceRow = row[curNg: curNg + constr.nG]
                 pieceCol = col[curNg: curNg + constr.nG]
-                constr.__evalg__(tmpx, y[curRow: curRow + constr.nf], pieceG, pieceRow, pieceCol, rec, needg)
+                constr.__callg__(tmpx, y[curRow: curRow + constr.nf], pieceG, pieceRow, pieceCol, rec, needg)
                 if rec:
                     pieceRow += curRow
                     pieceCol[:] = self.__patchCol__(i, pieceCol)
@@ -884,10 +912,10 @@ class trajOptProblem(probFun):
             pieceG = G[curNg: curNg + constr.nG]
             pieceRow = row[curNg: curNg + constr.nG]
             pieceCol = col[curNg: curNg + constr.nG]
-            constr.__evalg__(x, y[curRow: curRow + constr.nf], pieceG, pieceRow, pieceCol, rec, needg)
+            constr.__callg__(x, y[curRow: curRow + constr.nf], pieceG, pieceRow, pieceCol, rec, needg)
             if rec:
                 pieceRow += curRow
-            curRow += curRow
+            curRow += constr.nf
             curNg += constr.nG
         return curRow, curNg
 
@@ -925,13 +953,14 @@ class trajOptProblem(probFun):
             useP = len(Pcol)
         else:
             useP = 0
+            Pcol = []
         if lqrobj.tfweight is not None:
             tfweight = lqrobj.tfweight
         else:
             tfweight = 0.0
         self.LQRnG = (self.N - 1) * (useQ + useR + useP) + useF + self.numT
 
-        def __callf__(h, useX, useU, useP):
+        def __callf__(h, useX, useU, useP_):
             """Calculate the lqr cost.
 
             :param h: float, grid size
@@ -948,11 +977,11 @@ class trajOptProblem(probFun):
             if useR > 0:
                 y += np.sum(lqrobj.R.data * np.sum((useU[:-1, Rcol] - lqrobj.ubase[Rcol]) ** 2, axis=0)) * h
             if useP > 0:
-                y += np.sum(lqrobj.P.data * np.sum((useP[:-1, Pcol] - lqrobj.pbase[Pcol]) ** 2, axis=0)) * h
+                y += np.sum(lqrobj.P.data * np.sum((useP_[:-1, Pcol] - lqrobj.pbase[Pcol]) ** 2, axis=0)) * h
             y += tfweight * (h * (self.N - 1))
             return y
 
-        def __callg__(h, useX, useU, useP, y, G, row, col, rec, needg):
+        def __callg__(h, useX, useU, useP_, y, G, row, col, rec, needg):
             """Calculate the lqr cost with gradient information.
 
             :param h: float, grid size
@@ -964,7 +993,7 @@ class trajOptProblem(probFun):
 
             """
             if not needg:
-                y[0] = __callf__(h, useX, useU, useP)
+                y[0] = __callf__(h, useX, useU, useP_)
             else:
                 yF = 0.0
                 yQ = 0.0
@@ -976,8 +1005,8 @@ class trajOptProblem(probFun):
                     yQ = np.sum(lqrobj.Q.data * np.sum((useX[:-1, Qcol] - lqrobj.xbase[Qcol]) ** 2, axis=0)) * h
                     G[curG: curG + (self.N - 1) * useQ] = 2.0 * h * ((useX[:-1, Qcol] - lqrobj.xbase[Qcol]) * lqrobj.Q.data).flatten()
                     if rec:
-                        row[curG: curG + useQ * (self.N - 1)] = 0
-                        col[curG: curG + useQ * (self.N - 1)] = (Qcol + self.dimx*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()
+                        row[curG: curG + self.useQ * (self.N - 1)] = 0
+                        col[curG: curG + self.useQ * (self.N - 1)] = (Qcol + self.dimx*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()
                     curG += (self.N - 1) * useQ
                 if useR > 0:
                     yR = np.sum(lqrobj.R.data * np.sum((useU[:-1, Rcol] - lqrobj.ubase[Rcol]) ** 2, axis=0)) * h
@@ -987,8 +1016,8 @@ class trajOptProblem(probFun):
                         col[curG: curG + useR * (self.N - 1)] = (self.numX + Rcol + self.dimu*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()
                     curG += (self.N - 1) * useR
                 if useP > 0:
-                    yP = np.sum(lqrobj.P.data * np.sum((useP[:-1, Pcol] - lqrobj.pbase[Pcol]) ** 2, axis=0)) * h
-                    G[curG: curG + (self.N - 1) * useP] = 2.0 * h * ((useU[:-1, Pcol] - lqrobj.ubase[Pcol]) * lqrobj.P.data).flatten()
+                    yP = np.sum(lqrobj.P.data * np.sum((useP_[:-1, Pcol] - lqrobj.pbase[Pcol]) ** 2, axis=0)) * h
+                    G[curG: curG + (self.N - 1) * useP] = 2.0 * h * ((useP_[:-1, Pcol] - lqrobj.pbase[Pcol]) * lqrobj.P.data).flatten()
                     if rec:
                         row[curG: curG + useP * (self.N - 1)] = 0
                         col[curG: curG + useP * (self.N - 1)] = (self.numX + self.numU + Pcol + self.dimp*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()

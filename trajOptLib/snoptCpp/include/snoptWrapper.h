@@ -99,6 +99,10 @@ public:
     std::vector<intOption> intOptions;
     std::vector<floatOption> floatOptions;
     int printlevel = 0;
+    int verifylevel = 0;
+    int majoriterlimit = 0;
+    int minoriterlimit = 0;
+    int iterationslimit = 0;
     double optTol = 1e-6;
     double feaTol = 1e-6;
     snoptConfig(){
@@ -245,8 +249,18 @@ public:
             ToyProb.setRealParameter("Major optimality tolerance", snpcfg->optTol);
             ToyProb.setRealParameter("Major feasibility tolerance", snpcfg->feaTol);
             ToyProb.setIntParameter( "Major print level", snpcfg->printlevel);
+            ToyProb.setIntParameter( "Verify level", snpcfg->verifylevel);
             if(snpcfg->printFile.size() > 0){
                 ToyProb.setPrintFile(snpcfg->printFile.c_str());
+            }
+            if(snpcfg->majoriterlimit > 0){
+                ToyProb.setIntParameter("Major iterations limit", snpcfg->majoriterlimit);
+            }
+            if(snpcfg->minoriterlimit > 0){
+                ToyProb.setIntParameter("Minor iterations limit", snpcfg->minoriterlimit);
+            }
+            if(snpcfg->iterationslimit > 0){
+                ToyProb.setIntParameter("Iterations limit", snpcfg->iterationslimit);
             }
             for(auto &icfg : snpcfg->intOptions){
                 ToyProb.setIntParameter(std::get<0>(icfg).c_str(), std::get<1>(icfg));
@@ -294,6 +308,7 @@ public:
 #endif
     }
 
+    // generate a random guess for certain problems, all variables are random
     void ranGenX(){
         MapV mX(x, n);
         mX.setRandom();
@@ -353,6 +368,8 @@ public:
         ToyProb.setRealParameter("Major optimality tolerance", tol);
     }
     void setPrintFile(std::string &fnm){
+        FILE *fp = fopen(fnm.c_str(), "w");  // wipe out all contents
+        fclose(fp);
         ToyProb.setPrintFile  (fnm.c_str());
     }
     void setFeaTol(double tol){

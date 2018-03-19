@@ -112,5 +112,32 @@ def showSol(solDict, xsplit=None, usplit=None, psplit=None):
     plt.show()
 
 
+def randomGenInBound(bds, n=None):
+    """Randomly generate a vector within bounds / [-1, 1]
+
+    :param bds: list/tuple of ndarray, the bounds of variable
+    :param n: if bds are None, this is for determining size of vector
+    :return x: ndarray, the random generated variable
+
+    """
+    assert len(bds) == 2
+    lb, ub = bds
+    if not isinstance(lb, np.ndarray):
+        lb = np.array([lb])
+        ub = np.array([ub])
+    if (not lb is None) and (not ub is None):
+        x = np.random.random(lb.shape) * (ub - lb) + lb
+    elif lb is None:
+        if ub is None:
+            assert n is not None
+            x = np.random.random(n) * 2 - 1
+        else:
+            x = ub - np.random.random(ub.shape)
+    else:
+        assert ub is None
+        x = lb + np.random.random(lb.shape)
+    return x
+
+
 if __name__ == '__main__':
     main()
