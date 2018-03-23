@@ -249,6 +249,7 @@ public:
             ToyProb.setRealParameter("Major optimality tolerance", snpcfg->optTol);
             ToyProb.setRealParameter("Major feasibility tolerance", snpcfg->feaTol);
             ToyProb.setIntParameter( "Major print level", snpcfg->printlevel);
+            ToyProb.setIntParameter( "Minor print level", 0 );
             ToyProb.setIntParameter( "Verify level", snpcfg->verifylevel);
             if(snpcfg->printFile.size() > 0){
                 ToyProb.setPrintFile(snpcfg->printFile.c_str());
