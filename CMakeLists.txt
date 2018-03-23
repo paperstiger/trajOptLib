@@ -51,10 +51,10 @@ add_library(${SNPLIB}
 		${snoptcsrc}
 	)
 set_target_properties(${SNPLIB} PROPERTIES
-			 LIBRARY_OUTPUT_DIRECTORY  "${LIBDIR}")
+			 LIBRARY_OUTPUT_DIRECTORY  "${PYLIBDIR}")
 target_include_directories(${SNPLIB} PUBLIC "${f2cPATH}")
 target_link_libraries(${SNPLIB} f2c)
-set(SNPLIBPATH ${LIBDIR})
+set(SNPLIBPATH ${PYLIBDIR})
 set(SNPINC ${SNOPTPATH}/win64 ${SNOPTPATH}/cppsrc)
 
 add_subdirectory(trajOptLib/snoptCpp)  # so I can make libsnopt which contains class definition

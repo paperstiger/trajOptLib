@@ -36,7 +36,7 @@ def parseX(x, N, dimx, dimu, dimp, uset0, usetf, setfinal=True):
     else:
         fixtf = False
     lenX = N * dimx + N * dimu + N * dimp + 2 - (fixt0 + fixtf)
-    assert len(x) == lenX
+    assert len(x) >= lenX
     # parse state
     state = np.reshape(x[:N*dimx], (N, dimx))
     ctrl = np.reshape(x[N*dimx:N*(dimx+dimu)], (N, dimu))
@@ -137,6 +137,48 @@ def randomGenInBound(bds, n=None):
         assert ub is None
         x = lb + np.random.random(lb.shape)
     return x
+
+
+def checkInBounds(x, bds):
+    """Check the position of variables in a bound.
+
+    Basically, it returns the position of actual value in the bounds [-1, 1].
+    If both sides are bounded, it simply calculate this value.
+    If one side is bounded, it check if value if within certain threshold with the bound
+    Unbounded variables shall always return 0, the same applies to equality-bounded variables.
+
+    """
+    threshold = 1e-6
+    lb, ub = bds
+    assert len(lb) == len(ub)
+    lenbd = len(lb)
+    if x.ndim == 1:
+        assert len(x) % lenbd == 0
+        X = np.reshape(x, (-1, lenbd))
+    elif x.ndim == 2:
+        assert x.shape[1] == lenbd
+        X = x
+    position = np.zeros_like(X)
+    for i in range(lenbd):
+        lb_ = np.atleast_1d(lb[i])
+        ub_ = np.atleast_1d(ub[i])
+        assert lb_ <= ub_
+        if lb_ <= -1e19:
+            if ub_ > 1e19:
+                position[:, i] = 0
+            else:
+                position[:, i] = np.where(X[:, i] < ub_ - threshold, 0, 1)
+        else:
+            if ub_ > 1e19:
+                position[:, i] = np.where(X[:, i] > lb_ + threshold, 0, -1)
+            elif ub_ > lb_:
+                position[:, i] = -1.0 + 2.0 * (X[:, i] - lb_) / (ub_ - lb_)
+            else:
+                position[:, i] = np.where(np.abs(X[:, i] - lb_) < threshold, 0, np.where(X[:, i] > lb_, 1, -1))
+    if x.ndim == 1:
+        return position.flatten()
+    else:
+        return position
 
 
 if __name__ == '__main__':

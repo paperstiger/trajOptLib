@@ -59,6 +59,7 @@ class pySnoptWrapper: public snoptWrapper{
             return rst;
         }
         optResult solve(){
+            srand(time(NULL));
             int flag = snoptWrapper::solve();
             optResult rst;
             rst.flag = flag;

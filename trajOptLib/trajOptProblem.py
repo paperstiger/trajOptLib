@@ -15,13 +15,37 @@ import numpy as np
 import logging
 from .trajOptBase import system, linearObj, linearPointObj, nonLinObj, nonPointObj, pointConstr, nonLinConstr, lqrObj
 from .libsnopt import snoptConfig, probFun, solver
-from .utility import parseX, randomGenInBound
+from .utility import parseX, randomGenInBound, checkInBounds
 from scipy import sparse
 from scipy.sparse import spmatrix, coo_matrix
 
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+
+class addX(object):
+    """A description of additional optimizing parameter.
+
+    It is intended to be used if the optimal control has like point constraint.
+    In this class the user has to supply the size and bounds of those variables.
+    """
+    def __init__(self, n, lb=None, ub=None):
+        """Constructor of this class.
+
+        :param n: int, length of this variable.
+        :param lb: ndarray, (n,) lower bounds for those variables. None means no bound
+        :param ub: ndarray, (n,) uppere bounds for those variables. None means no bound
+        """
+        self.n = n
+        if lb is None:
+            self.lb = -1e20 * np.ones(n)
+        else:
+            self.lb = lb
+        if ub is None:
+            self.ub = 1e20 * np.ones(n)
+        else:
+            self.ub = ub
 
 
 class trajOptProblem(probFun):
@@ -41,7 +65,7 @@ class trajOptProblem(probFun):
     10. Use the solver to solve with either automatic guess or user provided guess
 
     """
-    def __init__(self, sys, N=20, t0=0.0, tf=1.0, gradmode=True):
+    def __init__(self, sys, N=20, t0=0.0, tf=1.0, gradmode=True, addx=None):
         """Initialize problem by system, discretization grid size, and allowable time
 
         :param sys: system, describe system dynamics
@@ -49,6 +73,7 @@ class trajOptProblem(probFun):
         :param t0: float/array like, allowable t0
         :param tf: float/array like, allowable tf
         :param gradmode: bool, sets if we use gradient mode.
+        :param addX: list of addX / one addX / None, additional optimization variables.
 
         """
         assert isinstance(sys, system)
@@ -94,6 +119,15 @@ class trajOptProblem(probFun):
         numX = self.N * self.dimx
         numU = self.N * self.dimu
         numP = self.N * self.dimp
+        if addx is None:
+            self.lenAddX = 0
+        else:
+            if not isinstance(addx, list):
+                addx = [addx]
+            for tmp in addx:
+                assert isinstance(tmp, addX)
+            self.addX = addx
+            self.lenAddX = sum([tmp.n for tmp in addx])
         numT = 2
         if self.fixt0:
             numT -= 1
@@ -104,7 +138,8 @@ class trajOptProblem(probFun):
         self.numU = numU
         self.numP = numP
         self.numT = numT
-        self.numSol = numSol
+        self.numTraj = numSol
+        self.numSol = numSol + self.lenAddX
         self.t0ind, self.tfind = self.__getTimeIndices__()
 
     def preProcess(self):
@@ -441,6 +476,12 @@ class trajOptProblem(probFun):
             else:
                 xlb[numX+numU+numP] = self.tf[0]
                 xub[numX+numU+numP] = self.tf[1]
+        # set bound on addX
+        if self.lenAddX != 0:
+            curN = self.numTraj
+            for addx in self.addX:
+                xlb[curN: curN + addx.n] = addx.lb
+                xub[curN: curN + addx.n] = addx.ub
         # assign to where it should belong to
         self.xlb = xlb
         self.xub = xub
@@ -459,6 +500,14 @@ class trajOptProblem(probFun):
             if constr.ub is not None:
                 cub[cind0: cind0 + constr.nf] = constr.ub
             cind0 += constr.nf
+        for constr in self.pathConstr:
+            tmplb = np.reshape(clb[cind0: cind0 + constr.nf * self.N], (self.N, constr.nf))
+            tmpub = np.reshape(cub[cind0: cind0 + constr.nf * self.N], (self.N, constr.nf))
+            cind0 += constr.nf * self.N
+            if constr.lb is not None:
+                tmplb[:] = constr.lb
+            if constr.ub is not None:
+                tmpub[:] = constr.ub
         # assign to where it should belong to
         self.lb = clb
         self.ub = cub
@@ -492,6 +541,70 @@ class trajOptProblem(probFun):
         useU = np.reshape(x[numX: numX + numU], (self.N, self.dimu))
         useP = np.reshape(x[numX + numU: numX + numU + numP], (self.N, self.dimp))
         return useX, useU, useP
+
+    def parseF(self, guess):
+        """Give an guess, evaluate it and parse into parts.
+
+        :param guess: ndarray, (numSol, ) a guess or a solution to check
+        :return : dict, containing objective and parsed constraints
+        """
+        assert len(guess) == self.numSol
+        N = self.N
+        dimx = self.dimx
+        y = np.zeros(self.numF)
+        if self.gradmode:
+            self.__callg__(guess, y, np.zeros(1), np.zeros(1), np.zeros(1), False, False)
+        else:
+            self.__callf__(guess, y)
+        obj = y[0]
+        dynCon = np.reshape(y[1:(N-1)*dimx+1], (N - 1, dimx))
+        curN = 1 + (N - 1) * dimx
+        pointCon = []
+        for constr in self.pointConstr:
+            pointCon.append(y[curN: curN + constr.nf])
+            curN += constr.nf
+        pathCon = []
+        for constr in self.pathConstr:
+            pathCon.append(np.reshape(y[curN: curN+N*constr.nf], (N, constr.nf)))
+            curN += N*constr.nf
+        nonLinCon = []
+        for constr in self.nonLinConstr:
+            nonLinCon.append(y[curN: curN+constr.nf])
+            curN += constr.nf
+        # check bounds, return a -1, 1 value for non-equality bounds, and 0 for equality bounds
+        useX, useU, useP = self.__parseX__(guess)
+        Xbound = checkInBounds(useX, self.xbd)
+        x0bound = checkInBounds(useX[0], self.x0bd)
+        xfbound = checkInBounds(useX[-1], self.xfbd)
+        ubound = checkInBounds(useU, self.ubd)
+        if self.dimp > 0:
+            pbound = checkInBounds(useP, self.pbd)
+        else:
+            pbound = None
+        if self.t0ind > 0:
+            t0bound = checkInBounds([guess[self.t0ind]], self.t0)
+        else:
+            t0bound = None
+        if self.tfind > 0:
+            tfbound = checkInBounds([guess[self.tfind]], self.tf)
+        else:
+            tfbound = None
+        if self.lenAddX > 0:
+            addx = self.__parseAddX__(guess)
+            addXbound = [checkInBounds(addx_, [addx__.lb, addx__.ub]) for addx_, addx__ in zip(addx, self.addX)]
+        else:
+            addXbound = None
+        return {'obj': obj, 'dyn': dynCon, 'point': pointCon, 'path': pathCon, 'nonlin': nonLinCon,
+                'Xbd': Xbound, 'Ubd': ubound, 'x0bd': x0bound, 'xfbd': xfbound, 'Pbd': pbound,
+                't0bd': t0bound, 'tfbd': tfbound, 'addXbd': addXbound}
+
+    def __parseAddX__(self, x):
+        numTraj = self.numTraj
+        addX = []
+        for addx in self.addX:
+            addX.append(x[numTraj: numTraj + addx.n])
+            numTraj += addx.n
+        return addX
 
     def __callf__(self, x, y):
         """Evaluate those constraints and objective functions."""
@@ -561,7 +674,7 @@ class trajOptProblem(probFun):
             constr.__evalf__(tmpx, y[curRow: curRow + constr.nf])
             curRow += constr.nf
         for constr in self.pathConstr:
-            for i in range(self.N - 1):
+            for i in range(self.N):
                 tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
                 constr.__evalf__(tmpx, y[curRow: curRow + constr.nf])
                 curRow += constr.nf

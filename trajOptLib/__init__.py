@@ -1,4 +1,4 @@
-from .trajOptProblem import trajOptProblem
+from .trajOptProblem import trajOptProblem, addX
 from .trajOptBase import system, baseFun
 from .trajOptBase import lqrObj, linearPointObj, nonLinObj, nonPointObj, lqrObj
 from .trajOptBase import pointConstr, nonLinConstr
