@@ -508,6 +508,12 @@ class trajOptProblem(probFun):
                 tmplb[:] = constr.lb
             if constr.ub is not None:
                 tmpub[:] = constr.ub
+        for constr in self.nonLinConstr:
+            if constr.lb is not None:
+                clb[cind0: cind0 + constr.nf] = constr.lb
+            if constr.ub is not None:
+                cub[cind0: cind0 + constr.nf] = constr.ub
+            cind0 += constr.nf
         # assign to where it should belong to
         self.lb = clb
         self.ub = cub
@@ -551,7 +557,7 @@ class trajOptProblem(probFun):
         assert len(guess) == self.numSol
         N = self.N
         dimx = self.dimx
-        y = np.zeros(self.numF)
+        y = np.ones(self.numF)
         if self.gradmode:
             self.__callg__(guess, y, np.zeros(1), np.zeros(1), np.zeros(1), False, False)
         else:
@@ -806,7 +812,7 @@ class trajOptProblem(probFun):
                             row[curNg: curNg + dimx] = curRow + np.arange(dimx)
                             col[curNg: curNg + dimx] = self.tfind
                         curNg += dimx
-                curRow += dimx
+            curRow += dimx
         return curRow, curNg
 
     def __objModeG__(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
