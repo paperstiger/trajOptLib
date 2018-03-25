@@ -1124,8 +1124,8 @@ class trajOptProblem(probFun):
                     yQ = np.sum(lqrobj.Q.data * np.sum((useX[:-1, Qcol] - lqrobj.xbase[Qcol]) ** 2, axis=0)) * h
                     G[curG: curG + (self.N - 1) * useQ] = 2.0 * h * ((useX[:-1, Qcol] - lqrobj.xbase[Qcol]) * lqrobj.Q.data).flatten()
                     if rec:
-                        row[curG: curG + self.useQ * (self.N - 1)] = 0
-                        col[curG: curG + self.useQ * (self.N - 1)] = (Qcol + self.dimx*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()
+                        row[curG: curG + useQ * (self.N - 1)] = 0
+                        col[curG: curG + useQ * (self.N - 1)] = (Qcol + self.dimx*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()
                     curG += (self.N - 1) * useQ
                 if useR > 0:
                     yR = np.sum(lqrobj.R.data * np.sum((useU[:-1, Rcol] - lqrobj.ubase[Rcol]) ** 2, axis=0)) * h
