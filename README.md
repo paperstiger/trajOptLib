@@ -18,3 +18,7 @@ Installation is simple.
 You can test a few simple examples. This is done by simply navigating to "test" folder in the main folder. And use "python simpleDemo.py -grad". You can also explore other possible arguments.
 
 Check <https://paperstiger.github.io/trajOptLibDoc/index.html> for documentations.
+
+Optionally, you can use Ipopt as the solver for solving problems. 
+
+Check <https://github.com/xuy/pyipopt> for Python binding of the solver <https://projects.coin-or.org/Ipopt>
