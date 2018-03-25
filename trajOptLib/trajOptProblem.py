@@ -183,7 +183,7 @@ class trajOptProblem(probFun):
         # straight path go there
         for i in range(self.dimx):
             X[:, i] = np.linspace(X[0, i], X[-1, i], self.N)
-        for i in range(self.N):
+        for i in range(self.dimu):
             U[i] = randomGenInBound(self.ubd, self.dimu)
         if self.numP > 0:
             P = np.reshape(randX[self.numX + self.numU: self.numX + self.numU + self.numP], (self.N, self.dimp))
@@ -207,6 +207,7 @@ class trajOptProblem(probFun):
         else:
             self.indices = self.getObjSparsity(x0)
             numObjG = len(self.indices)  # G from objective, assume dense
+        self.numObjG = numObjG
         self.objSparseMode = objSparseMode
         # summarize number of pure linear constraints
         numDynG = self.getDynSparsity(x0)
@@ -493,6 +494,8 @@ class trajOptProblem(probFun):
         numDyn = self.dimx * (self.N - 1)  # constraints from system dynamics
         clb = np.zeros(numF)
         cub = np.zeros(numF)
+        clb[0] = -1e20
+        cub[0] = 1e20
         cind0 = 1 + numDyn
         for constr in self.pointConstr:
             if constr.lb is not None:
@@ -923,9 +926,26 @@ class trajOptProblem(probFun):
         """Calculate objective function. G mode. Sparsity structure not known a prior. Use indices to record.
         We directly accumulate those gradients and assume no violation.
         See __constrModeG__ for arguments and output."""
-        tmpout = np.zeros(1)
         y[0] = 0
+        tmpG = self.__objDenseGradient__(h, useT, useX, useU, useP, x, y, needg)
+        # write those guys into G we need
+        if needg:
+            lenObjInd = len(self.indices)
+            G[:lenObjInd] = tmpG[self.indices]
+            if rec:
+                row[:lenObjInd] = 0
+                col[:lenObjInd] = self.indices
+            curNg = lenObjInd  # it stores how many G we have collected. Wow, pretty heavy and tedious computation for cost function
+        return 1, curNg
+
+
+    def __objDenseGradient__(self, h, useT, useX, useU, useP, x, y, needg):
+        """Calculate a dense gradient even if every piece is given in sparse mode.
+
+        return tmpG: ndarray, dense gradient
+        """
         tmpG = np.zeros(self.numSol, dtype=float)  # those three arrays temporarily are used for gradient evaluation
+        tmpout = np.zeros(1)
         tmpcallG = np.zeros(self.numSol, dtype=float)  # those three arrays temporarily are used for gradient evaluation
         tmpcallrow = np.zeros(self.numSol, dtype=int)
         tmpcallcol = np.zeros(self.numSol, dtype=int)
@@ -979,15 +999,7 @@ class trajOptProblem(probFun):
             y[0] += tmpout[0]
             if needg:
                 self.__assignTo__(-1, tmpcallcol[:self.LQRnG], tmpcallG[:self.LQRnG], tmpG, True)
-        # write those guys into G we need
-        if needg:
-            lenObjInd = len(self.indices)
-            G[:lenObjInd] = tmpG[self.indices]
-            if rec:
-                row[:lenObjInd] = 0
-                col[:lenObjInd] = self.indices
-            curNg = lenObjInd  # it stores how many G we have collected. Wow, pretty heavy and tedious computation for cost function
-        return 1, curNg
+        return tmpG
 
     def __constrModeG__(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
         """Calculate constraint function. G mode
@@ -1037,6 +1049,81 @@ class trajOptProblem(probFun):
             curRow += constr.nf
             curNg += constr.nG
         return curRow, curNg
+
+    # interface functions for ipopt
+    def ipEvalF(self, x):
+        """The eval_f function required by ipopt.
+
+        :param x: a guess/solution of the problem
+        :return f: float, objective function
+
+        """
+        y = np.zeros(1)
+        h, useT = self.__getTimeGrid__(x)
+        useX, useU, useP = self.__parseX__(x)
+        G = np.zeros(1)
+        row = np.zeros(1, dtype=int)
+        self.__objModeG__(0, 0, h, useT, useX, useU, useP, x, y, G, row, row, False, False)
+        return y[0]
+
+    def ipEvalGradF(self, x):
+        """Evaluation of the gradient of objective function.
+
+        :param x: guess/solution to the problem
+        :return grad: gradient of objective function w.r.t x
+
+        """
+        h, useT = self.__getTimeGrid__(x)
+        useX, useU, useP = self.__parseX__(x)
+        y = np.zeros(1)
+        if not self.objSparseMode:
+            tmpG = self.__objDenseGradient__(h, useT, useX, useU, useP, x, y, True)
+        else:
+            tmpG = np.zeros(self.numSol)
+            spG = np.zeros(self.numObjG)
+            spRow = np.zeros(self.numObjG, dtype=int)
+            spCol = np.zeros(self.numObjG, dtype=int)
+            self.__objModeGKnown__(0, 0, h, useT, useX, useU, useP, x, y, spG, spRow, spCol, True, True)
+            tmpG[spCol] = spG
+        return tmpG
+
+    def ipEvalG(self, x):
+        """Evaluation of the constraint function.
+
+        :param x: ndarray, guess/solution to the problem.
+        :return g: constraint function
+
+        """
+        y = np.zeros(self.numF)
+        if self.gradmode:
+            G = np.zeros(1)
+            row = np.zeros(1, dtype=int)
+            col = np.zeros(1, dtype=int)
+            self.__callg__(x, y, G, row, col, False, False)
+            return y
+        else:
+            self.__callf__(x, y)
+        return y
+
+    def ipEvalJacG(self, x, flag):
+        """Evaluate jacobian of constraints. I simply call __callg__
+
+        :param x: ndarray, guess / solution to the problem
+        :param flag: bool, True return row/col, False return values
+
+        """
+        y = np.zeros(self.numF)
+        G = np.zeros(self.nG)
+        if flag:
+            row = np.ones(self.nG, dtype=int)
+            col = np.ones(self.nG, dtype=int)
+            self.__callg__(x, y, G, row, col, True, True)
+            return row, col
+        else:
+            row = np.ones(1, dtype=int)
+            col = np.ones(1, dtype=int)
+            self.__callg__(x, y, G, row, col, False, True)
+            return G
 
     def __patchCol__(self, index, col):
         """Find which indices it belongs to the original one for a local matrix at col"""
@@ -1124,8 +1211,8 @@ class trajOptProblem(probFun):
                     yQ = np.sum(lqrobj.Q.data * np.sum((useX[:-1, Qcol] - lqrobj.xbase[Qcol]) ** 2, axis=0)) * h
                     G[curG: curG + (self.N - 1) * useQ] = 2.0 * h * ((useX[:-1, Qcol] - lqrobj.xbase[Qcol]) * lqrobj.Q.data).flatten()
                     if rec:
-                        row[curG: curG + self.useQ * (self.N - 1)] = 0
-                        col[curG: curG + self.useQ * (self.N - 1)] = (Qcol + self.dimx*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()
+                        row[curG: curG + useQ * (self.N - 1)] = 0
+                        col[curG: curG + useQ * (self.N - 1)] = (Qcol + self.dimx*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()
                     curG += (self.N - 1) * useQ
                 if useR > 0:
                     yR = np.sum(lqrobj.R.data * np.sum((useU[:-1, Rcol] - lqrobj.ubase[Rcol]) ** 2, axis=0)) * h
