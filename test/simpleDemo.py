@@ -21,6 +21,7 @@ from trajOptLib.trajOptBase import system, nonPointObj, lqrObj
 from trajOptLib.trajOptProblem import trajOptProblem
 from trajOptLib.libsnopt import snoptConfig, probFun, solver
 from trajOptLib.utility import showSol
+from trajOptLib import ipSolver
 from scipy.sparse import coo_matrix
 
 
@@ -84,13 +85,15 @@ class quadCost(nonPointObj):
 
 
 def main():
-    args = getOnOffArgs('fd', 'grad', 'pen', 'lqr')
+    args = getOnOffArgs('fd', 'grad', 'pen', 'lqr', 'ip')
     if args.fd:
         fdmode(args.lqr)
     if args.grad:
         gradmode(args.lqr)
     if args.pen:
         penMode(args.lqr)
+    if args.ip:
+        ipMode(args.lqr)
 
 
 def penMode(lqr):
@@ -145,6 +148,34 @@ def gradmode(lqr):
     # construct a solver for the problem
     cfg = snoptConfig()
     slv = solver(prob, cfg)
+    rst = slv.solveRand()
+    print(rst.flag, rst.sol)
+    if rst.flag == 1:
+        # parse the solution
+        sol = prob.parseSol(rst.sol.copy())
+        showSol(sol)
+
+
+def ipMode(lqr):
+    """Use ipopt to solve this simple problem and see what is happening."""
+    sys = oneDcase()
+    cost = quadCost()
+    N = 20
+    t0 = 0.0
+    tf = 2.0
+    prob = trajOptProblem(sys, N, t0, tf, gradmode=True)
+    prob.xbd = [np.array([-1e20, -1e20]), np.array([1e20, 1e20])]
+    prob.ubd = [np.array([-1e20]), np.array([1e20])]
+    prob.x0bd = [np.array([0, 0]), np.array([0, 0])]
+    prob.xfbd = [np.array([1, 0]), np.array([1, 0])]
+    if not lqr:
+        prob.addNonPointObj(cost, True)  # add a path cost
+    else:
+        lqr = lqrObj(R=np.ones(1))
+        prob.addLQRObj(lqr)
+    prob.preProcess()  # construct the problem
+    # construct a solver for the problem
+    slv = ipSolver(prob)
     rst = slv.solveRand()
     print(rst.flag, rst.sol)
     if rst.flag == 1:

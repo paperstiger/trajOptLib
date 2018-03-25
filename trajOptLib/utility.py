@@ -126,6 +126,8 @@ def randomGenInBound(bds, n=None):
         lb = np.array([lb])
         ub = np.array([ub])
     if (not lb is None) and (not ub is None):
+        lb[lb < -1e19] = -1
+        ub[ub > 1e19] = 1
         x = np.random.random(lb.shape) * (ub - lb) + lb
     elif lb is None:
         if ub is None:
