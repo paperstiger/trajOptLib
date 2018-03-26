@@ -56,18 +56,17 @@ class ipSolver(object):
         ncon = prob.numF
         g_L = prob.lb
         g_U = prob.ub
-
         nnzj = prob.nG
         nnzh = 1  # this is not reasonable
-
         self.prob = prob
         self.nlp = pyipopt.create(nvar, x_L, x_U, ncon, g_L, g_U, nnzj, nnzh, prob.ipEvalF,
                 prob.ipEvalGradF, prob.ipEvalG, prob.ipEvalJacG)
         if option is None:
             option = ipOption()
-        self.parseOption(option)
+        self._parseOption(option)
 
-    def parseOption(self, option):
+    def _parseOption(self, option):
+        """Parse an option object."""
         self.nlp.num_option('tol', option.tol)
         self.nlp.int_option('max_iter', option.max_iter)
         self.nlp.num_option('dual_inf_tol', option.dual_inf_tol)
@@ -80,12 +79,20 @@ class ipSolver(object):
             self.nlp.str_option(key, value)
 
     def solveRand(self):
-        """Use problem to generate a random guess and solve it from there."""
+        """Use problem to generate a random guess and solve it from there.
+
+        It generates a random initial guess (which might be far off for unknown problem) and use it to solve.
+
+        """
         x0 = self.prob.randomGenX()
         return self.solveGuess(x0)
 
     def solveGuess(self, x0):
-        """Solve the problem with some user-supplied guess."""
+        """Solve the problem with some user-supplied guess.
+
+        :param x0: ndarray, solution/guess to the problem.
+
+        """
         x, zl, zu, lmd, obj, status = self.nlp.solve(x0)
         self.nlp.close()
         rst = result()

@@ -12,6 +12,14 @@ Subpackages
 Submodules
 ----------
 
+trajOptLib.ipoptWrapper module
+------------------------------
+
+.. automodule:: trajOptLib.ipoptWrapper
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 trajOptLib.snoptWrapper module
 ------------------------------
 

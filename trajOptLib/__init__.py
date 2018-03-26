@@ -7,3 +7,5 @@ from .utility import parseX, showSol
 from .libsnopt import snoptConfig, solver, probFun, result
 # the ipopt solver
 from .ipoptWrapper import ipOption, ipSolver
+# the collocation version
+from .trajOptCollocationProblem import daeSystem, trajOptCollocProblem
