@@ -30,6 +30,7 @@ PYBIND11_MODULE(libsnopt, m){
         .def(py::init<>())
         .def("addIntOption", &snoptConfig::addIntOption)
         .def("addFloatOption", &snoptConfig::addFloatOption)
+        .def("addStringOption", &snoptConfig::addStringOption)
         .def_readwrite("name", &snoptConfig::name)
         .def_readwrite("printFile", &snoptConfig::printFile)
         .def_readwrite("printLevel", &snoptConfig::printlevel)
@@ -40,7 +41,8 @@ PYBIND11_MODULE(libsnopt, m){
         .def_readwrite("optTol", &snoptConfig::optTol)
         .def_readwrite("feaTol", &snoptConfig::feaTol)
         .def_readwrite("intOptions", &snoptConfig::intOptions)
-        .def_readwrite("floatOptions", &snoptConfig::floatOptions);
+        .def_readwrite("floatOptions", &snoptConfig::floatOptions)
+        .def_readwrite("stringOptions", &snoptConfig::stringOptions);
 
     py::class_<funBase, pyFunBase>(m, "funBase")
         .def(py::init<>())

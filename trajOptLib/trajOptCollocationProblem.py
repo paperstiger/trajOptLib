@@ -451,7 +451,7 @@ class trajOptCollocProblem(probFun):
         Mulb = Mxlb[:, dimx:dimx+dimu]
         Muub = Mxub[:, dimx:dimx+dimu]
         Mplb = Mxlb[:, dimpnt-dimp:dimpnt]
-        Mpub = Mxlb[:, dimpnt-dimp:dimpnt]
+        Mpub = Mxub[:, dimpnt-dimp:dimpnt]
         # set bounds for q and dq, agree with previous convention
         if self.xbd[0] is not None:
             Mxlb[:, :dimx] = self.xbd[0]
@@ -716,11 +716,12 @@ class trajOptCollocProblem(probFun):
                     col[curNg: curNg + dimu] = lefti * dimpoint + dimx + np.arange(dimu)
                     col[curNg + dimu: curNg + 2 * dimu] = righti * dimpoint + dimx + np.arange(dimu)
                     col[curNg + 2 * dimu: curNg + 3 * dimu] = midi * dimpoint + dimx + np.arange(dimu)
+                    curNg_ = curNg + 3 * dimu
                     if dimp > 0:
-                        row[curNg: curNg + 3 * dimp] = curRow + dimu + np.tile(np.arange(dimp), (3, 1)).flatten()
-                        col[curNg: curNg + dimp] = lefti * dimpoint + dimx + dimu + np.arange(dimp)
-                        col[curNg + dimp: curNg + 2 * dimp] = righti * dimpoint + dimx + dimu + np.arange(dimp)
-                        col[curNg + 2 * dimp: curNg + 3 * dimp] = midi * dimpoint + dimx + dimu + np.arange(dimp)
+                        row[curNg_: curNg_ + 3 * dimp] = curRow + dimu + np.tile(np.arange(dimp), (3, 1)).flatten()
+                        col[curNg_: curNg_ + dimp] = lefti * dimpoint + dimx + dimu + np.arange(dimp)
+                        col[curNg_ + dimp: curNg_ + 2 * dimp] = righti * dimpoint + dimx + dimu + np.arange(dimp)
+                        col[curNg_ + 2 * dimp: curNg_ + 3 * dimp] = midi * dimpoint + dimx + dimu + np.arange(dimp)
                 curNg += 3 * (dimu + dimp)
             curRow += dimu + dimp
         return curRow, curNg

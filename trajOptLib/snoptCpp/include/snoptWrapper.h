@@ -93,11 +93,13 @@ class ProblemFun : public funBase{
 class snoptConfig{
     typedef std::pair<std::string, int> intOption;
     typedef std::pair<std::string, double> floatOption;
+    typedef std::pair<std::string, std::string> stringOption;
 public:
     std::string name = std::string("Toy");
     std::string printFile;
     std::vector<intOption> intOptions;
     std::vector<floatOption> floatOptions;
+    std::vector<stringOption> stringOptions;
     int printlevel = 0;
     int verifylevel = 0;
     int majoriterlimit = 0;
@@ -115,6 +117,9 @@ public:
     }
     void addFloatOption(const std::string &nm, double value){
         floatOptions.push_back(std::make_pair(nm, value));
+    }
+    void addStringOption(const std::string &nm, const std::string &value){
+        stringOptions.push_back(std::make_pair(nm, value));
     }
 };
 
@@ -252,7 +257,7 @@ public:
             ToyProb.setIntParameter( "Minor print level", 0 );
             ToyProb.setIntParameter( "Verify level", snpcfg->verifylevel);
             if(snpcfg->printFile.size() > 0){
-                ToyProb.setPrintFile(snpcfg->printFile.c_str());
+                setPrintFile(snpcfg->printFile);
             }
             if(snpcfg->majoriterlimit > 0){
                 ToyProb.setIntParameter("Major iterations limit", snpcfg->majoriterlimit);
@@ -268,6 +273,10 @@ public:
             }
             for(auto &fcfg : snpcfg->floatOptions){
                 ToyProb.setRealParameter(std::get<0>(fcfg).c_str(), std::get<1>(fcfg));
+            }
+            for(auto &scfg : snpcfg->stringOptions){
+                std::string option = std::get<0>(scfg) + std::string(" ") + std::get<1>(scfg);
+                ToyProb.setParameter(option.c_str());
             }
         }
 #ifdef DEBUG
@@ -369,7 +378,10 @@ public:
         ToyProb.setRealParameter("Major optimality tolerance", tol);
     }
     void setPrintFile(std::string &fnm){
-        FILE *fp = fopen(fnm.c_str(), "w");  // wipe out all contents
+        FILE *fp = fopen(fnm.c_str(), "wt");  // wipe out all contents
+        if(!fp){
+            std::cout << "Fail to reset file " << fnm << std::endl;
+        }
         fclose(fp);
         ToyProb.setPrintFile  (fnm.c_str());
     }
