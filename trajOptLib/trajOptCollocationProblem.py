@@ -21,10 +21,6 @@ from scipy import sparse
 from scipy.sparse import spmatrix, coo_matrix
 
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
-
 class daeSystem(object):
     """A DAE system."""
     def __init__(self, nx, nu, np, nf, nG):
@@ -378,70 +374,6 @@ class trajOptCollocProblem(probFun):
                 return nG, True
             else:
                 return self.LQRnG, True
-        # for non-sparseObjMode, we use a long vector to remember where the gradients of objective functions are
-        # a long vector for temporary use
-        G = np.zeros(self.numSol, dtype=float)
-        row = np.zeros(self.numSol, dtype=int)
-        col = np.zeros(self.numSol, dtype=int)
-        tmpF = np.zeros(1)
-        # for objective function
-        mask = np.zeros(self.numSol, dtype=bool)
-        t0ind, tfind = self.__getTimeIndices()
-        for obj in self.linearObj:  # for linear objective over all x
-            if not isinstance(obj.A, coo_matrix):
-                obj.A = obj.A.tocoo()
-            mask[obj.A.nonzero()] = True
-        for obj in self.linPointObj:  # for linear objective imposed at selected points
-            if not isinstance(obj.A, coo_matrix):
-                obj.A = obj.A.tocoo()
-            ind = obj.index
-            nnzind = obj.A.nonzero()
-            self.__assignTo__(ind, nnzind, True, mask, False)
-        for obj in self.linPathObj:  # for linear objective imposed at every point
-            if not isinstance(obj.A, coo_matrix):
-                obj.A = obj.A.tocoo()
-            nnzind = obj.A.nonzero()
-            for ind in range(self.N - 1):
-                self.__assignTo__(ind, nnzind, True, mask, False)
-            if self.t0ind > 0:
-                mask[self.t0ind] = True  # for path obj, these two are always True
-            if self.tfind > 0:
-                mask[self.tfind] = True
-        for obj in self.nonLinObj:  # for general nonlinear objective function
-            obj.__callg__(x, tmpF, G, row, col, True, True)
-            nG = obj.nG  # first nG elements are effective, col stores information
-            self.__assignTo__(-1, col[:nG], True, mask, False)
-        for obj in self.nonPointObj:  # for nonlinear constr imposed at selected points
-            ind = obj.index
-            nG = obj.nG
-            piecex = np.concatenate((useT[ind:ind+1], useX[ind], useU[ind], useP[ind]))
-            obj.__callg__(piecex, tmpF, G, row, col, True, True)
-            self.__assignTo__(ind, col[:nG], True, mask, False)
-        for obj in self.nonPathObj:  # for path, we only need to evaluate once
-            nG = obj.nG
-            ind = 0  # arbitrarily use the first one to get the sparsity structure
-            piecex = np.concatenate((useT[ind:ind+1], useX[ind], useU[ind], useP[ind]))
-            obj.__callg__(piecex, tmpF, G, row, col, True, True)
-            for ind in range(self.N - 1):
-                self.__assignTo__(ind, col[:nG], True, mask, False)
-            if self.t0ind > 0:
-                mask[self.t0ind] = True  # since it is path obj
-            if self.tfind > 0:
-                mask[self.tfind] = True
-        # determine what lqr objective tells us
-        if self.lqrObj is not None:
-            nG = self.LQRnG
-            self.lqrObj(h, useX, useU, useP, tmpF, G, row, col, True, True)
-            self.__assignTo__(-1, col[:nG], True, mask, False)
-            if self.t0ind > 0:
-                mask[self.t0ind] = True  # since it is lqr obj
-            if self.tfind > 0:
-                mask[self.tfind] = True
-        # summarize # nnz for obj
-        nnzObj = np.sum(mask)
-        logger.debug("#nnz from obj is %d" % nnzObj)
-        indices = np.where(mask)[0]  # this means what indices we should choose from
-        return indices, False
 
     def __assignTo__(self, index, nnz, value, target, selfadd):
         """Assign a block of value to a target vector. This helps us finding sparsity/assigning values.
@@ -1003,7 +935,6 @@ class trajOptCollocProblem(probFun):
         self.LQRnG = num1 + self.numT
         if useF > 0 and useQ == 0:
             self.LQRnG += useF
-        logger.debug('lqr ng = %d' % self.LQRnG)
         weight = np.zeros((nPoint, 1))
         weight[1::2] = 2.0 / 3.0
         weight[0::2] = 1.0 / 3.0
