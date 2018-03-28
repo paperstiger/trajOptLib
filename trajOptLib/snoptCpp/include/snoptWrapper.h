@@ -33,11 +33,50 @@ class ProblemFun : public funBase{
     public:
         VX lb, ub;
         VX xlb, xub;
+        VX Aval;
+        VXi Arow, Acol;
         using funBase::funBase;
 
         virtual void operator()(cRefV x, RefV F) = 0;  // A function to be overwritten by subclass, this is called to evaluate
 
         virtual void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) = 0;  // A function to be overwritten by subclass, this is called for both assigning structure.
+
+        void setA(crRefM A){
+            int nrow = A.rows(), ncol = A.cols();
+            int nnz = 0;
+            for(int i = 0; i < nrow; i++){
+                for(int j = 0; j < ncol; j++){
+                    if(A(i, j) != 0)
+                        nnz++;
+                }
+            }
+            Aval.resize(nnz);
+            Arow.resize(nnz);
+            Acol.resize(nnz);
+            nnz = 0;
+            for(int i = 0; i < nrow; i++){
+                for(int j = 0; j < ncol; j++){
+                    if(A(i, j) != 0){
+                        Aval(nnz) = A(i, j);
+                        Arow(nnz) = i;
+                        Acol(nnz) = j;
+                        nnz++;
+                    }
+                }
+            }
+        }
+
+        void setA(cRefV val, cRefVi row, cRefVi col){
+            /*
+            int nnz = val.size();
+            Aval.resize(nnz);
+            Arow.resize(nnz);
+            Acol.resize(nnz);
+            */
+            Aval = val;
+            Arow = row;
+            Acol = col;
+        }
 
         void batchSetLb(cRefV lb_, int ind0=0){
             if(lb_.size() + ind0 > lb.size())
@@ -93,11 +132,13 @@ class ProblemFun : public funBase{
 class snoptConfig{
     typedef std::pair<std::string, int> intOption;
     typedef std::pair<std::string, double> floatOption;
+    typedef std::pair<std::string, std::string> stringOption;
 public:
     std::string name = std::string("Toy");
     std::string printFile;
     std::vector<intOption> intOptions;
     std::vector<floatOption> floatOptions;
+    std::vector<stringOption> stringOptions;
     int printlevel = 0;
     int verifylevel = 0;
     int majoriterlimit = 0;
@@ -115,6 +156,9 @@ public:
     }
     void addFloatOption(const std::string &nm, double value){
         floatOptions.push_back(std::make_pair(nm, value));
+    }
+    void addStringOption(const std::string &nm, const std::string &value){
+        stringOptions.push_back(std::make_pair(nm, value));
     }
 };
 
@@ -151,8 +195,22 @@ public:
         n = pfun->getNx();
         neF = pfun->getNf();
         // linear constraint is basically given up here
-        if(pfun->getGrad())
-            lenA = 1;
+        bool useA = false;
+        if(pfun->getGrad()){
+            if(pfun->Aval.size() == 0){
+                lenA = 1;  //not sure if 0 works fine
+#ifdef DEBUG
+                std::cout << "A of size 0\n";
+#endif
+            }
+            else{
+                lenA = pfun->Aval.size();
+                useA = true;
+#ifdef DEBUG
+                std::cout << "length of A is " << lenA << std::endl;
+#endif
+            }
+        }
         else
             lenA  = n * neF;
 #ifdef DEBUG
@@ -161,6 +219,14 @@ public:
         iAfun = new integer[lenA];
         jAvar = new integer[lenA];
         mA  = new doublereal[lenA];
+        if(pfun->getGrad() && pfun->Aval.size() > 0){
+            MapV mapA(mA, lenA);
+            MapVi mapiA(iAfun, lenA);
+            MapVi mapjA(jAvar, lenA);
+            mapA = pfun->Aval;
+            mapiA = pfun->Arow;
+            mapjA = pfun->Acol;
+        }
         if(pfun->getGrad())
             lenG = pfun->getNg();
         else
@@ -210,10 +276,15 @@ public:
         }
         // Set the problem, what's left is the initial guess
         if(pfun->getGrad()){
-            int neA = 0;
+            int neA = lenA;
             int neG = lenG;
+            if(!useA)
+                neA = 0;
             ToyProb.setNeA         ( neA );
             ToyProb.setNeG         ( neG );
+#ifdef DEBUG
+            std::cout << "neA, neG = " << neA << " " <<  neG << std::endl;
+#endif
         }
 #ifdef DEBUG
         std::cout << "set properties\n";
@@ -252,7 +323,7 @@ public:
             ToyProb.setIntParameter( "Minor print level", 0 );
             ToyProb.setIntParameter( "Verify level", snpcfg->verifylevel);
             if(snpcfg->printFile.size() > 0){
-                ToyProb.setPrintFile(snpcfg->printFile.c_str());
+                setPrintFile(snpcfg->printFile);
             }
             if(snpcfg->majoriterlimit > 0){
                 ToyProb.setIntParameter("Major iterations limit", snpcfg->majoriterlimit);
@@ -268,6 +339,10 @@ public:
             }
             for(auto &fcfg : snpcfg->floatOptions){
                 ToyProb.setRealParameter(std::get<0>(fcfg).c_str(), std::get<1>(fcfg));
+            }
+            for(auto &scfg : snpcfg->stringOptions){
+                std::string option = std::get<0>(scfg) + std::string(" ") + std::get<1>(scfg);
+                ToyProb.setParameter(option.c_str());
             }
         }
 #ifdef DEBUG
@@ -369,7 +444,10 @@ public:
         ToyProb.setRealParameter("Major optimality tolerance", tol);
     }
     void setPrintFile(std::string &fnm){
-        FILE *fp = fopen(fnm.c_str(), "w");  // wipe out all contents
+        FILE *fp = fopen(fnm.c_str(), "wt");  // wipe out all contents
+        if(!fp){
+            std::cout << "Fail to reset file " << fnm << std::endl;
+        }
         fclose(fp);
         ToyProb.setPrintFile  (fnm.c_str());
     }

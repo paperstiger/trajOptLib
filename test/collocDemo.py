@@ -83,8 +83,8 @@ def testOneD():
     prob.preProcess()  # construct the problem
     # construct a solver for the problem
     cfg = snoptConfig()
-    # cfg.printFile = 'test.out'
-    # cfg.verifyLevel = 3
+    cfg.printFile = 'test.out'
+    cfg.verifyLevel = 3
     slv = solver(prob, cfg)
     rst = slv.solveRand()
     print(rst.flag, rst.sol)
