@@ -33,11 +33,50 @@ class ProblemFun : public funBase{
     public:
         VX lb, ub;
         VX xlb, xub;
+        VX Aval;
+        VXi Arow, Acol;
         using funBase::funBase;
 
         virtual void operator()(cRefV x, RefV F) = 0;  // A function to be overwritten by subclass, this is called to evaluate
 
         virtual void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) = 0;  // A function to be overwritten by subclass, this is called for both assigning structure.
+
+        void setA(crRefM A){
+            int nrow = A.rows(), ncol = A.cols();
+            int nnz = 0;
+            for(int i = 0; i < nrow; i++){
+                for(int j = 0; j < ncol; j++){
+                    if(A(i, j) != 0)
+                        nnz++;
+                }
+            }
+            Aval.resize(nnz);
+            Arow.resize(nnz);
+            Acol.resize(nnz);
+            nnz = 0;
+            for(int i = 0; i < nrow; i++){
+                for(int j = 0; j < ncol; j++){
+                    if(A(i, j) != 0){
+                        Aval(nnz) = A(i, j);
+                        Arow(nnz) = i;
+                        Acol(nnz) = j;
+                        nnz++;
+                    }
+                }
+            }
+        }
+
+        void setA(cRefV val, cRefVi row, cRefVi col){
+            /*
+            int nnz = val.size();
+            Aval.resize(nnz);
+            Arow.resize(nnz);
+            Acol.resize(nnz);
+            */
+            Aval = val;
+            Arow = row;
+            Acol = col;
+        }
 
         void batchSetLb(cRefV lb_, int ind0=0){
             if(lb_.size() + ind0 > lb.size())
@@ -156,8 +195,16 @@ public:
         n = pfun->getNx();
         neF = pfun->getNf();
         // linear constraint is basically given up here
-        if(pfun->getGrad())
-            lenA = 1;
+        bool useA = false;
+        if(pfun->getGrad()){
+            if(pfun->Aval.size() == 0){
+                lenA = 1;  //not sure if 0 works fine
+            }
+            else{
+                lenA = pfun->Aval.size();
+                useA = true;
+            }
+        }
         else
             lenA  = n * neF;
 #ifdef DEBUG
@@ -166,6 +213,14 @@ public:
         iAfun = new integer[lenA];
         jAvar = new integer[lenA];
         mA  = new doublereal[lenA];
+        if(pfun->getGrad() && pfun->Aval.size() > 0){
+            MapV mapA(mA, lenA);
+            MapVi mapiA(iAfun, lenA);
+            MapVi mapjA(jAvar, lenA);
+            mapA = pfun->Aval;
+            mapiA = pfun->Arow;
+            mapjA = pfun->Acol;
+        }
         if(pfun->getGrad())
             lenG = pfun->getNg();
         else
@@ -215,8 +270,10 @@ public:
         }
         // Set the problem, what's left is the initial guess
         if(pfun->getGrad()){
-            int neA = 0;
+            int neA = lenA;
             int neG = lenG;
+            if(!useA)
+                neA = 0;
             ToyProb.setNeA         ( neA );
             ToyProb.setNeG         ( neG );
         }

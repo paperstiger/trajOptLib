@@ -166,11 +166,35 @@ class trajOptCollocProblem(probFun):
 
         """
         numDyn = self.dimdyn * (2 * self.N - 1)  # constraints from system dynamics, they are imposed everywhere
-        dynDefectSize = 4 * self.dimdyn
+        dynDefectSize = 4 * self.dimdyn  #TODO: this number 4 might change
         defectSize = dynDefectSize + self.dimu + self.dimp  # from x, dx, and u, p are average
         self.defectSize = defectSize
-        defectDyn = (self.N - 1) * defectSize  # from enforcing those guys  #TODO: this number 4 might change
+        defectDyn = (self.N - 1) * defectSize  # from enforcing those guys
+        # we are ready to write Aval, Arow, Acol for this problem. They are arranged right after dynamics
+        curRow, curNA = self.__setAPattern(dynDefectSize + 1)
+        self.numDyn = numDyn + defectDyn
+        numC = 0
+        for constr in self.pointConstr:
+            numC += constr.nf
+        for constr in self.pathConstr:
+            numC += self.N * constr.nf  # TODO: verify we do not have to impose those constraints on collocation points
+        for constr in self.nonLinConstr:
+            numC += constr.nf
+        self.numF = 1 + numDyn + defectDyn + numC
+        probFun.__init__(self, self.numSol, self.numF)  # not providing G means we use finite-difference
+        self.__setXbound()
+        self.__setFbound()
+        # detect gradient information
+        randX = self.randomGenX()
+        self.__turnOnGrad(randX)
+
+    def __setAPattern(self, curRow):
+        """Set sparsity pattern for A. curRow is current row."""
+        # so rows are from numDyn + 1 to numDyn + 1 + defectDyn
+        # the size of A is (4 * 5 * self.dimdyn + 3*(self.dimu + self.dimp)) * (self.N - 1)
         # sparse matrices for defect of states
+        dimx, dimu, dimp, dimpoint, dimdyn = self.dimx, self.dimu, self.dimp, self.dimpoint, self.dimdyn
+        dynDefectSize = 4 * self.dimdyn
         self.matL = np.zeros((dynDefectSize, self.dimx))
         self.matM = np.zeros((dynDefectSize, self.dimx))
         self.matR = np.zeros((dynDefectSize, self.dimx))
@@ -191,21 +215,54 @@ class trajOptCollocProblem(probFun):
         self.spL = coo_matrix(self.matL)
         self.spM = coo_matrix(self.matM)
         self.spR = coo_matrix(self.matR)
-        self.numDyn = numDyn + defectDyn
-        numC = 0
-        for constr in self.pointConstr:
-            numC += constr.nf
-        for constr in self.pathConstr:
-            numC += self.N * constr.nf  # TODO: verify we do not have to impose those constraints on collocation points
-        for constr in self.nonLinConstr:
-            numC += constr.nf
-        self.numF = 1 + numDyn + defectDyn + numC
-        probFun.__init__(self, self.numSol, self.numF)  # not providing G means we use finite-difference
-        self.__setXbound()
-        self.__setFbound()
-        # detect gradient information
-        randX = self.randomGenX()
-        self.__turnOnGrad(randX)
+        lenA = (4*5*self.dimdyn + 3*(self.dimu + self.dimp)) * (self.N - 1)
+        self.Aval = np.zeros(lenA)
+        self.Arow = np.zeros(lenA, dtype=int)
+        self.Acol = np.zeros(lenA, dtype=int)
+        A = self.Aval
+        row = self.Arow
+        col = self.Acol
+        curNA = 0
+        for i in range(self.N - 1):
+            midi = 2*i + 1
+            lefti = 2*i
+            righti = 2*(i + 1)
+            A[curNA: curNA + self.spL.nnz] = self.spL.data
+            row[curNA: curNA + self.spL.nnz] = self.spL.row + curRow
+            col[curNA: curNA + self.spL.nnz] = self.spL.col + lefti * dimpoint
+            curNA += self.spL.nnz
+            A[curNA: curNA + self.spM.nnz] = self.spM.data
+            row[curNA: curNA + self.spM.nnz] = self.spM.row + curRow
+            col[curNA: curNA + self.spM.nnz] = self.spM.col + midi * dimpoint
+            curNA += self.spM.nnz
+            A[curNA: curNA + self.spR.nnz] = self.spR.data
+            row[curNA: curNA + self.spR.nnz] = self.spR.row + curRow
+            col[curNA: curNA + self.spR.nnz] = self.spR.col + righti * dimpoint
+            curNA += self.spR.nnz
+            curRow += 4*dimdyn
+        # then do the constraint of u and p on nodes and knots
+        for i in range(self.N - 1):
+            midi = 2*i + 1
+            lefti = 2*i
+            righti = 2*(i + 1)
+            A[curNA: curNA + 2*dimu] = 0.5
+            A[curNA + 2*dimu: curNA + 3*dimu] = -1
+            if dimp > 0:
+                A[curNA + 3*dimu: curNA + 3 * dimu + 2*dimp] = 0.5
+                A[curNA + 3*dimu + 2 * dimp: curNA + 3*dimu + 3*dimp] = -1
+            row[curNA: curNA + 3 * dimu] = curRow + np.tile(np.arange(dimu), (3, 1)).flatten()
+            col[curNA: curNA + dimu] = lefti * dimpoint + dimx + np.arange(dimu)
+            col[curNA + dimu: curNA + 2 * dimu] = righti * dimpoint + dimx + np.arange(dimu)
+            col[curNA + 2 * dimu: curNA + 3 * dimu] = midi * dimpoint + dimx + np.arange(dimu)
+            curNA_ = curNA + 3 * dimu
+            if dimp > 0:
+                row[curNA_: curNA_ + 3 * dimp] = curRow + dimu + np.tile(np.arange(dimp), (3, 1)).flatten()
+                col[curNA_: curNA_ + dimp] = lefti * dimpoint + dimx + dimu + np.arange(dimp)
+                col[curNA_ + dimp: curNA_ + 2 * dimp] = righti * dimpoint + dimx + dimu + np.arange(dimp)
+                col[curNA_ + 2 * dimp: curNA_ + 3 * dimp] = midi * dimpoint + dimx + dimu + np.arange(dimp)
+            curNA += 3 * (dimu + dimp)
+            curRow += dimu + dimp
+        return curRow, curNA
 
     def randomGenX(self):
         """A more reansonable approach to generate random guess for the problem.
@@ -276,7 +333,9 @@ class trajOptCollocProblem(probFun):
         :param x: ndarray, the guess/sol
 
         """
-        dynG = self.sys.nG * self.nPoint + (20 * self.dimdyn + 3*(self.dimu + self.dimp)) * (self.N - 1)
+        # this row is the case when defectDyn are imposed in G rather than A
+        # dynG = self.sys.nG * self.nPoint + (20 * self.dimdyn + 3*(self.dimu + self.dimp)) * (self.N - 1)
+        dynG = self.sys.nG * self.nPoint
         return dynG
 
     def __getObjSparsity(self, x):
@@ -672,58 +731,8 @@ class trajOptCollocProblem(probFun):
                     rowpiece[:] += curRow
                     colpiece[:] = self.__patchCol__(i, colpiece[:])
             curRow += self.dimdyn
-        # then do the remaining 4*dimdyn defect constraints
-        cDefect = np.reshape(y[curRow: curRow + 4*dimdyn*(self.N - 1)], (self.N - 1, -1))
-        for i in range(self.N - 1):
-            midi = 2*i + 1
-            lefti = 2*i
-            righti = 2*(i + 1)
-            cDefect[i] = self.matL.dot(useX[lefti]) + self.matM.dot(useX[midi]) + self.matR.dot(useX[righti])
-            if needg:
-                G[curNg: curNg + self.spL.nnz] = self.spL.data
-                if rec:
-                    row[curNg: curNg + self.spL.nnz] = self.spL.row + curRow
-                    col[curNg: curNg + self.spL.nnz] = self.spL.col + lefti * dimpoint
-                curNg += self.spL.nnz
-                G[curNg: curNg + self.spM.nnz] = self.spM.data
-                if rec:
-                    row[curNg: curNg + self.spM.nnz] = self.spM.row + curRow
-                    col[curNg: curNg + self.spM.nnz] = self.spM.col + midi * dimpoint
-                curNg += self.spM.nnz
-                G[curNg: curNg + self.spR.nnz] = self.spR.data
-                if rec:
-                    row[curNg: curNg + self.spR.nnz] = self.spR.row + curRow
-                    col[curNg: curNg + self.spR.nnz] = self.spR.col + righti * dimpoint
-                curNg += self.spR.nnz
-            curRow += 4*dimdyn
-        # then do the constraint of u and p on nodes and knots
-        cUP = np.reshape(y[curRow: curRow + (self.N - 1) * (dimu + dimp)], (self.N - 1, dimu + dimp))
-        for i in range(self.N - 1):
-            midi = 2*i + 1
-            lefti = 2*i
-            righti = 2*(i + 1)
-            cUP[i, :dimu] = 0.5 * useU[lefti] + 0.5 * useU[righti] - useU[midi]
-            if dimp > 0:
-                cUP[i, dimu:dimu+dimp] = 0.5 * useP[lefti] + 0.5 * useP[righti] - useP[midi]
-            if needg:
-                G[curNg: curNg + 2*dimu] = 0.5
-                G[curNg + 2*dimu: curNg + 3*dimu] = -1
-                if dimp > 0:
-                    G[curNg + 3*dimu: curNg + 3 * dimu + 2*dimp] = 0.5
-                    G[curNg + 3*dimu + 2 * dimp: curNg + 3*dimu + 3*dimp] = -1
-                if rec:
-                    row[curNg: curNg + 3 * dimu] = curRow + np.tile(np.arange(dimu), (3, 1)).flatten()
-                    col[curNg: curNg + dimu] = lefti * dimpoint + dimx + np.arange(dimu)
-                    col[curNg + dimu: curNg + 2 * dimu] = righti * dimpoint + dimx + np.arange(dimu)
-                    col[curNg + 2 * dimu: curNg + 3 * dimu] = midi * dimpoint + dimx + np.arange(dimu)
-                    curNg_ = curNg + 3 * dimu
-                    if dimp > 0:
-                        row[curNg_: curNg_ + 3 * dimp] = curRow + dimu + np.tile(np.arange(dimp), (3, 1)).flatten()
-                        col[curNg_: curNg_ + dimp] = lefti * dimpoint + dimx + dimu + np.arange(dimp)
-                        col[curNg_ + dimp: curNg_ + 2 * dimp] = righti * dimpoint + dimx + dimu + np.arange(dimp)
-                        col[curNg_ + 2 * dimp: curNg_ + 3 * dimp] = midi * dimpoint + dimx + dimu + np.arange(dimp)
-                curNg += 3 * (dimu + dimp)
-            curRow += dimu + dimp
+        # offset of row number due to defect dynamics constraint
+        curRow += (4*dimdyn + dimu + dimp) * (self.N - 1)
         return curRow, curNg
 
     def __objModeG__(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
