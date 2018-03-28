@@ -133,7 +133,7 @@ class baseFun(funBase):
         raise NotImplementedError
 
 
-class linearObj(baseFun):
+class linearObj(object):
     """Class for directly add linear objective function over the entire decision variable.
 
     It serves for objective of form :math:`y=Ax` where :math:`x` is the collected long vector.
@@ -149,13 +149,10 @@ class linearObj(baseFun):
             assert A.ndim == 1
             A = coo_matrix(A)
         assert A.shape[0] == 1
-        nx = A.shape[1]
-        nG = A.nnz
         self.A = A
-        baseFun.__init__(self, nx, 1, 'user', nG)
 
 
-class linearPointObj(baseFun):
+class linearPointObj(object):
     """Class for directly add linear objective function over the entire decision variable.
 
     It serves for objective function of the form :math:`y=Ax` where :math:`x` is the concatenated vector of state, 
@@ -177,11 +174,8 @@ class linearPointObj(baseFun):
             assert A.ndim == 1 and xdim == len(A)
             A = csr_matrix(A)
         assert A.shape[0] == 1 and A.shape[1] == xdim
-        nx = A.shape[1]
-        nG = A.nnz
         self.A = A
         self.index = index
-        baseFun.__init__(self, xdim, 1, 'user', nG)
 
 
 class nonLinObj(baseFun):
@@ -317,5 +311,22 @@ class nonLinConstr(baseFun):
 
         """
         baseFun.__init__(self, nsol, nc, gradmode, nG)
+        self.lb = lb
+        self.ub = ub
+
+
+def linearPointConstr(object):
+    """Class for linear constraint at selected points."""
+    def __init__(self, index, A, lb=None, ub=None):
+        self.lb = lb
+        self.ub = ub
+        self.index = index
+        self.A = A
+
+
+def linearConstr(object):
+    """Class for linear constraints based on the whole x length."""
+    def __init__(self, A, lb=None, ub=None):
+        self.A = A
         self.lb = lb
         self.ub = ub
