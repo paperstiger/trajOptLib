@@ -14,7 +14,10 @@ A wrapper for ipopt solver
 
 
 import numpy as np
-import pyipopt
+try:
+    import pyipopt
+except:
+    print("pyipopt not detected, do not use ipopt")
 from . import trajOptProblem
 from .libsnopt import result
 

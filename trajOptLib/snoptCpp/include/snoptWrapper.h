@@ -199,10 +199,16 @@ public:
         if(pfun->getGrad()){
             if(pfun->Aval.size() == 0){
                 lenA = 1;  //not sure if 0 works fine
+#ifdef DEBUG
+                std::cout << "A of size 0\n";
+#endif
             }
             else{
                 lenA = pfun->Aval.size();
                 useA = true;
+#ifdef DEBUG
+                std::cout << "length of A is " << lenA << std::endl;
+#endif
             }
         }
         else
@@ -276,6 +282,9 @@ public:
                 neA = 0;
             ToyProb.setNeA         ( neA );
             ToyProb.setNeG         ( neG );
+#ifdef DEBUG
+            std::cout << "neA, neG = " << neA << " " <<  neG << std::endl;
+#endif
         }
 #ifdef DEBUG
         std::cout << "set properties\n";

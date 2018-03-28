@@ -170,8 +170,6 @@ class trajOptCollocProblem(probFun):
         defectSize = dynDefectSize + self.dimu + self.dimp  # from x, dx, and u, p are average
         self.defectSize = defectSize
         defectDyn = (self.N - 1) * defectSize  # from enforcing those guys
-        # we are ready to write Aval, Arow, Acol for this problem. They are arranged right after dynamics
-        curRow, curNA = self.__setAPattern(dynDefectSize + 1)
         self.numDyn = numDyn + defectDyn
         numC = 0
         for constr in self.pointConstr:
@@ -182,6 +180,8 @@ class trajOptCollocProblem(probFun):
             numC += constr.nf
         self.numF = 1 + numDyn + defectDyn + numC
         probFun.__init__(self, self.numSol, self.numF)  # not providing G means we use finite-difference
+        # we are ready to write Aval, Arow, Acol for this problem. They are arranged right after dynamics
+        curRow, curNA = self.__setAPattern(numDyn + 1)
         self.__setXbound()
         self.__setFbound()
         # detect gradient information
@@ -216,12 +216,9 @@ class trajOptCollocProblem(probFun):
         self.spM = coo_matrix(self.matM)
         self.spR = coo_matrix(self.matR)
         lenA = (4*5*self.dimdyn + 3*(self.dimu + self.dimp)) * (self.N - 1)
-        self.Aval = np.zeros(lenA)
-        self.Arow = np.zeros(lenA, dtype=int)
-        self.Acol = np.zeros(lenA, dtype=int)
-        A = self.Aval
-        row = self.Arow
-        col = self.Acol
+        A = np.zeros(lenA)
+        row = np.zeros(lenA, dtype=int)
+        col = np.zeros(lenA, dtype=int)
         curNA = 0
         for i in range(self.N - 1):
             midi = 2*i + 1
@@ -262,6 +259,9 @@ class trajOptCollocProblem(probFun):
                 col[curNA_ + 2 * dimp: curNA_ + 3 * dimp] = midi * dimpoint + dimx + dimu + np.arange(dimp)
             curNA += 3 * (dimu + dimp)
             curRow += dimu + dimp
+        self.Aval = A
+        self.Arow = row
+        self.Acol = col
         return curRow, curNA
 
     def randomGenX(self):
