@@ -61,14 +61,66 @@ class pendulum(daeSystem):
                 col[:3] = [1, 3, 4]
 
 
+class orderOnePendulum(daeSystem):
+    """Pendulum with order 1"""
+    def __init__(self):
+        daeSystem.__init__(self, 4, 1, 0, 2, 5)
+
+    def dyn(self, t, x, u, p, y, G, row, col, rec, needg):
+        theta, omega, dtheta, domega = x
+        y[0] = dtheta - omega
+        y[1] = domega - u[0] / 5.0 + 0.5 * np.sin(x[0])
+        if needg:
+            G[0] = 1
+            G[1] = -1
+            G[2] = 1
+            G[3] = 0.5 * np.cos(x[0])
+            G[4] = -0.2
+            if rec:
+                row[:2] = 0
+                row[2:] = 1
+                col[:] = [3, 2, 4, 1, 5]
+
+
 def main():
-    args = getOnOffArgs('oned', 'pen', 'lqr', 'ip', 'linear')
+    args = getOnOffArgs('oned', 'pen', 'lqr', 'ip', 'linear', 'orderone')
     if args.oned:
         testOneD()
     if args.pen:
         testPen()
     if args.linear:
         testLinear()
+    if args.orderone:
+        testOrderOne()
+
+
+def testOrderOne():
+    """Test order one pendulum case, this is seen everywhere."""
+    sys = orderOnePendulum()
+    N = 20
+    t0 = 0.0
+    tf = 20.0
+    prob = trajOptCollocProblem(sys, N, t0, tf)
+    prob.xbd = [np.array([-1e20, -1e20, -1e20, -1e20]), np.array([1e20, 1e20, 1e20, 1e20])]
+    prob.ubd = [np.array([-1.5]), np.array([1.5])]
+    prob.x0bd = [np.array([0, 0, -1e20, -1e20]), np.array([0, 0, 1e20, 1e20])]
+    prob.xfbd = [np.array([np.pi, 0, -1e20, -1e20]), np.array([np.pi, 0, 1e20, 1e20])]
+    lqr = lqrObj(R=np.ones(1))
+    prob.addLQRObj(lqr)
+    prob.preProcess()  # construct the problem
+    # construct a solver for the problem
+    cfg = snoptConfig()
+    cfg.printLevel = 1
+    cfg.printFile = 'test.out'
+    cfg.verifyLevel = 3
+    slv = solver(prob, cfg)
+    rst = slv.solveRand()
+    print(rst.flag)
+    if rst.flag == 1:
+        print(rst.sol)
+        # parse the solution
+        sol = prob.parseSol(rst.sol.copy())
+        showSol(sol)
 
 
 def testLinear():
@@ -161,7 +213,7 @@ def testOneD():
 def testPen():
     """Test solving pendulum swing up problem using collocation approach"""
     sys = pendulum()
-    N = 40
+    N = 20
     t0 = 0.0
     tf = 20.0
     prob = trajOptCollocProblem(sys, N, t0, tf)

@@ -28,6 +28,13 @@ class daeSystem(object):
     def __init__(self, nx, nu, np, nf, nG):
         """Constructor for the problem.
 
+        For a dae system described by :math `f(t, q, \dot{q}, \ddot{q}, u, p)=0`, nx=3dim(q), nf=dim(q).
+        If it is described by :math `f(t, q, \dot{q}, u, p)=0`, nx=2dim(q), nf=dim(q).
+        We define as order the highest time derivative of state q. Keeping this in mind, nf always equals dim(q),
+        nx = (1+order)dim(q), nDefect = 2*order*nf
+        Compared with system class, system dynamics can be given implicitly.
+        For different order, we are gonna have different number of defect constraints and sizes.
+
         :param nx: int, dimension of states, it might also include acceleration
         :param nu: int, dimension of control
         :param np: int, dimension of parameter
@@ -39,6 +46,8 @@ class daeSystem(object):
         self.np = np
         self.nf = nf
         self.nG = nG
+        assert nx % nf == 0
+        self.order = nx // nf - 1  # this is useful for detecting size
 
     def dyn(self, t, x, u, p, y, G, row, col, rec, needg):
         """Implementation of system dynamics expressed in a dae.
@@ -52,7 +61,6 @@ class daeSystem(object):
         :param G, row, col: ndarray, (nG,) gradient of this constraints, row and col index
         :param rec: bool, if we need to write row and col
         :param needg: bool, if we have to evaluate gradients.
-
         """
         raise NotImplementedError
 
@@ -62,10 +70,13 @@ class trajOptCollocProblem(probFun):
 
     A general framework for using this class is to:
 
-    1. Define a class which implements a DAE system, f(t, x, p, u)=0. This is a typical case for humanoid problem.
+    1. Define a class which implements a DAE system, f(t, x, p, u)=0.
+    This is a typical case for humanoid problem, but also flexible enough for simpler first order system.
     2. Optionally, write desired cost function by inheriting/creating from the list of available cost functions.
+    This can be built incrementally by adding pieces.
     3. Optionally, write desired constraint functions by inheriting from available constraints.
-    4. Create this class with selected system, discretization, t0, tf range, gradient option
+    This can be built incrementally by adding pieces. Our problem can correctly detect the Jacobian structure.
+    4. Create this class with selected system, discretization, t0, tf range
     5. Set bounds for state, control, parameters, x0 and xf
     6. Add objective functions and constraints to this class
     7. Call preProcess method explicitly
@@ -83,11 +94,10 @@ class trajOptCollocProblem(probFun):
         Change history: now I remove gradmode option since I require the gradient be provided analytically all the time.
         I remove unnecessary linear objective functions.
         I reorder variable so q, dq, ddq, u, p are at consecutive place.
-        TODO: add linear constraints and enable it in SNOPT.
 
         :param sys: system, describe system dynamics
         :param N: int, discretization grid size, a uniform grid
-        :param t0: float/array like, allowable t0
+        :param t0: float/array like, allowable t0  # TODO: support time intervals for t0 and tf
         :param tf: float/array like, allowable tf
         :param addX: list of addX / one addX / None, additional optimization variables.
 
@@ -95,6 +105,7 @@ class trajOptCollocProblem(probFun):
         assert isinstance(sys, daeSystem)
         self.sys = sys
         self.N = N
+        self.nPoint = 2 * self.N - 1
         self.tf = tf
         self.t0 = t0
         if np.isscalar(tf):
@@ -112,6 +123,7 @@ class trajOptCollocProblem(probFun):
         self.dimu = sys.nu
         self.dimp = sys.np
         self.dimpoint = sys.nx + sys.nu + sys.np  # each point have those variables
+        self.daeOrder = sys.order
         self.ubd = [None, None]
         self.xbd = [None, None]
         self.pbd = [None, None]
@@ -119,6 +131,7 @@ class trajOptCollocProblem(probFun):
         self.xfbd = [None, None]
         # lqr cost function
         self.lqrObj = None
+        self.LQRnG = 0
         # Linear cost function
         self.linearObj = []  # stores general linear cost
         self.linPointObj = []  # stores linear cost imposed at a point
@@ -135,9 +148,9 @@ class trajOptCollocProblem(probFun):
         self.linPathConstr = []
         self.linearConstr = []
         # calculate number of variables to be optimized, time are always the last
-        numX = (2 * self.N - 1) * self.dimx
-        numU = (2 * self.N - 1) * self.dimu
-        numP = (2 * self.N - 1) * self.dimp
+        numX = self.nPoint * self.dimx
+        numU = self.nPoint * self.dimu
+        numP = self.nPoint * self.dimp
         if addx is None:
             self.lenAddX = 0
         else:
@@ -158,7 +171,6 @@ class trajOptCollocProblem(probFun):
         self.numP = numP
         self.numT = numT
         self.numDynVar = numX + numU + numP  # numDynVar includes q, dq, ddq, u, p
-        self.nPoint = 2 * self.N - 1
         self.numTraj = numSol  # make it clear, numTraj contains numDynVar + time
         self.numSol = numSol + self.lenAddX
         self.t0ind, self.tfind = self.__getTimeIndices()
@@ -170,8 +182,8 @@ class trajOptCollocProblem(probFun):
         It calculate the space required for SNOPT and allocates sparsity structure if necessary.
 
         """
-        numDyn = self.dimdyn * (2 * self.N - 1)  # constraints from system dynamics, they are imposed everywhere
-        dynDefectSize = 4 * self.dimdyn  #TODO: this number 4 might change
+        numDyn = self.dimdyn * self.nPoint  # constraints from system dynamics, they are imposed everywhere
+        dynDefectSize = 2 * self.daeOrder * self.dimdyn
         defectSize = dynDefectSize + self.dimu + self.dimp  # from x, dx, and u, p are average
         self.defectSize = defectSize
         defectDyn = (self.N - 1) * defectSize  # from enforcing those guys
@@ -181,7 +193,7 @@ class trajOptCollocProblem(probFun):
             numC += constr.nf
         for constr in self.pathConstr:
             numC += self.N * constr.nf  # TODO: verify we do not have to impose those constraints on collocation points
-        for constr in self.nonLinConstr:
+        for constr in self.nonLinConstr: # TODO: as Posa approach, user is able to make constraints satisfied at mid-points by introducing more variables
             numC += constr.nf
         nnonlincon = numC
         for constr in self.linPointConstr:
@@ -191,14 +203,14 @@ class trajOptCollocProblem(probFun):
         for constr in self.linearConstr:
             numC += constr.A.shape[0]
         self.numF = 1 + numDyn + defectDyn + numC
-        # time to analyze all objective functions in order to detect pattern for A, and additional variables for other nonlinear objective function
+        # analyze all objective functions in order to detect pattern for A, and additional variables for other nonlinear objective function
         spA, addn = self.__analyzeObj(self.numSol, self.numF)
         self.objaddn = addn  # this is important for multiple objective function support
         self.numSol += addn
         self.numF += addn
         probFun.__init__(self, self.numSol, self.numF)  # not providing G means we use finite-difference
         # we are ready to write Aval, Arow, Acol for this problem. They are arranged right after dynamics
-        curRow, curNA = self.__setAPattern(numDyn, nnonlincon, spA)
+        self.__setAPattern(numDyn, nnonlincon, spA)
         self.__setXbound()
         self.__setFbound()
         # detect gradient information
@@ -251,65 +263,72 @@ class trajOptCollocProblem(probFun):
         return spA, addn
 
     def __setAPattern(self, ndyncon, nnonlincon, spA):
-        """Set sparsity pattern for A. curRow is current row.
+        """Set sparsity pattern from linear constraints and objective functions.
 
-        It finds sparsity pattern from defect constraints.
+        It finds sparsity pattern from defect constraints, linear constraints, and objective functions.
         It also finds sparsity pattern from those linear constraints.
+        The A matrix from objective function is given in the sparse A and we just append it.
+        The rows from linear constraints are straightforward.
+        The constraints from defect constraints lie from rows 1 + ndyncon and occupies defectSize rows
+        After nnonlincon rows (empty in A), we set linear constraints.
+
+        The size of defect A: dynDefectSize = 2 * daeOrder * dimdyn and defectSize = dynDefectSize + dimu + dimp
+        It sums up to 3*(dimu + dimp) + daeOrder*5*2*dimdyn nnz
+        We have to do this for self.N - 1 mid-points.
 
         :param ndyncon: int, describes how many dynamics constraints we have
         :param nnonlincon: int, describes how many nonlinear constraints we have
         :param spA: sparse matrix, how the objective function is described linearly.
 
         """
-        # so rows are from numDyn + 1 to numDyn + 1 + defectDyn
-        # the size of A is (4 * 5 * self.dimdyn + 3*(self.dimu + self.dimp)) * (self.N - 1)
-        # sparse matrices for defect of states
+        curRow, A, row, col = self.__setDefectPattern(ndyncon)
+        curRow += nnonlincon
+        # we are ready to parse linear constraints
+        lstCA, lstCArow, lstCAcol = self.__parseLinearConstraints(curRow)
+        # concatenate all those things together
+        lstCA.append(spA.data)
+        lstCA.append(A)
+        lstCArow.append(spA.row)
+        lstCArow.append(row)
+        lstCAcol.append(spA.col)
+        lstCAcol.append(col)
+        self.Aval = np.concatenate(lstCA)
+        self.Arow = np.concatenate(lstCArow)
+        self.Acol = np.concatenate(lstCAcol)
+
+    def __setDefectPattern(self, ndyncon):
+        """Set the sparse linear constraints from defect constraints.
+
+        :param ndyncon: number of dynamical constraints. This sets starting row.
+        """
         dimx, dimu, dimp, dimpoint, dimdyn = self.dimx, self.dimu, self.dimp, self.dimpoint, self.dimdyn
-        dynDefectSize = 4 * self.dimdyn
-        self.matL = np.zeros((dynDefectSize, self.dimx))
-        self.matM = np.zeros((dynDefectSize, self.dimx))
-        self.matR = np.zeros((dynDefectSize, self.dimx))
-        two = 2*self.dimdyn
-        one = self.dimdyn
-        three = self.dimx
-        h = (self.tf - self.t0) / (self.N - 1)
-        np.fill_diagonal(self.matL[:two, :two], 0.5)
-        np.fill_diagonal(self.matL[:two, one:], h/8)
-        np.fill_diagonal(self.matL[two:, :two], -1.5/h)
-        np.fill_diagonal(self.matL[two:, one:], -0.25)
-        np.fill_diagonal(self.matM[:two, :two], -1)
-        np.fill_diagonal(self.matM[two:, one:], -1)
-        np.fill_diagonal(self.matR[:two, :two], 0.5)
-        np.fill_diagonal(self.matR[:two, one:], -h/8)
-        np.fill_diagonal(self.matR[two:, :two], 1.5/h)
-        np.fill_diagonal(self.matR[two:, one:], -0.25)
-        self.spL = coo_matrix(self.matL)
-        self.spM = coo_matrix(self.matM)
-        self.spR = coo_matrix(self.matR)
-        lenA = (4*5*self.dimdyn + 3*(self.dimu + self.dimp)) * (self.N - 1)  # this only works for 2nd order system
+        lenA = (10*self.daeOrder*self.dimdyn + 3*(self.dimu + self.dimp)) * (self.N - 1)
         A = np.zeros(lenA)
         row = np.zeros(lenA, dtype=int)
         col = np.zeros(lenA, dtype=int)
         curNA = 0
         curRow = 1 + ndyncon
+        # find those three matrix
+        spL, spM, spR = self.__findMatLMRTemplateFixedTime()
         for i in range(self.N - 1):
             midi = 2*i + 1
             lefti = 2*i
             righti = 2*(i + 1)
-            A[curNA: curNA + self.spL.nnz] = self.spL.data
-            row[curNA: curNA + self.spL.nnz] = self.spL.row + curRow
-            col[curNA: curNA + self.spL.nnz] = self.spL.col + lefti * dimpoint
-            curNA += self.spL.nnz
-            A[curNA: curNA + self.spM.nnz] = self.spM.data
-            row[curNA: curNA + self.spM.nnz] = self.spM.row + curRow
-            col[curNA: curNA + self.spM.nnz] = self.spM.col + midi * dimpoint
-            curNA += self.spM.nnz
-            A[curNA: curNA + self.spR.nnz] = self.spR.data
-            row[curNA: curNA + self.spR.nnz] = self.spR.row + curRow
-            col[curNA: curNA + self.spR.nnz] = self.spR.col + righti * dimpoint
-            curNA += self.spR.nnz
-            curRow += 4*dimdyn
-        # then do the constraint of u and p on nodes and knots
+            for i in range(self.daeOrder):
+                A[curNA: curNA + spL.nnz] = spL.data
+                row[curNA: curNA + spL.nnz] = spL.row + curRow
+                col[curNA: curNA + spL.nnz] = spL.col + lefti * dimpoint + i * dimdyn
+                curNA += spL.nnz
+                A[curNA: curNA + spM.nnz] = spM.data
+                row[curNA: curNA + spM.nnz] = spM.row + curRow
+                col[curNA: curNA + spM.nnz] = spM.col + midi * dimpoint + i * dimdyn
+                curNA += spM.nnz
+                A[curNA: curNA + spR.nnz] = spR.data
+                row[curNA: curNA + spR.nnz] = spR.row + curRow
+                col[curNA: curNA + spR.nnz] = spR.col + righti * dimpoint + i * dimdyn
+                curNA += spR.nnz
+                curRow += 2*dimdyn  # since size of spL, it is 2d by 2d
+        # then do the constraint of u and p on nodes and knots, basically, midpoint is the average of two knots
         for i in range(self.N - 1):
             midi = 2*i + 1
             lefti = 2*i
@@ -331,8 +350,13 @@ class trajOptCollocProblem(probFun):
                 col[curNA_ + 2 * dimp: curNA_ + 3 * dimp] = midi * dimpoint + dimx + dimu + np.arange(dimp)
             curNA += 3 * (dimu + dimp)
             curRow += dimu + dimp
-        curRow += nnonlincon
-        # find those linear constraints
+        return curRow, A, row, col
+
+    def __parseLinearConstraints(self, curRow):
+        """Parse the linear constraints and form a sparse matrix.
+
+        :param curRow: current row of accumulated constraints.
+        """
         lstCA = []
         lstCArow = []
         lstCAcol = []
@@ -354,18 +378,57 @@ class trajOptCollocProblem(probFun):
             lstCArow.append(constr.A.row + curRow)
             lstCAcol.append(constr.A.col)
             curRow += constr.A.shape[0]
-        # for python3 compaticity
-        lstCA.append(spA.data)
-        lstCA.append(A)
-        lstCArow.append(spA.row)
-        lstCArow.append(row)
-        lstCAcol.append(spA.col)
-        lstCAcol.append(col)
-        self.Aval = np.concatenate(lstCA)
-        self.Arow = np.concatenate(lstCArow)
-        self.Acol = np.concatenate(lstCAcol)
-        curNA = len(self.Aval)  # this is just for bookkeeping
-        return curRow, curNA
+        return lstCA, lstCArow, lstCAcol
+
+    def __findMatLMRTemplateFixedTime(self):
+        """Assume h is fixed, we find the L, M, R matrix for defect constraints.
+
+        The goal is for a pair (q^(k), q^{(k+1)}) we want MatL*L+MatM*M+MatR*R=0
+        where L, M, R are such pair at left point, mid-point, and right point.
+
+        """
+        d = self.dimdyn
+        matL = np.zeros((2*d, 2*d))
+        matM = np.zeros((2*d, 2*d))
+        matR = np.zeros((2*d, 2*d))
+        h = (self.tf - self.t0) / (self.N - 1)
+        np.fill_diagonal(matL[:d, :d], 0.5)
+        np.fill_diagonal(matL[d:, d:], -0.25)
+        np.fill_diagonal(matM, -1)
+        np.fill_diagonal(matR[:d, :d], 0.5)
+        np.fill_diagonal(matR[d:, d:], -0.25)
+        # time dependent parts
+        np.fill_diagonal(matL[:d, d:], h/8)
+        np.fill_diagonal(matL[d:, :d], -1.5/h)
+        np.fill_diagonal(matR[:d, d:], -h/8)
+        np.fill_diagonal(matR[d:, :d], 1.5/h)
+        spL = coo_matrix(matL)
+        spM = coo_matrix(matM)
+        spR = coo_matrix(matR)
+        return spL, spM, spR
+
+    def __defineMatLMR(self):  #TODO: delete those if previous one is successful
+        matL = np.zeros((dynDefectSize, self.dimx))
+        matM = np.zeros((dynDefectSize, self.dimx))
+        matR = np.zeros((dynDefectSize, self.dimx))
+        two = 2*self.dimdyn
+        one = self.dimdyn
+        three = self.dimx
+        h = (self.tf - self.t0) / (self.N - 1)
+        np.fill_diagonal(matL[:two, :two], 0.5)
+        np.fill_diagonal(matL[:two, one:], h/8)
+        np.fill_diagonal(matL[two:, :two], -1.5/h)
+        np.fill_diagonal(matL[two:, one:], -0.25)
+        np.fill_diagonal(matM[:two, :two], -1)
+        np.fill_diagonal(matM[two:, one:], -1)
+        np.fill_diagonal(matR[:two, :two], 0.5)
+        np.fill_diagonal(matR[:two, one:], -h/8)
+        np.fill_diagonal(matR[two:, :two], 1.5/h)
+        np.fill_diagonal(matR[two:, one:], -0.25)
+        spL = coo_matrix(matL)
+        spM = coo_matrix(matM)
+        spR = coo_matrix(matR)
+        return spL, spM, spR
 
     def randomGenX(self):
         """A more reansonable approach to generate random guess for the problem.
