@@ -1,5 +1,5 @@
-from .trajOptProblem import trajOptProblem, addX
-from .trajOptBase import system, baseFun
+from .trajOptProblem import trajOptProblem
+from .trajOptBase import system, baseFun, addX
 from .trajOptBase import lqrObj, linearPointObj, nonLinearObj, nonLinearPointObj, lqrObj
 from .trajOptBase import nonLinearPointConstr, nonLinearConstr
 from .trajOptBase import linearPointConstr, linearConstr

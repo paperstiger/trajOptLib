@@ -16,35 +16,12 @@ from .trajOptBase import linearObj, linearPointObj
 from .trajOptBase import linearPointConstr, linearConstr
 from .trajOptBase import nonLinearPointObj, nonLinearObj
 from .trajOptBase import nonLinearPointConstr, nonLinearConstr
+from .trajOptBase import system, addX
 from .trajOptBase import lqrObj
 from .libsnopt import snoptConfig, probFun, solver
 from .utility import parseX, randomGenInBound, checkInBounds
 from scipy import sparse
 from scipy.sparse import spmatrix, coo_matrix
-
-
-class addX(object):
-    """A description of additional optimizing parameter.
-
-    It is intended to be used if the optimal control has like point constraint.
-    In this class the user has to supply the size and bounds of those variables.
-    """
-    def __init__(self, n, lb=None, ub=None):
-        """Constructor of this class.
-
-        :param n: int, length of this variable.
-        :param lb: ndarray, (n,) lower bounds for those variables. None means no bound
-        :param ub: ndarray, (n,) uppere bounds for those variables. None means no bound
-        """
-        self.n = n
-        if lb is None:
-            self.lb = -1e20 * np.ones(n)
-        else:
-            self.lb = lb
-        if ub is None:
-            self.ub = 1e20 * np.ones(n)
-        else:
-            self.ub = ub
 
 
 class trajOptProblem(probFun):
@@ -172,7 +149,8 @@ class trajOptProblem(probFun):
         self.objaddn = addn  # this is important for multiple objective function support
         self.numSol += addn
         self.numF += addn
-        probFun.__init__(self.numSol, self.numF)  # currently we do not know G yet
+        probFun.__init__(self, self.numSol, self.numF)  # currently we do not know G yet
+        self.__setAPattern(numDyn, nnonlincon, spA)
         self.__setXbound()
         self.__setFbound()
         # detect gradient information
@@ -381,7 +359,7 @@ class trajOptProblem(probFun):
         :returns: nG: int, # Jacobian from nonlinear objective function
 
         """
-        h, useT = self.__getTimeGrid__(x)
+        h, useT = self.__getTimeGrid(x)
         useX, useU, useP = self.__parseX__(x)
         nG = 0
         # check sparseObj mode
@@ -621,7 +599,7 @@ class trajOptProblem(probFun):
 
     def __callf__(self, x, y):  # TODO: remove callf case
         """Evaluate those constraints and objective functions."""
-        h, useT = self.__getTimeGrid__(x)
+        h, useT = self.__getTimeGrid(x)
         useX, useU, useP = self.__parseX__(x)
         # evaluate objective function
         self.__objModeF__(0, h, useT, useX, useU, useP, x, y)
@@ -630,8 +608,6 @@ class trajOptProblem(probFun):
         curRow = self.__dynconstrModeF__(curRow, h, useT, useX, useU, useP, y)
         # evaluate other constraints
         curRow = self.__constrModeF__(curRow, h, useT, useX, useU, useP, x, y)
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("y is {}".format(y))
 
     def __objModeF__(self, curRow, h, useT, useX, useU, useP, x, y):
         """Calculate objective function. F mode
@@ -729,7 +705,7 @@ class trajOptProblem(probFun):
         curNg = 0
         curRow, curNg = self.__dynconstrModeG(curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
         curRow, curNg = self.__constrModeG(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
-        curRow, curNg = self.__objModeG(0, 0, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
+        curRow, curNg = self.__objModeG(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
 
     def __dynconstrModeG(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg):
         """Evaluate the constraints imposed by system dynamics"""
@@ -823,8 +799,10 @@ class trajOptProblem(probFun):
         return curRow, curNg
 
     def __objModeG(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
-        """Calculate objective function. It just evaluates them and assign to correct position in y."""
-        See __constrModeG__ for arguments and output."""
+        """Calculate objective function. It just evaluates them and assign to correct position in y.
+
+        See __constrModeG for arguments and output.
+        """
         tmpout = np.zeros(1)
         y[0] = 0
         curRow = self.numF - self.objaddn
@@ -894,8 +872,8 @@ class trajOptProblem(probFun):
         :param G, row, col: ndarray, the G to be written and the locations
         :param rec: bool, if we record row and col
         :param needg: bool, if we need gradient information
-        :returns: curRow: current row after we write on y
-        :returns: curNg: current index in G after this
+        :return curRow: current row after we write on y
+        :return curNg: current index in G after this
 
         """
         # loop over other constraints
@@ -945,7 +923,7 @@ class trajOptProblem(probFun):
 
         """
         y = np.zeros(1)
-        h, useT = self.__getTimeGrid__(x)
+        h, useT = self.__getTimeGrid(x)
         useX, useU, useP = self.__parseX__(x)
         G = np.zeros(1)
         row = np.zeros(1, dtype=int)
@@ -959,7 +937,7 @@ class trajOptProblem(probFun):
         :return grad: gradient of objective function w.r.t x
 
         """
-        h, useT = self.__getTimeGrid__(x)
+        h, useT = self.__getTimeGrid(x)
         useX, useU, useP = self.__parseX__(x)
         y = np.zeros(1)
         if not self.objSparseMode:

@@ -17,9 +17,9 @@ from .trajOptBase import linearPointConstr, linearConstr
 from .trajOptBase import nonLinearPointObj, nonLinearObj
 from .trajOptBase import nonLinearPointConstr, nonLinearConstr
 from .trajOptBase import lqrObj
+from .trajOptBase import addX
 from .libsnopt import snoptConfig, probFun, solver
 from .utility import randomGenInBound, checkInBounds
-from .trajOptProblem import addX
 from scipy.sparse import spmatrix, coo_matrix
 
 

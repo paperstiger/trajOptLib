@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import logging
 sys.path.append('../')
 from trajOptLib.io import getOnOffArgs
-from trajOptLib.trajOptBase import system, nonPointObj, lqrObj
+from trajOptLib.trajOptBase import system, nonLinearPointObj, lqrObj
 from trajOptLib.trajOptProblem import trajOptProblem
 from trajOptLib.libsnopt import snoptConfig, probFun, solver
 from trajOptLib.utility import showSol
@@ -64,10 +64,10 @@ class pendulum(system):
         return y, J
 
 
-class quadCost(nonPointObj):
+class quadCost(nonLinearPointObj):
     """A quadratic cost on control."""
     def __init__(self):
-        nonPointObj.__init__(self, -1, 2, 1, 0, 'user', nG=1)
+        nonLinearPointObj.__init__(self, -1, 2, 1, 0, 'user', nG=1)
         self.R = 1.0
 
     def __callf__(self, x, y):
@@ -147,6 +147,8 @@ def gradmode(lqr):
     prob.preProcess()  # construct the problem
     # construct a solver for the problem
     cfg = snoptConfig()
+    cfg.printFile = 'test.out'
+    cfg.verifyLevel = 3
     slv = solver(prob, cfg)
     rst = slv.solveRand()
     print(rst.flag, rst.sol)

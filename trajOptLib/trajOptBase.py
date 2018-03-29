@@ -126,6 +126,30 @@ class baseFun(funBase):
         raise NotImplementedError
 
 
+class addX(object):
+    """A description of additional optimizing parameter.
+
+    It is intended to be used if the optimal control has like point constraint.
+    In this class the user has to supply the size and bounds of those variables.
+    """
+    def __init__(self, n, lb=None, ub=None):
+        """Constructor of this class.
+
+        :param n: int, length of this variable.
+        :param lb: ndarray, (n,) lower bounds for those variables. None means no bound
+        :param ub: ndarray, (n,) uppere bounds for those variables. None means no bound
+        """
+        self.n = n
+        if lb is None:
+            self.lb = -1e20 * np.ones(n)
+        else:
+            self.lb = lb
+        if ub is None:
+            self.ub = 1e20 * np.ones(n)
+        else:
+            self.ub = ub
+
+
 class linearObj(object):
     """Class for directly add linear objective function over the entire decision variable.
 
