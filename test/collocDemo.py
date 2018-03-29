@@ -45,6 +45,24 @@ class oneDcase(daeSystem):
                 col[1] = 4
 
 
+class orderOneOneD(daeSystem):
+    def __init__(self):
+        daeSystem.__init__(self, 4, 1, 0, 2, 4)  # ddx = u
+
+    def dyn(self, t, x, u, p, y, G, row, col, rec, needg):
+        y[0] = x[2] - x[1]
+        y[1] = x[3] - u[0]
+        if needg:
+            G[0] = 1
+            G[1] = -1
+            G[2] = 1
+            G[3] = -1
+            if rec:
+                row[:2] = 0
+                row[2:] = 1
+                col[:] = [3, 2, 4, 5]
+
+
 class pendulum(daeSystem):
     """Test pendulum nonlinearity."""
     def __init__(self):
@@ -91,12 +109,15 @@ def main():
     if args.linear:
         testLinear()
     if args.orderone:
-        testOrderOne()
+        testOrderOne(args)
 
 
-def testOrderOne():
+def testOrderOne(args):
     """Test order one pendulum case, this is seen everywhere."""
-    sys = orderOnePendulum()
+    if args.pen:
+        sys = orderOnePendulum()
+    else:
+        sys = orderOneOneD()
     N = 20
     t0 = 0.0
     tf = 20.0
