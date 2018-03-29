@@ -183,7 +183,7 @@ class trajOptCollocProblem(probFun):
             numC += self.N * constr.nf  # TODO: verify we do not have to impose those constraints on collocation points
         for constr in self.nonLinConstr:
             numC += constr.nf
-        nnonlincon = numC  # I suppose I do not have to use copy here.
+        nnonlincon = numC
         for constr in self.linPointConstr:
             numC += constr.A.shape[0]
         for constr in self.linPathConstr:
@@ -422,7 +422,6 @@ class trajOptCollocProblem(probFun):
             numCG += constr.nG
         numG = numObjG + numDynG + numCG
         self.numG = numG
-        # we can change nG and grad
         self.nG = numG
 
     def __getDynSparsity(self, x):
@@ -443,17 +442,13 @@ class trajOptCollocProblem(probFun):
     def __getObjSparsity(self, x):
         """Set sparsity structure of the problem from objective function.
 
-        For objective function, we do calculation by assigning gradient to a vector of length numSol.
-        The sparsity pattern is remembered which is a mask that is then used to assign G.
-        This function also determines if it is safe to turn on aggressive mode where we directly assign G.
-        We can safely turn it on in the following conditions:
-        - only lqrObj is supplied
-        - only one of nonLinObj, nonPointObj, nonPathObj, linearObj, linPointObj, linPathObj is non-empty
-        In other cases, we still have to remember which maps to which and there is not much improvement compared with current implementation
-        # TODO: add support such that user has option to safely insert an objective function. Such as path obj plus terminal cost. In long run, add linear obj support
+        The objective function pattern is composed of two parts:
+        - linear parts. We sum all the coefficients and find sparsity pattern out of it
+        - nonlinear parts. Each nonlinear objective is augmented with another row in jacobian
+        and a another auxiliary optimization variable s.t. c(x) = y and J += y
 
         :param x: ndarray, the guess/sol
-        :returns: indices: ndarray, the indices with non-zero objective gradient
+        :returns: nG: int, # Jacobian from nonlinear objective function
 
         """
         h, useT = self.__getTimeGrid(x)
@@ -778,6 +773,7 @@ class trajOptCollocProblem(probFun):
                     colpiece[:] = self.__patchCol__(obj.index, colpiece)
                 curNg += obj.nG
                 curRow += 1
+
         if len(self.nonPathObj) > 0:
             weight = np.zeros((self.nPoint, 1))
             weight[1::2] = 2.0 / 3.0 * h
@@ -799,6 +795,7 @@ class trajOptCollocProblem(probFun):
                         colpiece[:] = self.__patchCol__(i, colpiece)
                     curNg += obj.nG
                 curRow += 1
+
         if(len(self.nonLinObj)) > 0:
             for obj in self.nonLinObj:  # nonlinear cost function
                 Gpiece = G[curNg: curNg + obj.nG]
@@ -827,7 +824,7 @@ class trajOptCollocProblem(probFun):
 
         """
         # loop over other constraints
-        if(len(self.pointConstr)) > 0:
+        if len(self.pointConstr) > 0:
             for constr in self.pointConstr:
                 tmpx = np.concatenate(([useT[constr.index]], useX[constr.index], useU[constr.index], useP[constr.index]))
                 pieceG = G[curNg: curNg + constr.nG]
@@ -839,7 +836,7 @@ class trajOptCollocProblem(probFun):
                     pieceCol[:] = self.__patchCol__(constr.index, pieceCol)
                 curRow += constr.nf
                 curNg += constr.nG
-        if(len(self.pathConstr)) > 0:
+        if len(self.pathConstr) > 0:
             for constr in self.pathConstr:
                 for j in range(self.N):
                     i = 2 * j
@@ -853,7 +850,7 @@ class trajOptCollocProblem(probFun):
                         pieceCol[:] = self.__patchCol__(i, pieceCol)
                     curRow += constr.nf
                     curNg += constr.nG
-        if(len(self.nonLinConstr)) > 0:
+        if len(self.nonLinConstr) > 0:
             for constr in self.nonLinConstr:
                 pieceG = G[curNg: curNg + constr.nG]
                 pieceRow = row[curNg: curNg + constr.nG]
