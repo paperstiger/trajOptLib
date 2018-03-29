@@ -12,16 +12,15 @@ trajOptProblem.py
 Class for describing the trajectory optimization problems.
 """
 import numpy as np
-import logging
-from .trajOptBase import system, linearObj, linearPointObj, nonLinObj, nonPointObj, pointConstr, nonLinConstr, lqrObj
+from .trajOptBase import linearObj, linearPointObj
+from .trajOptBase import linearPointConstr, linearConstr
+from .trajOptBase import nonLinearPointObj, nonLinearObj
+from .trajOptBase import nonLinearPointConstr, nonLinearConstr
+from .trajOptBase import lqrObj
 from .libsnopt import snoptConfig, probFun, solver
 from .utility import parseX, randomGenInBound, checkInBounds
 from scipy import sparse
 from scipy.sparse import spmatrix, coo_matrix
-
-
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 
 class addX(object):
@@ -115,6 +114,9 @@ class trajOptProblem(probFun):
         self.pointConstr = []  # general constraint imposed at a certain point, such as initial and final point
         self.pathConstr = []  # general constraint imposed everywhere such as collision avoidance
         self.nonLinConstr = []  # stores general nonlinear constraint
+        self.linPointConstr = []
+        self.linPathConstr = []
+        self.linearConstr = []
         # calculate number of variables to be optimized, time are always the last
         numX = self.N * self.dimx
         numU = self.N * self.dimu
@@ -140,7 +142,7 @@ class trajOptProblem(probFun):
         self.numT = numT
         self.numTraj = numSol
         self.numSol = numSol + self.lenAddX
-        self.t0ind, self.tfind = self.__getTimeIndices__()
+        self.t0ind, self.tfind = self.__getTimeIndices()
 
     def preProcess(self):
         """Initialize the instances of probFun now we are ready.
@@ -157,6 +159,7 @@ class trajOptProblem(probFun):
             numC += self.N * constr.nf
         for constr in self.nonLinConstr:
             numC += constr.nf
+        nnonlincon = numC  # I suppose I do not have to use copy here.
         self.numF = 1 + numDyn + numC
         super(trajOptProblem, self).__init__(self.numSol, self.numF)  # currently we do not know G yet
         self.setXbound()

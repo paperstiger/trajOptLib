@@ -17,7 +17,9 @@ import matplotlib.pyplot as plt
 import logging
 sys.path.append('../')
 from trajOptLib.io import getOnOffArgs
-from trajOptLib import daeSystem, trajOptCollocProblem, lqrObj
+from trajOptLib import daeSystem, trajOptCollocProblem
+from trajOptLib import nonLinearPointObj, linearPointObj, linearPointConstr
+from trajOptLib import lqrObj
 from trajOptLib import snoptConfig, solver
 from trajOptLib.utility import showSol
 from scipy.sparse import coo_matrix
@@ -60,11 +62,73 @@ class pendulum(daeSystem):
 
 
 def main():
-    args = getOnOffArgs('oned', 'pen', 'lqr', 'ip')
+    args = getOnOffArgs('oned', 'pen', 'lqr', 'ip', 'linear')
     if args.oned:
         testOneD()
     if args.pen:
         testPen()
+    if args.linear:
+        testLinear()
+
+
+def testLinear():
+    """Test 1d problem with linear constraints and linear objective"""
+    sys = oneDcase()
+    N = 10
+    t0 = 0.0
+    tf = 2.0
+    prob = trajOptCollocProblem(sys, N, t0, tf)
+    prob.xbd = [np.array([-1e20, -1e20, -1e20]), np.array([1e20, 1e20, 1e20])]
+    prob.ubd = [np.array([-1e20]), np.array([1e20])]
+    prob.x0bd = [np.array([0, 0, -1e20]), np.array([0, 0, 1e20])]
+    prob.xfbd = [np.array([1, 0, -1e20]), np.array([1, 0, 1e20])]
+    lqr = lqrObj(R=np.ones(1))
+    prob.addLQRObj(lqr)
+    A = np.zeros(5)
+    A[1] = 1
+    A[2] = 1  # so it basically does nothing
+    linPntObj = linearPointObj(0, A, 3, 1, 0)
+    prob.addLinearPointObj(linPntObj)
+    # add linear constraint that x is increasing
+    A = np.zeros(5)
+    A[1] = 1
+    lb = np.zeros(1)
+    ub = np.ones(1)
+    linPntCon = linearPointConstr(-1, A, lb, ub)
+    prob.addLinearPointConstr(linPntCon, True)
+    # we want mid point to be close to 0.8
+    wantState = np.array([0.8, 0])
+    pntObj = pointObj(N, wantState)
+    prob.addObj(pntObj)
+    prob.preProcess()  # construct the problem
+    # construct a solver for the problem
+    cfg = snoptConfig()
+    cfg.printFile = 'test.out'
+    cfg.verifyLevel = 3
+    slv = solver(prob, cfg)
+    rst = slv.solveRand()
+    print(rst.flag, rst.sol)
+    if rst.flag == 1:
+        # parse the solution
+        sol = prob.parseSol(rst.sol.copy())
+        showSol(sol)
+
+
+class pointObj(nonLinearPointObj):
+    """A objective function to make mid point close to a selected point"""
+    def __init__(self, N, state):
+        nonLinearPointObj.__init__(self, 15, 3, 1, 0, 'user', 2)
+        self.state = state
+        self.weight = 100
+
+    def __callg__(self, x, F, G, row, col, rec, needg):
+        dx = x[1:3] - self.state
+        F[0] = self.weight * np.sum(dx ** 2)
+        if needg:
+            G[:2] = self.weight * 2 * dx
+            if rec:
+                row[:2] = 0
+                col[:2] = np.arange(1, 3)
 
 
 def testOneD():

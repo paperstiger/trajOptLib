@@ -12,12 +12,14 @@ trajOptCollocationProblem.py
 This class implements the direct collocation approach for humanoid trajectory optimization
 """
 import numpy as np
-import logging
-from .trajOptBase import system, linearObj, linearPointObj, nonLinObj, nonPointObj, pointConstr, nonLinConstr, lqrObj
+from .trajOptBase import linearObj, linearPointObj
+from .trajOptBase import linearPointConstr, linearConstr
+from .trajOptBase import nonLinearPointObj, nonLinearObj
+from .trajOptBase import nonLinearPointConstr, nonLinearConstr
+from .trajOptBase import lqrObj
 from .libsnopt import snoptConfig, probFun, solver
 from .utility import randomGenInBound, checkInBounds
-from .trajOptProblem import trajOptProblem, addX
-from scipy import sparse
+from .trajOptProblem import addX
 from scipy.sparse import spmatrix, coo_matrix
 
 
@@ -128,7 +130,7 @@ class trajOptCollocProblem(probFun):
         # nonlinear constraints. Linear constraints are treated as nonlinear
         self.pointConstr = []  # general constraint imposed at a certain point, such as initial and final point
         self.pathConstr = []  # general constraint imposed everywhere such as collision avoidance
-        self.nonLinConstr = []  # stores general nonlinear constraint  TODO: implement linear constraints. They are cheap.
+        self.nonLinConstr = []  # stores general nonlinear constraint
         self.linPointConstr = []
         self.linPathConstr = []
         self.linearConstr = []
@@ -217,7 +219,7 @@ class trajOptCollocProblem(probFun):
             nnlin = 0
         else:
             nnlin = 1
-        nnlin += len(self.nonLinObj) + len(self.nonPathObj) + len(self.nonLinObj)
+        nnlin += len(self.nonLinObj) + len(self.nonPathObj) + len(self.nonPointObj)
         addn = nnlin
         # analyze the linear objective functions in a good way
         A = np.zeros(numSol)
@@ -229,7 +231,7 @@ class trajOptCollocProblem(probFun):
             for i in range(self.numPoint):
                 A[self.__patchCol__(i, obj.A.col)] += obj.A.data
         # get sparse representation of A
-        nnzind = np.nonzero(A)
+        nnzind = np.nonzero(A)[0]
         A_ = np.zeros(2 * addn)
         row_ = np.zeros(2 * addn, dtype=int)
         col_ = np.zeros(2 * addn, dtype=int)
@@ -285,7 +287,7 @@ class trajOptCollocProblem(probFun):
         self.spM = coo_matrix(self.matM)
         self.spR = coo_matrix(self.matR)
         lenA = (4*5*self.dimdyn + 3*(self.dimu + self.dimp)) * (self.N - 1)  # this only works for 2nd order system
-        A = np.zeros(lenDefect)
+        A = np.zeros(lenA)
         row = np.zeros(lenA, dtype=int)
         col = np.zeros(lenA, dtype=int)
         curNA = 0
@@ -352,9 +354,16 @@ class trajOptCollocProblem(probFun):
             lstCArow.append(constr.A.row + curRow)
             lstCAcol.append(constr.A.col)
             curRow += constr.A.shape[0]
-        self.Aval = np.concatenate((spA.data, A, *lstCA))
-        self.Arow = np.concatenate((spA.row, row, *lstCArow))
-        self.Acol = np.concatenate((spA.col, col, *lstCAcol))
+        # for python3 compaticity
+        lstCA.append(spA.data)
+        lstCA.append(A)
+        lstCArow.append(spA.row)
+        lstCArow.append(row)
+        lstCAcol.append(spA.col)
+        lstCAcol.append(col)
+        self.Aval = np.concatenate(lstCA)
+        self.Arow = np.concatenate(lstCArow)
+        self.Acol = np.concatenate(lstCAcol)
         curNA = len(self.Aval)  # this is just for bookkeeping
         return curRow, curNA
 
@@ -578,6 +587,21 @@ class trajOptCollocProblem(probFun):
                 cub[cind0: cind0 + constr.nf] = constr.ub
             cind0 += constr.nf
         # the rest are linear constraints and we should write those bounds, too
+        for constr in self.linPointConstr:
+            cindf = cind0 + constr.A.shape[0]
+            clb[cind0: cindf] = constr.lb
+            cub[cind0: cindf] = constr.ub
+            cind0 = cindf
+        for constr in self.linPathConstr:
+            cindf = cind0 + self.N * constr.A.shape[0]
+            clb[cind0: cindf] = np.tile(constr.lb, (self.N, 1)).flatten()
+            cub[cind0: cindf] = np.tile(constr.ub, (self.N, 1)).flatten()
+            cind0 = cindf
+        for constr in self.linearConstr:
+            cindf = cind0 + constr.A.shape[0]
+            clb[cind0: cindf] = constr.lb
+            cub[cind0: cindf] = constr.ub
+            cind0 = cindf
         # the bounds for objaddn is 0 so we are good so far
         # assign to where it should belong to
         self.lb = clb
@@ -694,12 +718,12 @@ class trajOptCollocProblem(probFun):
         # loop over all system dynamics constraint
         curRow = 1
         curNg = 0
-        curRow, curNg = self.__dynconstrModeG__(curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
-        curRow, curNg = self.__constrModeG__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
+        curRow, curNg = self.__dynconstrModeG(curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
+        curRow, curNg = self.__constrModeG(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
         # loop over all the objective functions, I haven't checked if order is correct since some linear constraints are followed
-        curRow, curNg = self.__objModeG__(0, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
+        curRow, curNg = self.__objModeG(0, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
 
-    def __dynconstrModeG__(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg):
+    def __dynconstrModeG(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg):
         """Evaluate the constraints imposed by system dynamics"""
         dimx, dimu, dimp = self.dimx, self.dimu, self.dimp
         dimpoint = self.dimpoint
@@ -743,7 +767,7 @@ class trajOptCollocProblem(probFun):
         # still in the point, path, obj order
         if len(self.nonPointObj) > 0:
             for obj in self.nonPointObj:
-                tmpx = np.concatenate(([useT[constr.index]], useX[constr.index], useU[constr.index], useP[constr.index]))
+                tmpx = np.concatenate(([useT[obj.index]], useX[obj.index], useU[obj.index], useP[obj.index]))
                 Gpiece = G[curNg: curNg + obj.nG]
                 rowpiece = row[curNg: curNg + obj.nG]
                 colpiece = col[curNg: curNg + obj.nG]
@@ -788,7 +812,7 @@ class trajOptCollocProblem(probFun):
                 curRow += 1
         return curRow, curNg
 
-    def __constrModeG__(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
+    def __constrModeG(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
         """Calculate constraint function. G mode
 
         :param curRow: int, index from which we write on
@@ -1049,7 +1073,7 @@ class trajOptCollocProblem(probFun):
         assert isinstance(linObj, linearObj)
         self.linearObj.append(linObj)
 
-    def addLinPointObj(self, linPointObj, path=False):
+    def addLinearPointObj(self, linPointObj, path=False):
         """Add linear point objective function.
 
         :param linPointObj: linearPointObj class
@@ -1062,49 +1086,83 @@ class trajOptCollocProblem(probFun):
         else:
             self.linPointObj.append(linPointObj)
 
-    def addNonLinObj(self, nonlinObj):
+    def addNonLinearObj(self, nonlinObj):
         """Add nonlinear objective function.
 
         :param nonLinObj: a nonLinObj class
 
         """
-        assert isinstance(nonlinObj, nonLinObj)
+        assert isinstance(nonlinObj, nonLinearObj)
         self.nonLinObj.append(nonlinObj)
 
-    def addNonPointObj(self, nonPntObj, path=False):
+    def addNonLinearPointObj(self, nonPntObj, path=False):
         """Add nonlinear point objective.
 
         :param nonPntObj: nonLinObj class
         :param path: bool, if this obj is pointwise
 
         """
-        assert isinstance(nonPntObj, nonPointObj)
+        assert isinstance(nonPntObj, nonLinearPointObj)
         if path:
             self.nonPathObj.append(nonPntObj)
         else:
             self.nonPointObj.append(nonPntObj)
 
-    def addPointConstr(self, pntConstr, path=False):
+    def addNonLinearPointConstr(self, pntConstr, path=False):
         """Add point constraint.
 
         :param pntConstr: pointConstr class
         :param path: bool, if this obj
 
         """
-        assert isinstance(pntConstr, pointConstr)
+        assert isinstance(pntConstr, nonLinearPointConstr)
         if path:
             self.pathConstr.append(pntConstr)
         else:
             self.pointConstr.append(pntConstr)
 
-    def addNonLinConstr(self, constr):
+    def addNonLinearConstr(self, constr):
         """Add a general nonlinear constraint.
 
         :param constr: nonLinConstr class
 
         """
-        assert isinstance(constr, nonLinConstr)
+        assert isinstance(constr, nonLinearConstr)
         self.nonLinConstr.append(constr)
+
+    def addLinearConstr(self, constr):
+        assert isinstance(constr, linearConstr)
+        self.linearConstr.append(constr)
+
+    def addLinearPointConstr(self, constr, path=False):
+        assert isinstance(constr, linearPointConstr)
+        if path:
+            self.linPathConstr.append(constr)
+        else:
+            self.linPointConstr.append(constr)
+
+    def addObj(self, obj, path=False):
+        """A high level function that add objective function of any kind."""
+        if isinstance(obj, linearObj):
+            self.addLinearObj(obj)
+        elif isinstance(obj, linearPointObj):
+            self.addLinearPointObj(obj, path)
+        elif isinstance(obj, nonLinearObj):
+            self.addNonLinearObj(obj)
+        elif isinstance(obj, nonLinearPointObj):
+            self.addNonLinearPointObj(obj, path)
+        elif isinstance(obj, lqrObj):
+            self.addLQRObj(obj)
+
+    def addConstr(self, constr, path=False):
+        if isinstance(constr, linearConstr):
+            self.addLinearConstr(constr)
+        elif isinstance(constr, linearPointConstr):
+            self.addLinearPointConstr(constr, path)
+        elif isinstance(constr, nonLinearConstr):
+            self.addNonLinearConstr(constr)
+        elif isinstance(constr, nonLinearPointConstr):
+            self.addNonLinearPointConstr(constr, path)
 
     def setN(self, N):
         """Set N.

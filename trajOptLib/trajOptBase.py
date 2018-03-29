@@ -11,16 +11,9 @@ trajOptBase.py
 
 Classes ready to be used for trajectory optimization.
 """
-import sys, os, time
 import numpy as np
 from scipy.sparse import spmatrix, csr_matrix, csc_matrix, coo_matrix
-import matplotlib.pyplot as plt
-import logging
 from .libsnopt import funBase, snoptConfig, result, probFun, solver
-
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class system(object):
@@ -159,7 +152,7 @@ class linearPointObj(object):
     control and parameter at a selected index.
 
     """
-    def __init__(self, index, A, nx, nu, np):
+    def __init__(self, index, A, nx, nu, np_):
         """Constructor for linear objective function using A pointwise
 
         :param index: int, at which point is objective function evaluated
@@ -169,16 +162,16 @@ class linearPointObj(object):
         :param np: int, dimension of parameter
 
         """
-        xdim = 1 + nx + nu + np  # this x means length of variable at one point, (t, x, u, p)
+        xdim = 1 + nx + nu + np_  # this x means length of variable at one point, (t, x, u, p)
         if isinstance(A, np.ndarray):
             assert A.ndim == 1 and xdim == len(A)
-            A = csr_matrix(A)
+            A = coo_matrix(A)
         assert A.shape[0] == 1 and A.shape[1] == xdim
         self.A = A
         self.index = index
 
 
-class nonLinObj(baseFun):
+class nonLinearObj(baseFun):
     """Class for general nonlinear objective function over the entire decision variables.
 
     The objective function is basically calculated by calling a nonlinear function.
@@ -195,7 +188,7 @@ class nonLinObj(baseFun):
         baseFun.__init__(self, nsol, 1, gradmode, nG)
 
 
-class nonPointObj(baseFun):
+class nonLinearPointObj(baseFun):
     """Class for defining point objective function.
 
     Similar to linear case. A function that takes the concatenated vector at a selected index is used.
@@ -278,7 +271,7 @@ class nonDiagLQRObj(object):
     pass
 
 
-class pointConstr(baseFun):
+class nonLinearPointConstr(baseFun):
     """Class for defining point constraint function."""
     def __init__(self, index, nc, nx, nu, np=0, lb=None, ub=None, gradmode='user', nG=None):
         """Constructor for nonlinear point constraint. Also serve as path constraint.
@@ -298,7 +291,7 @@ class pointConstr(baseFun):
         self.ub = ub
 
 
-class nonLinConstr(baseFun):
+class nonLinearConstr(baseFun):
     """Class for defining constraint function in a general form."""
     def __init__(self, nsol, nc, lb=None, ub=None, gradmode='user', nG=None):
         """Constructor for general nonlinear constraint.
@@ -315,18 +308,18 @@ class nonLinConstr(baseFun):
         self.ub = ub
 
 
-def linearPointConstr(object):
+class linearPointConstr(object):
     """Class for linear constraint at selected points."""
     def __init__(self, index, A, lb=None, ub=None):
         self.lb = lb
         self.ub = ub
         self.index = index
-        self.A = A
+        self.A = coo_matrix(A)
 
 
-def linearConstr(object):
+class linearConstr(object):
     """Class for linear constraints based on the whole x length."""
     def __init__(self, A, lb=None, ub=None):
-        self.A = A
+        self.A = coo_matrix(A)
         self.lb = lb
         self.ub = ub
