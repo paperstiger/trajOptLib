@@ -384,7 +384,7 @@ class trajOptProblem(probFun):
             else:
                 tfind = self.numTraj
         else:
-            if self.fixxf:
+            if self.fixtf:
                 t0ind = self.numTraj
             else:
                 t0ind = self.numTraj + 1
