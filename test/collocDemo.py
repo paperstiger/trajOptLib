@@ -208,8 +208,8 @@ def testOneD():
     """Test solving one-dim problem using collocation approach"""
     sys = oneDcase()
     N = 10
-    t0 = 0.0
-    tf = 2.0
+    t0 = [-1.0, 0]
+    tf = [2.0, 3.0]
     prob = trajOptCollocProblem(sys, N, t0, tf)
     prob.xbd = [np.array([-1e20, -1e20, -1e20]), np.array([1e20, 1e20, 1e20])]
     prob.ubd = [np.array([-1e20]), np.array([1e20])]

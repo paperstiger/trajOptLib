@@ -101,6 +101,8 @@ class baseFun(funBase):
         else:
             raise NotImplementedError
         self.gradmode = gradmode
+        self.timeindex = None
+        self.autonomous = False
 
     def __callf__(self, x, F):
         """Function call with no gradient information.
@@ -124,6 +126,17 @@ class baseFun(funBase):
 
         """
         raise NotImplementedError
+
+    def __findTimeGradient(self, x):
+        assert self.gradmode, 'Grad mode is off'
+        tmpy = np.zeros(self.nf)
+        tmpG = np.zeros(self.nG)
+        tmprow = np.zeros(self.nG, dtype=int)
+        tmpcol = np.zeros(self.nG, dtype=int)
+        self.__callg__(x, tmpy, tmpG, tmprow, tmpcol, True, True)
+        self.timeindex = np.where(tmpcol == 0)[0]  # the columns from time
+        if len(self.timeindex) == 0:
+            self.autonomous = True
 
 
 class addX(object):
@@ -150,6 +163,21 @@ class addX(object):
             self.ub = ub
 
 
+class _objectWithMatrix(object):
+    """An abstract class that basically has a matrix in it."""
+    def __init__(self):
+        self.A = None
+        self.timeindex = None
+        self.autonomous = False
+
+    def __findTimeGradient(self):
+        """For a matrix, find column 0 indice."""
+        assert isinstance(self.A, coo_matrix)
+        self.timeindex = np.where(self.A.col == 0)[0]  # the columns from time
+        if len(self.timeindex) == 0:
+            self.autonomous = True
+
+
 class linearObj(object):
     """Class for directly add linear objective function over the entire decision variable.
 
@@ -169,7 +197,7 @@ class linearObj(object):
         self.A = A
 
 
-class linearPointObj(object):
+class linearPointObj(_objectWithMatrix):
     """Class for directly add linear objective function over the entire decision variable.
 
     It serves for objective function of the form :math:`y=Ax` where :math:`x` is the concatenated vector of state, 
@@ -332,7 +360,7 @@ class nonLinearConstr(baseFun):
         self.ub = ub
 
 
-class linearPointConstr(object):
+class linearPointConstr(_objectWithMatrix):
     """Class for linear constraint at selected points."""
     def __init__(self, index, A, lb=None, ub=None):
         self.lb = lb
