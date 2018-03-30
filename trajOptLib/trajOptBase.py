@@ -77,6 +77,65 @@ class system(object):
         raise NotImplementedError
 
 
+class daeSystem(object):
+    """A DAE system."""
+    def __init__(self, nx, nu, np, nf, nG):
+        """Constructor for the problem.
+
+        For a dae system described by :math `f(t, q, \dot{q}, \ddot{q}, u, p)=0`, nx=3dim(q), nf=dim(q).
+        If it is described by :math `f(t, q, \dot{q}, u, p)=0`, nx=2dim(q), nf=dim(q).
+        We define as order the highest time derivative of state q. Keeping this in mind, nf always equals dim(q),
+        nx = (1+order)dim(q), nDefect = 2*order*nf
+        Compared with system class, system dynamics can be given implicitly.
+        For different order, we are gonna have different number of defect constraints and sizes.
+
+        :param nx: int, dimension of states, it might also include acceleration
+        :param nu: int, dimension of control
+        :param np: int, dimension of parameter
+        :param nf: int, dimension of dae system
+        :param nG: int, nnz of Jacobian
+        """
+        self.nx = nx
+        self.nu = nu
+        self.np = np
+        self.nf = nf
+        self.nG = nG
+        assert nx % nf == 0
+        self.order = nx // nf - 1  # this is useful for detecting size
+        self.autonomous = False
+        self.timeindex = None
+
+    def dyn(self, t, x, u, p, y, G, row, col, rec, needg):
+        """Implementation of system dynamics expressed in a dae.
+
+        It evaluates system dynamics like f(t, q, dq, ddq, p, u) = 0 and calculate gradients if necessary.
+        :param t: float, time of evaluation
+        :param x: ndarray, (nx,) state variable, it might contain q, dq, ddq or in more general case q and dq.
+        :param u: ndarray, (nu,) control variable
+        :param p: ndarray, (np,) parameter used such as reaction force from ground
+        :param y: ndarray, (nq,) this constraint function. It is evaluated here.
+        :param G, row, col: ndarray, (nG,) gradient of this constraints, row and col index
+        :param rec: bool, if we need to write row and col
+        :param needg: bool, if we have to evaluate gradients.
+        """
+        raise NotImplementedError
+
+    def findTimeGradient(self, catx):
+        """Detect if gradient is time related."""
+        t = 0
+        x = catx[:self.nx]
+        u = catx[self.nx: self.nx + self.nu]
+        p = catx[self.nx+self.nu: self.nx + self.nu + self.np]
+        y = np.zeros(self.nf)
+        G = np.zeros(self.nG)
+        row = np.zeros(self.nG, dtype=int)
+        col = np.zeros(self.nG, dtype=int)
+        self.dyn(t, x, u, p, y, G, row, col, True, True)
+        self.timeindex = np.where(col == 0)[0]
+        if len(self.timeindex) == 0:
+            self.autonomous = True
+
+
 class baseFun(funBase):
     """Base class for functions, including both objective and constraint.
 

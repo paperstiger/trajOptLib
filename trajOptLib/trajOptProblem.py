@@ -41,7 +41,7 @@ class trajOptProblem(probFun):
     10. Use the solver to solve with either automatic guess or user provided guess
 
     """
-    def __init__(self, sys, N=20, t0=0.0, tf=1.0, gradmode=True, addx=None):
+    def __init__(self, sys, N, t0, tf, gradmode=True, addx=None):
         """Initialize problem by system, discretization grid size, and allowable time
 
         :param sys: system, describe system dynamics
