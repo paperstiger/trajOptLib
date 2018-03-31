@@ -373,7 +373,6 @@ class trajOptProblem(probFun):
             nG += self.nPoint * obj.nG
         return nG
 
-
     def __getTimeIndices(self):
         """Utility function for assigning sparsity structure."""
         t0ind = -1
@@ -801,7 +800,7 @@ class trajOptProblem(probFun):
     def __objModeG(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
         """Calculate objective function. It just evaluates them and assign to correct position in y.
 
-        See __constrModeG for arguments and output.
+        See __constr_mode_g__ for arguments and output.
         """
         tmpout = np.zeros(1)
         y[0] = 0

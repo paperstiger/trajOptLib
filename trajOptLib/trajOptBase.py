@@ -186,7 +186,7 @@ class baseFun(funBase):
         """
         raise NotImplementedError
 
-    def __findTimeGradient(self, x):
+    def findTimeGradient(self, x):
         assert self.gradmode, 'Grad mode is off'
         tmpy = np.zeros(self.nf)
         tmpG = np.zeros(self.nG)
@@ -229,7 +229,7 @@ class _objectWithMatrix(object):
         self.timeindex = None
         self.autonomous = False
 
-    def __findTimeGradient(self):
+    def findTimeGradient(self):
         """For a matrix, find column 0 indice."""
         assert isinstance(self.A, coo_matrix)
         self.timeindex = np.where(self.A.col == 0)[0]  # the columns from time

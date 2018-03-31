@@ -75,6 +75,10 @@ def showSol(solDict, xsplit=None, usplit=None, psplit=None):
 
     """
     assert isinstance(solDict, (dict, list))
+    if 'phases' in solDict:
+        mul_seg_mode = True
+    else:
+        mul_seg_mode = False
     if isinstance(solDict, dict):
         plott = [solDict['t']]
         plotx = solDict['x'][np.newaxis]

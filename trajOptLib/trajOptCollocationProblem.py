@@ -57,7 +57,7 @@ class trajOptCollocProblem(probFun):
 
         :param sys: system, describe system dynamics
         :param N: int, discretization grid size, a uniform grid
-        :param t0: float/array like, allowable t0  # TODO: support time intervals for t0 and tf
+        :param t0: float/array like, allowable t0
         :param tf: float/array like, allowable tf
         :param addX: list of addX / one addX / None, additional optimization variables.
 
@@ -341,7 +341,7 @@ class trajOptCollocProblem(probFun):
         lstCA = []
         lstCArow = []
         lstCAcol = []
-        for constr in self.linPointConstr:
+        for constr in self.linPointConstr:  # TODO: support for time to be done
             lstCA.append(constr.A.data)
             lstCArow.append(constr.A.row + curRow)
             lstCAcol.append(self.__patchCol__(constr.index, constr.A.col))  # take care on here
@@ -435,16 +435,21 @@ class trajOptCollocProblem(probFun):
         # summarize number of pure linear constraints
         numDynG = self.__getDynSparsity(x0)
         numCG = 0  # G from C
-        # I only care about those in numC
+
+        h, useT = self.__get_time_grid__(x0)
+        useX, useU, useP = self.__parseX__(x0)
+        i = np.random.randint(self.nPoint)
+        tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
+
         for constr in self.pointConstr:
             numCG += constr.nG
-            constr.findTimeGradient()
+            constr.findTimeGradient(tmpx)
             if not constr.autonomous:
                 n = len(constr.timeindex)
                 numCG += (self.numT - 1) * n
         for constr in self.pathConstr:
             numCG += self.N * constr.nG
-            constr.findTimeGradient()
+            constr.findTimeGradient(tmpx)
             if not constr.autonomous:
                 n = len(constr.timeindex)
                 numCG += (self.numT - 1) * n * self.N
@@ -490,7 +495,7 @@ class trajOptCollocProblem(probFun):
         :returns: nG: int, # Jacobian from nonlinear objective function
 
         """
-        h, useT = self.__getTimeGrid(x)
+        h, useT = self.__get_time_grid__(x)
         useX, useU, useP = self.__parseX__(x)
         i = np.random.randint(self.nPoint)
         tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
@@ -650,7 +655,7 @@ class trajOptCollocProblem(probFun):
         self.lb = clb
         self.ub = cub
 
-    def __getTimeGrid(self, x):
+    def __get_time_grid__(self, x):
         """Based on initial guess x, get the time grid for discretization.
 
         :param x: ndarray, the guess/sol.
@@ -756,17 +761,19 @@ class trajOptCollocProblem(probFun):
         :param rec, needg: if we record/ if we need gradient
 
         """
-        h, useT = self.__getTimeGrid(x)
+        y[0] = 0  # since this row is purely linear
+        h, useT = self.__get_time_grid__(x)
         useX, useU, useP = self.__parseX__(x)
         # loop over all system dynamics constraint
         curRow = 1
         curNg = 0
-        curRow, curNg = self.__dynconstrModeG(curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
-        curRow, curNg = self.__constrModeG(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
+        curRow, curNg = self.__dynconstr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
+        curRow, curNg = self.__constr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
         # loop over all the objective functions, I haven't checked if order is correct since some linear constraints are followed
-        curRow, curNg = self.__objModeG(0, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
+        curRow, curNg = self.__obj_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
+        pass
 
-    def __dynconstrModeG(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg):
+    def __dynconstr_mode_g__(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg):
         """Evaluate the constraints imposed by system dynamics"""
         dimx, dimu, dimp = self.dimx, self.dimu, self.dimp
         dimpoint = self.dimpoint
@@ -787,7 +794,8 @@ class trajOptCollocProblem(probFun):
                         colpiece[:] = self.__patchCol__(i, colpiece[:])
             else:
                 self.sys.dyn(useT[i], useX[i], useU[i], useP[i], cDyn[i], self.G, self.row, self.col, rec, needg)
-                curNg = self.__copyIntoG(i, G, row, col, curRow, curNg, self.sys.nG, self.sys.timeindex, False, rec)
+                curNg = self.__copy_into_g__(i, G, row, col, curRow, curNg, self.sys.nG, self.sys.timeindex, False, rec,
+                                             self.G, self.row, self.col)
             curRow += self.dimdyn
         # offset of row number due to defect dynamics constraint
         if self.fixTimeMode:
@@ -810,12 +818,12 @@ class trajOptCollocProblem(probFun):
                         if rec:
                             row[curNg:curNg + dimdyn] = curRow + bscIndex 
                             row[curNg + dimdyn:curNg + 2*dimdyn] = curRow + bscIndex 
-                            col[curNg:curNg + dimdyn] = lefti * dimpoint + j * dimdyn + dimdyn
-                            col[curNg + dimdyn:curNg + 2*dimdyn] = righti * dimpoint + j * dimdyn + dimdyn
+                            col[curNg:curNg + dimdyn] = lefti * dimpoint + j * dimdyn + dimdyn + bscIndex
+                            col[curNg + dimdyn:curNg + 2*dimdyn] = righti * dimpoint + j * dimdyn + dimdyn + bscIndex
                             row[curNg + 2*dimdyn:curNg + 3*dimdyn] = curRow + bscIndex + dimdyn
                             row[curNg + 3*dimdyn:curNg + 4*dimdyn] = curRow + bscIndex + dimdyn
-                            col[curNg + 2*dimdyn:curNg + 3*dimdyn] = lefti * dimpoint + j * dimdyn
-                            col[curNg + 3*dimdyn:curNg + 4*dimdyn] = righti * dimpoint + j * dimdyn
+                            col[curNg + 2*dimdyn:curNg + 3*dimdyn] = lefti * dimpoint + j * dimdyn + bscIndex
+                            col[curNg + 3*dimdyn:curNg + 4*dimdyn] = righti * dimpoint + j * dimdyn + bscIndex
                         curNg += 4 * dimdyn
                         # if time related, we have to also consider them
                         if not self.fixTimeMode:
@@ -841,7 +849,8 @@ class trajOptCollocProblem(probFun):
             curRow += (self.N - 1) * (dimp + dimu)  # defect constraints on ctrl and parameters are linear
         return curRow, curNg
 
-    def __copyIntoG(index, G, row, col, curRow, curNg, nG, timeindex, plus, rec):
+    def __copy_into_g__(self, index, G, row, col, curRow, curNg, nG, time_index, plus, rec,
+                        G_src, row_src, col_src, col_offset=0):
         """With sparsity calculated in self.G, we assign to correct G.
         
         :param index: int, we are evaluating this at which point
@@ -852,51 +861,51 @@ class trajOptCollocProblem(probFun):
         :param timeindex: index indicating time related.
         :param plus: bool, if we plus value to time-related index (integral one)
         :param rec: bool, if we record index into row and col
+        :param G_src/row_src/col_src: where we copy value from
+        :param col_offset: int, offset of column, it is only used for multiple-phase problem
         :return curNg: updated occupied Ng
         """
         # use time index to build the mask for selecting data
-        G_ = self.G[:nG]
+        G_ = G_src[:nG]
         timemask = np.zeros(nG, dtype=bool)
-        timemask[timeindex] = True  # get a mask for time-related gradient
+        timemask[time_index] = True  # get a mask for time-related gradient
         statemask = np.logical_not(timemask)
-        lenstate = nG - len(timeindex)
+        lenstate = nG - len(time_index)
         lenTime = nG - lenstate
         G[curNg: curNg + lenstate] = G_[statemask]
         if rec:
-            col_ = self.col[:nG]
-            row_ = self.row[:nG]
-            col[curNg: curNg + lenstate] = col_[statemask] - 1 + index * self.dimpoint
+            col_ = col_src[:nG]
+            row_ = row_src[:nG]
+            col[curNg: curNg + lenstate] = col_[statemask] - 1 + index * self.dimpoint + col_offset
             row[curNg: curNg + lenstate] = row_[statemask] + curRow
         curNg += lenstate
         # for time related columns
         if self.t0ind > 0:
             ptpt0 = (self.N - 1 - index) / (self.N - 1)
             if plus:
-                G[curNg: curNg + lenTime] += G_[timeindex] * ptpt0
+                G[curNg: curNg + lenTime] += G_[time_index] * ptpt0
             else:
-                G[curNg: curNg + lenTime] = G_[timeindex] * ptpt0
+                G[curNg: curNg + lenTime] = G_[time_index] * ptpt0
             if rec:
-                row[curNg: curNg + lenTime] = row_[timeindex] + curRow
-                col[curNg: curNg + lenTime] = self.t0ind
+                row[curNg: curNg + lenTime] = row_[time_index] + curRow
+                col[curNg: curNg + lenTime] = self.t0ind + col_offset
             curNg += lenTime
         if self.tfind > 0:
             ptptf = index / (self.N - 1)
             if plus:
-                G[curNg: curNg + lenTime] += G_[timeindex] * ptptf
+                G[curNg: curNg + lenTime] += G_[time_index] * ptptf
             else:
-                G[curNg: curNg + lenTime] = G_[timeindex] * ptptf
+                G[curNg: curNg + lenTime] = G_[time_index] * ptptf
             if rec:
-                row[curNg: curNg + lenTime] = row_[timeindex] + curRow
-                col[curNg: curNg + lenTime] = self.tfind
+                row[curNg: curNg + lenTime] = row_[time_index] + curRow
+                col[curNg: curNg + lenTime] = self.tfind + col_offset
             curNg += lenTime
         return curNg
 
-    def __objModeG(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
+    def __obj_mode_g__(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
         """Calculate objective function. Basically it moves all nonlinear objective function to the final rows
         See __constrModeG__ for arguments and output."""
         tmpout = np.zeros(1)
-        y[0] = 0  # since this row is purely linear
-        curRow = self.numF - self.objaddn
         # first lets do lqrobj
         if self.lqrObj is not None:  # the lqr obj
             Gpiece = G[curNg: curNg + self.LQRnG]
@@ -924,7 +933,7 @@ class trajOptCollocProblem(probFun):
                     curNg += obj.nG
                 else:
                     obj.__callg__(tmpx, tmpout, self.G, self.row, self.col, rec, needg)
-                    curNg = self.__copyIntoG(obj.index, G, row, col, curRow, curNg, obj.nG, obj.timeindex, False, rec)
+                    curNg = self.__copy_into_g__(obj.index, G, row, col, curRow, curNg, obj.nG, obj.timeindex, False, rec, self.G, self.row, self.col)
                 y[curRow] = tmpout[0]
                 curRow += 1
 
@@ -953,7 +962,7 @@ class trajOptCollocProblem(probFun):
                         tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
                         obj.__callg__(tmpx, tmpout, self.G, self.row, self.col, rec, needg)
                         self.G[:obj.nG] *= weight[i]
-                        curNg = self.__copyIntoG(i, G, row, col. curRow, curNg, obj.nG, obj.timeindex, True, rec)
+                        curNg = self.__copy_into_g__(i, G, row, col. curRow, curNg, obj.nG, obj.timeindex, True, rec, self.G, self.row, self.col)
                 y[curRow] += weight[i] * tmpout[0]
                 curRow += 1
 
@@ -970,7 +979,7 @@ class trajOptCollocProblem(probFun):
                 curRow += 1
         return curRow, curNg
 
-    def __constrModeG(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
+    def __constr_mode_g__(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
         """Calculate constraint function. G mode
 
         :param curRow: int, index from which we write on
@@ -999,7 +1008,8 @@ class trajOptCollocProblem(probFun):
                     curNg += constr.nG
                 else:
                     constr.__callg__(tmpx, y[curRow: curRow + constr.nf], self.G, self.row, self.col, rec, needg)
-                    curNg = self.__copyIntoG(constr.index, G, row, col, curRow, curNg, obj.nG, obj.timeindex, True, rec)
+                    curNg = self.__copy_into_g__(constr.index, G, row, col, curRow, curNg, constr.nG, constr.timeindex,
+                                                 True, rec, self.G, self.row, self.col)
                 curRow += constr.nf
         if len(self.pathConstr) > 0:
             for constr in self.pathConstr:
@@ -1021,7 +1031,8 @@ class trajOptCollocProblem(probFun):
                         i = 2 * j
                         tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
                         constr.__callg__(tmpx, y[curRow: curRow + constr.nf], self.G, self.row, self.col, rec, needg)
-                        curNg = self.__copyIntoG(i, G, row, col, curRow, curNg, obj.nG, obj.timeindex, True, rec)
+                        curNg = self.__copy_into_g__(i, G, row, col, curRow, curNg, constr.nG, constr.timeindex, True, rec,
+                                                     self.G, self.row, self.col)
                         curRow += constr.nf
         if len(self.nonLinConstr) > 0:
             for constr in self.nonLinConstr:
@@ -1044,7 +1055,7 @@ class trajOptCollocProblem(probFun):
 
         """
         y = np.zeros(1)
-        h, useT = self.__getTimeGrid(x)
+        h, useT = self.__get_time_grid__(x)
         useX, useU, useP = self.__parseX__(x)
         G = np.zeros(1)
         row = np.zeros(1, dtype=int)
@@ -1058,7 +1069,7 @@ class trajOptCollocProblem(probFun):
         :return grad: gradient of objective function w.r.t x
 
         """
-        h, useT = self.__getTimeGrid(x)
+        h, useT = self.__get_time_grid__(x)
         useX, useU, useP = self.__parseX__(x)
         y = np.zeros(1)
         if not self.objSparseMode:
@@ -1110,21 +1121,21 @@ class trajOptCollocProblem(probFun):
             self.__callg__(x, y, G, row, col, False, True)
             return G
 
-    def __patchCol__(self, index, col):
+    def __patchCol__(self, index, col, col_offset=0):
         """Find which indices it belongs to the original one for a local matrix at index with col.
 
         Since we have changed how variables are arranged, now it should be quite straightforward to do so.
 
         """
         col = col[col > 0]  # get rid of those with time
-        return col - 1 + index * self.dimpoint
+        return col - 1 + index * self.dimpoint + col_offset
 
     def parseSol(self, sol):
         """Call parseX function from utility and return a dict of solution."""
         X, U, P = self.__parseX__(sol)
         if self.dimp == 0:
             P = None
-        h, tgrid = self.__getTimeGrid(sol)
+        h, tgrid = self.__get_time_grid__(sol)
         if self.lenAddX == 0:
             return {'t': tgrid, 'x': X, 'u': U, 'p': P}
         else:
@@ -1354,6 +1365,8 @@ class trajOptCollocProblem(probFun):
             self.addNonLinearConstr(constr)
         elif isinstance(constr, nonLinearPointConstr):
             self.addNonLinearPointConstr(constr, path)
+        else:
+            raise NotImplementedError
 
     def setN(self, N):
         """Set N.
