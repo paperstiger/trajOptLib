@@ -192,6 +192,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         vec_num_f = np.array([prob.numF - 1 for prob in self.phases])  # -1 to remove objf row
         self.accum_num_f = np.insert(np.cumsum(vec_num_f), 0, 0)
         self.sum_num_f = self.accum_num_f[-1]
+        self.__add_connect_time_constr()
 
     def pre_process(self):
         """Initialize the instances of probFun now we are ready.
@@ -420,6 +421,19 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         assert isinstance(obj, nonLinearObj)
         self.nonlinear_obj.append(obj)
 
+    def change_connect_time_constr_bound(self, num, xl, xu):
+        """Change the connect time constraint if other specification are required."""
+        assert isinstance(num, int)
+        assert isinstance(xl, (int, float)) and isinstance(xu, (int, float))
+        if num >= len(self.phases):
+            print('Possible range of num is 0 - %d' % (len(self.phases) - 1))
+            return
+        if xl > xu:
+            print('xl should be smaller than xu')
+            return
+        self.connect_linear_constr[num].lb[:] = xl
+        self.connect_linear_constr[num].ub[:] = xu
+
     def __parseAddX(self, addx):
         """Parse addx"""
         if addx is None:
@@ -486,13 +500,19 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         x2 = np.concatenate(([[useT2[index2]], useX2[index2], useU2[index2], useP2[index2]]))
         return x1, x2, addx
 
-    def __add_phase_time_constr(self):
+    def __add_connect_time_constr(self):
         """Add linear constraints that limits t0 and tf of two connecting phases.
 
         This is done by automatically add connect linear constraints.
+        It basically requires the continuity of time.
 
         """
-        pass
+        num_phase = len(self.phases)
+        for i in range(num_phases):
+            a1 = np.ones(1)
+            a2 = -a1
+            constr = LinearConnectConstr(i, i + 1, a1, a2, lb=np.zeros(1), ub=np.zeros(1))
+            self.add_connect_linear_constr(constr)
 
     def __set_x_bound(self):
         """Set xlb and xub for this new structure. Basically it copies and creates."""
