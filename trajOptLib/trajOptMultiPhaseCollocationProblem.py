@@ -25,6 +25,9 @@ from scipy.sparse import coo_matrix
 from .trajOptCollocationProblem import trajOptCollocProblem
 
 
+DEBUG = False
+
+
 class NonLinearConnectConstr(object):
     """Class for defining point constraint function."""
     def __init__(self, phase1, phase2, nc, lb=None, ub=None, nG=None, index1=-1, index2=0, addx_index=None):
@@ -270,18 +273,58 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             # loop over all system dynamics constraint
             Ng0 = curNg
             curRow, curNg = phase.__dynconstr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
+            if DEBUG:
+                self.checkGError(G, row, col, curNg)
+                pass
             curRow, curNg = phase.__constr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
+            if DEBUG:
+                self.checkGError(G, row, col, curNg)
+                pass
             curRow += phase.numLinCon
             curRow, curNg = phase.__obj_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
             col[Ng0: curNg] += self.accum_num_sol[phase_num]
+            if DEBUG:
+                self.checkGError(G, row, col, curNg)
+                pass
         curRow += self.num_linear_constr
         # evaluate the nonlinear constraints
         curRow, curNg = self.__calc_nonlinear_constr(curRow, curNg, x, y, G, row, col, rec, needg)
+        if DEBUG:
+            self.checkGError(G, row, col, curNg)
+            pass
         # evaluate additional nonlinear objective functions
         if self.num_aux_obj_var > 0:
             curRow, curNg = self.__calc_nonlinear_obj(curRow, curNg, x, y, G, row, col, rec, needg)
         else:
             y[0] = 0  # just to make sure
+        if DEBUG:
+            M1 = coo_matrix((self.Aval, (self.Arow, self.Acol)))
+            M2 = coo_matrix((G, (row, col)))
+            print("Linear mat of size %d / %d" % (M1.nnz, len(self.Aval)))
+            print("Nonlinear mat of size %d / %d" % (M2.nnz, len(G)))
+            N1 = coo_matrix((M1.data, (M1.row, M1.col)), shape=M2.shape)
+            sumM = N1 + M2
+            print("Jacobian of size %d (%d)" % (sumM.nnz, M1.nnz + M2.nnz))
+        pass
+
+    def checkGError(self, G, row, col, curNg):
+        A1 = coo_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.nf, self.nx))
+        G1 = coo_matrix((G[:curNg], (row[:curNg], col[:curNg])), shape=(self.nf, self.nx))
+        sum = A1 + G1
+        print(np.count_nonzero(self.Aval), self.Aval.size)
+        print(np.count_nonzero(G[:curNg]), curNg)
+        boolMat1 = np.zeros((self.nf, self.nx), dtype=bool)
+        boolMat1[self.Arow, self.Acol] = True
+        boolMat2 = np.zeros((self.nf, self.nx), dtype=bool)
+        boolMat2[row[:curNg], col[:curNg]] = True
+        # find both true
+        badMat = boolMat1 & boolMat2
+        nRepeat = np.sum(badMat)
+        print('%d %d %d' % (np.sum(boolMat1), np.sum(boolMat2), nRepeat))
+        if nRepeat > 0:
+            print(np.sum(badMat))
+        pass
+
 
     def parse_sol(self, sol):
         """Given a solution, we parse and return readable data structure.
@@ -843,12 +886,12 @@ class TrajOptMultiPhaseCollocProblem(probFun):
                         rowpiece[:] += curRow
                         # assign self.col to correct place
                         index1_ = np.where(tmpcol < len(x1))[0]
-                        colpiece[:len(index1_)] = phase1.__patchCol__(0, tmpcol[index1_], offset1)  # why use 0? Because offset1 accounts for them
+                        colpiece[index1_] = phase1.__patchCol__(0, tmpcol[index1_], offset1)  # why use 0? Because offset1 accounts for them
                         index2_ = np.where((tmpcol >= len(x1)) & (tmpcol < len(x1) + len(x2)))[0]
-                        colpiece[len(index1_):len(index1_)+len(index2_)] = phase2.__patchCol__(0, tmpcol[index2_] - len(x1), offset2)
+                        colpiece[index2_] = phase2.__patchCol__(0, tmpcol[index2_] - len(x1), offset2)
                         if constr.addx_index is not None:
                             index3_ = np.where(tmpcol >= len(x1) + len(x2))[0]
-                            colpiece[-len(index3_):] = tmpcol[index3_] - len(x1) - len(x2) + self.__get_addx_leading_column(constr.addx_index)
+                            colpiece[index3_] = tmpcol[index3_] - len(x1) - len(x2) + self.__get_addx_leading_column(constr.addx_index)
                     curNg += constr.nG
                 else:
                     constr.__callg__(x1, x2, y[curRow: curRow + constr.nf], self.G, self.row, self.col, rec, needg, addx)
@@ -859,14 +902,14 @@ class TrajOptMultiPhaseCollocProblem(probFun):
                     mask2 = (self.col >= len(x1)) & (self.col < len(x1) + len(x2))
                     ng2 = np.sum(mask2)
                     curNg = phase2.__copy_into_g__(index2, G, row, col, curRow, curNg, ng2, constr.timeindex[1],
-                            False, rec, self.G[mask2], self.row[mask2], self.col[mask2], offset2)
+                            False, rec, self.G[mask2], self.row[mask2], self.col[mask2] - len(x1), offset2)
                     if constr.timeindex is not None:
                         mask3 = self.col >= len(x1) + len(x2)
                         ng3 = np.sum(mask3)
                         G[curNg: curNg + ng3] = self.G[mask3]
                         if rec:
                             row[curNg: curNg + ng3] = self.row[mask3] + curRow
-                            col[curNg: curNg + ng3] = self.col[mask3] + self.__get_addx_leading_column(constr.addx_index)
+                            col[curNg: curNg + ng3] = self.col[mask3] - len(x1) - len(x2) + self.__get_addx_leading_column(constr.addx_index)
                         curNg += ng3
             curRow += constr.nf
         for constr in self.addx_nonlinear_constr:
