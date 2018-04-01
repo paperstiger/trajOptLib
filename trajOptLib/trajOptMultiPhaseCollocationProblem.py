@@ -280,12 +280,14 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             if DEBUG:
                 self.checkGError(G, row, col, curNg)
                 pass
+            y[curRow: curRow + phase.numLinCon] = 0
             curRow += phase.numLinCon
             curRow, curNg = phase.__obj_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
             col[Ng0: curNg] += self.accum_num_sol[phase_num]
             if DEBUG:
                 self.checkGError(G, row, col, curNg)
                 pass
+        y[curRow: curRow + self.num_linear_constr] = 0
         curRow += self.num_linear_constr
         # evaluate the nonlinear constraints
         curRow, curNg = self.__calc_nonlinear_constr(curRow, curNg, x, y, G, row, col, rec, needg)
