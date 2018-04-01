@@ -271,6 +271,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             Ng0 = curNg
             curRow, curNg = phase.__dynconstr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
             curRow, curNg = phase.__constr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
+            curRow += phase.numLinCon
             curRow, curNg = phase.__obj_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
             col[Ng0: curNg] += self.accum_num_sol[phase_num]
         curRow += self.num_linear_constr
@@ -448,6 +449,15 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             self.len_addX = np.sum(vec_len_addX)  # total length of addx
             self.accum_len_addX = np.insert(np.cumsum(vec_len_addX), 0, 0)
 
+    def __parseAddX__(self, x):
+        """Return a list of addX values."""
+        numTraj = self.__get_addx_leading_column(0)
+        addX = []
+        for addx in self.addX:
+            addX.append(x[numTraj: numTraj + addx.n])
+            numTraj += addx.n
+        return addX
+
     def __get_leading_column(self, phase, index):
         """For the vector in phase at index, return column index of first element."""
         if index >= 0:
@@ -491,7 +501,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         useX1, useU1, useP1 = self.phases[phase1].__parseX__(x1)
         h2, useT2 = self.phases[phase2].__get_time_grid__(x2)
         useX2, useU2, useP2 = self.phases[phase2].__parseX__(x2)
-        if constr.addx_index:
+        if constr.addx_index is not None:
             n0 = self.__get_addx_leading_column(constr.addx_index)
             addx = x[n0: n0 + self.addX[constr.addx_index].n]
         else:
@@ -508,7 +518,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
         """
         num_phase = len(self.phases)
-        for i in range(num_phases):
+        for i in range(num_phase - 1):
             a1 = np.ones(1)
             a2 = -a1
             constr = LinearConnectConstr(i, i + 1, a1, a2, lb=np.zeros(1), ub=np.zeros(1))

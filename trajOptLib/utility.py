@@ -126,10 +126,11 @@ def randomGenInBound(bds, n=None):
     """
     assert len(bds) == 2
     lb, ub = bds
-    if not isinstance(lb, np.ndarray):
-        lb = np.array([lb])
-        ub = np.array([ub])
-    if (not lb is None) and (not ub is None):
+    if lb is not None:
+        lb = np.array(lb)
+    if ub is not None:
+        ub = np.array(ub)
+    if (lb is not None) and (ub is not None):
         lb[lb < -1e19] = -1
         ub[ub > 1e19] = 1
         x = np.random.random(lb.shape) * (ub - lb) + lb

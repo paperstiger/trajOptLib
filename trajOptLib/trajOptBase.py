@@ -215,11 +215,11 @@ class addX(object):
         if lb is None:
             self.lb = -1e20 * np.ones(n)
         else:
-            self.lb = lb
+            self.lb = np.array(lb)
         if ub is None:
             self.ub = 1e20 * np.ones(n)
         else:
-            self.ub = ub
+            self.ub = np.array(ub)
 
 
 class _objectWithMatrix(object):

@@ -150,7 +150,7 @@ class trajOptCollocProblem(probFun):
         self.defectSize = defectSize
         defectDyn = (self.N - 1) * defectSize  # from enforcing those guys
         self.defectDyn = defectDyn
-        self.numDyn = numDyn + defectDyn
+        self.numDyn = numDyn + defectDyn  # from both nonlinear dynamics and linear defect constraints
         numC = 0
         for constr in self.pointConstr:
             numC += constr.nf
@@ -165,6 +165,9 @@ class trajOptCollocProblem(probFun):
             numC += constr.A.shape[0] * self.N  # this remains being argued
         for constr in self.linearConstr:
             numC += constr.A.shape[0]
+        nlincon = numC - nnonlincon
+        self.numLinCon = nlincon
+        self.numNonLinCon = nnonlincon
         self.__findMaxNG()
         self.numF = 1 + numDyn + defectDyn + numC
         # analyze all objective functions in order to detect pattern for A, and additional variables for other nonlinear objective function
@@ -554,8 +557,12 @@ class trajOptCollocProblem(probFun):
             # set lb for x0 and xf
             if self.x0bd[0] is not None:
                 Mxlb[0, :dimx] = self.x0bd[0]
-            if self.x0bd[0] is not None:
+            else:
+                self.x0bd[0] = self.xbd[0]
+            if self.xfbd[0] is not None:
                 Mxlb[-1, :dimx] = self.xfbd[0]
+            else:
+                self.xfbd[0] = self.xbd[0]
         else:
             Mxlb[:, :dimx] = -1e20
         if self.xbd[1] is not None:
@@ -563,8 +570,12 @@ class trajOptCollocProblem(probFun):
             # set ub for x0 and xf
             if self.x0bd[1] is not None:
                 Mxub[0, :dimx] = self.x0bd[1]
+            else:
+                self.x0bd[1] = self.xbd[1]
             if self.xfbd[1] is not None:
                 Mxub[-1, :dimx] = self.xfbd[1]
+            else:
+                self.xfbd[1] = self.xbd[1]
         else:
             Mxub[:, :dimx] = 1e20
         # set bounds for control variable
@@ -769,6 +780,7 @@ class trajOptCollocProblem(probFun):
         curNg = 0
         curRow, curNg = self.__dynconstr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
         curRow, curNg = self.__constr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
+        curRow += self.numLinCon
         # loop over all the objective functions, I haven't checked if order is correct since some linear constraints are followed
         curRow, curNg = self.__obj_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
         pass
@@ -1395,3 +1407,68 @@ class trajOptCollocProblem(probFun):
         else:
             self.fixt0 = False
             assert t0[0] <= t0[1]
+
+    def setXbound(self, xlb, xub):
+        """Set bounds on state variables.
+
+        :param xlb: ndarray, (dimx,) lower bounds on state variables.
+        :param xub: ndarray, (dimx,) upper bounds on state variables.
+
+        """
+        if len(xlb) != self.dimx:
+            print('Incorrect length of xlb, it must be %d' % self.dimx)
+        if len(xub) != self.dimx:
+            print('Incorrect length of xub, it must be %d' % self.dimx)
+        self.xbd = [np.array(xlb), np.array(xub)]
+
+    def setUbound(self, ulb, uub):
+        """Set bounds on control variables.
+
+        :param ulb: ndarray, (dimu,) lower bounds on control variables.
+        :param uub: ndarray, (dimu,) upper bounds on control variables.
+
+        """
+        if len(ulb) != self.dimu:
+            print('Incorrect length of ulb, it must be %d' % self.dimu)
+        if len(uub) != self.dimu:
+            print('Incorrect length of uub, it must be %d' % self.dimu)
+        self.ubd = [np.array(ulb), np.array(uub)]
+
+    def setPbound(self, plb, pub):
+        """Set bounds on parameter variables.
+
+        :param plb: ndarray, (dimp,) lower bounds on parameter variables.
+        :param pub: ndarray, (dimp,) upper bounds on parameter variables.
+
+        """
+        if len(plb) != self.dimp:
+            print('Incorrect length of plb, it must be %d' % self.dimp)
+        if len(pub) != self.dimp:
+            print('Incorrect length of pub, it must be %d' % self.dimp)
+        self.pbd = [np.array(plb), np.array(pub)]
+
+    def setX0bound(self, x0lb, x0ub):
+        """Set bounds on x0. This is optional but useful.
+
+        :param x0lb: ndarray, (dimx,) lower bounds on x0 variables.
+        :param x0ub: ndarray, (dimx,) upper bounds on x0 variables.
+
+        """
+        if len(x0lb) != self.dimx:
+            print('Incorrect length of x0lb, it must be %d' % self.dimx)
+        if len(x0ub) != self.dimx:
+            print('Incorrect length of x0ub, it must be %d' % self.dimx)
+        self.x0bd = [np.array(x0lb), np.array(x0ub)]
+
+    def setXfbound(self, xflb, xfub):
+        """Set bounds on xf. This is optional but useful.
+
+        :param xflb: ndarray, (dimx,) lower bounds on xf variables.
+        :param xfub: ndarray, (dimx,) upper bounds on xf variables.
+
+        """
+        if len(xflb) != self.dimx:
+            print('Incorrect length of xflb, it must be %d' % self.dimx)
+        if len(xfub) != self.dimx:
+            print('Incorrect length of xfub, it must be %d' % self.dimx)
+        self.xfbd = [np.array(xflb), np.array(xfub)]
