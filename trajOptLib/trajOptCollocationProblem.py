@@ -705,8 +705,8 @@ class trajOptCollocProblem(probFun):
         N = self.N
         dimx = self.dimx
         dimdyn = self.dimdyn
-        y = np.ones(self.numF)
-        if self.gradmode:
+        y = np.zeros(self.numF)
+        if self.grad:
             self.__callg__(guess, y, np.zeros(1), np.zeros(1), np.zeros(1), False, False)
         else:
             self.__callf__(guess, y)

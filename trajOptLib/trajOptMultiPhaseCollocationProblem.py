@@ -25,9 +25,6 @@ from scipy.sparse import coo_matrix
 from .trajOptCollocationProblem import trajOptCollocProblem
 
 
-DEBUG = False
-
-
 class NonLinearConnectConstr(object):
     """Class for defining point constraint function."""
     def __init__(self, phase1, phase2, nc, lb=None, ub=None, nG=None, index1=-1, index2=0, addx_index=None):
@@ -273,65 +270,32 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             # loop over all system dynamics constraint
             Ng0 = curNg
             curRow, curNg = phase.__dynconstr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
-            if DEBUG:
-                self.checkGError(G, row, col, curNg)
-                pass
             curRow, curNg = phase.__constr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
-            if DEBUG:
-                self.checkGError(G, row, col, curNg)
-                pass
             y[curRow: curRow + phase.numLinCon] = 0
             curRow += phase.numLinCon
             curRow, curNg = phase.__obj_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
             col[Ng0: curNg] += self.accum_num_sol[phase_num]
-            if DEBUG:
-                self.checkGError(G, row, col, curNg)
-                pass
         y[curRow: curRow + self.num_linear_constr] = 0
         curRow += self.num_linear_constr
         # evaluate the nonlinear constraints
         curRow, curNg = self.__calc_nonlinear_constr(curRow, curNg, x, y, G, row, col, rec, needg)
-        if DEBUG:
-            self.checkGError(G, row, col, curNg)
-            pass
         # evaluate additional nonlinear objective functions
         if self.num_aux_obj_var > 0:
             curRow, curNg = self.__calc_nonlinear_obj(curRow, curNg, x, y, G, row, col, rec, needg)
         else:
             y[0] = 0  # just to make sure
-        if DEBUG:
-            M1 = coo_matrix((self.Aval, (self.Arow, self.Acol)))
-            M2 = coo_matrix((G, (row, col)))
-            print("Linear mat of size %d / %d" % (M1.nnz, len(self.Aval)))
-            print("Nonlinear mat of size %d / %d" % (M2.nnz, len(G)))
-            N1 = coo_matrix((M1.data, (M1.row, M1.col)), shape=M2.shape)
-            sumM = N1 + M2
-            print("Jacobian of size %d (%d)" % (sumM.nnz, M1.nnz + M2.nnz))
-        pass
-
-    def checkGError(self, G, row, col, curNg):
-        A1 = coo_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.nf, self.nx))
-        G1 = coo_matrix((G[:curNg], (row[:curNg], col[:curNg])), shape=(self.nf, self.nx))
-        sum = A1 + G1
-        print(np.count_nonzero(self.Aval), self.Aval.size)
-        print(np.count_nonzero(G[:curNg]), curNg)
-        boolMat1 = np.zeros((self.nf, self.nx), dtype=bool)
-        boolMat1[self.Arow, self.Acol] = True
-        boolMat2 = np.zeros((self.nf, self.nx), dtype=bool)
-        boolMat2[row[:curNg], col[:curNg]] = True
-        # find both true
-        badMat = boolMat1 & boolMat2
-        nRepeat = np.sum(badMat)
-        print('%d %d %d' % (np.sum(boolMat1), np.sum(boolMat2), nRepeat))
-        if nRepeat > 0:
-            print(np.sum(badMat))
-        pass
-
 
     def parse_sol(self, sol):
         """Given a solution, we parse and return readable data structure.
         
         :param sol: ndarray or result object returned by SNOPT.
+        :return traj: a dict of keys 't', 'x', 'u', 'p', 'phases'.
+        - 't': is a concatenated time grid (might not be equidistant, but piecewise equidistant
+        - 'x': ndarray, (*, dimx) is the concatenated state vector of all phases
+        - 'u': ndarray, (*, dimu) is the concatenated control vector of all phases
+        - 'p': ndarray, (*, dimp) is the concatenated parameter vector of all phases
+        - 'phases': list of dictionaries composed of keys 't', 'x', 'u', 'p', 'addx' where 'addx' is
+        additional optimization variables.
 
         """
         if isinstance(sol, np.ndarray):
@@ -352,7 +316,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             traj['x'].append(rsti['x'])
             traj['u'].append(rsti['u'])
             if rsti['p'] is not None:
-                if traj['p'] is not None:
+                if traj['p'] is None:
                     traj['p'] = [rsti['p']]
                 else:
                     traj['p'].append(rsti['p'])
@@ -931,3 +895,22 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             curRow += constr.nf
             curNg += constr.nG
         return curRow, curNg
+
+    def __checkGError(self, G, row, col, curNg):
+        """For debug purpose. Check if G and A overlap. Due to incorrect assignment of Jacobian row and column numbers.
+        It uses bool operation.
+
+        :param G, row, col: the Jacobian matrix to check
+        :param curNg: accumulated G.
+        """
+        boolMat1 = np.zeros((self.nf, self.nx), dtype=bool)
+        boolMat1[self.Arow, self.Acol] = True
+        boolMat2 = np.zeros((self.nf, self.nx), dtype=bool)
+        boolMat2[row[:curNg], col[:curNg]] = True
+        # find both true
+        badMat = boolMat1 & boolMat2
+        nRepeat = np.sum(badMat)
+        print('%d %d %d' % (np.sum(boolMat1), np.sum(boolMat2), nRepeat))
+        if nRepeat > 0:
+            print(np.sum(badMat))
+        pass
