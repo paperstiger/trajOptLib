@@ -36,6 +36,22 @@ trajOptLib.trajOptBase module
     :undoc-members:
     :show-inheritance:
 
+trajOptLib.trajOptCollocationProblem module
+-------------------------------------------
+
+.. automodule:: trajOptLib.trajOptCollocationProblem
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+trajOptLib.trajOptMultiPhaseCollocationProblem module
+-----------------------------------------------------
+
+.. automodule:: trajOptLib.trajOptMultiPhaseCollocationProblem
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 trajOptLib.trajOptProblem module
 --------------------------------
 

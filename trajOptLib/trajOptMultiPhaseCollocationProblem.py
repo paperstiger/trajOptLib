@@ -58,7 +58,7 @@ class NonLinearConnectConstr(object):
 
     def __callg__(self, x1, x2, F, G, row, col, rec, needg, addx=None):
         """Call and evaluate the constraint function. x1 and x2 are points in phase 1 and phase 2.
-        
+
         I return them together in G, row, col since it might be derived from sympy so thay are together.
         But, human derived formulas love the previous one better
         """
@@ -66,7 +66,7 @@ class NonLinearConnectConstr(object):
 
     def __callhumang__(self, x1, x2, needg, addx=None):
         """Call and evaluate the constraint function. x1 and x2 are points in phase 1 and phase 2.
-        
+
         I return them together in G, row, col since it might be derived from sympy so thay are together.
         But, human derived formulas love the previous one better
 
@@ -287,15 +287,15 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
     def parse_sol(self, sol):
         """Given a solution, we parse and return readable data structure.
-        
+
         :param sol: ndarray or result object returned by SNOPT.
         :return traj: a dict of keys 't', 'x', 'u', 'p', 'phases'.
-        - 't': is a concatenated time grid (might not be equidistant, but piecewise equidistant
-        - 'x': ndarray, (*, dimx) is the concatenated state vector of all phases
-        - 'u': ndarray, (*, dimu) is the concatenated control vector of all phases
-        - 'p': ndarray, (*, dimp) is the concatenated parameter vector of all phases
-        - 'phases': list of dictionaries composed of keys 't', 'x', 'u', 'p', 'addx' where 'addx' is
-        additional optimization variables.
+
+        - 't' is a concatenated time grid (might not be equidistant, but piecewise equidistant
+        - 'x' ndarray, (\*, dimx) is the concatenated state vector of all phases
+        - 'u' ndarray, (\*, dimu) is the concatenated control vector of all phases
+        - 'p' ndarray, (\*, dimp) is the concatenated parameter vector of all phases
+        - 'phases' list of dictionaries composed of keys 't', 'x', 'u', 'p', 'addx' where 'addx' is additional optimization variables.
 
         """
         if isinstance(sol, np.ndarray):
@@ -329,9 +329,9 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
     def add_obj(self, obj):
         """Add a objective function to the problem.
-        
+
         :param obj: a general objective function object.
-        
+
         """
         if isinstance(obj, nonLinearObj):
             self.add_nonlinear_obj(obj)
@@ -342,11 +342,11 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
     def add_constr(self, constr):
         """Add a constraint to the problem.
-        
+
         :param constr: a general constraint function object.
 
         """
-        
+
         if isinstance(constr, nonLinearObj):
             self.add_nonlinear_constr(constr)
         elif isinstance(constr, (nonLinearPointConstr, linearPointConstr)):
@@ -371,25 +371,25 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
     def add_connect_linear_constr(self, constr):
         """Add a linear connection constraint to the problem.
-        
+
         :param constr: a LinearConnectConstr object.
-        
+
         """
         assert isinstance(constr, LinearConnectConstr)
         self.connect_linear_constr.append(constr)
 
     def add_connect_nonlinear_constr(self, constr):
         """Add a nonlinear connect constraint to the problem.
-        
+
         :param constr: a NonLinearConnectConstr object.
-        
+
         """
         assert isinstance(constr, NonLinearConnectConstr)
         self.connect_nonlinear_constr.append(constr)
 
     def add_addx_constr(self, constr):
         """Add a linear or nonlinear constraint associated with addx.
-        
+
         :param constr: a point constraint.
 
         """
@@ -402,7 +402,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
     def add_nonlinear_constr(self, constr):
         """Add a general nonlinear constraint to the problem.
-        
+
         :param constr: a nonLinearConstr object.
 
         """
@@ -411,7 +411,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
     def add_addx_obj(self, obj):
         """Add an objective evaluated at addx to the problem.
-        
+
         :param obj: a point objective object
 
         """
@@ -424,9 +424,9 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
     def add_nonlinear_obj(self, obj):
         """Add a nonlinear objective to the problem.
-        
+
         :param obj: a nonLinearObj object.
-        
+
         """
         assert isinstance(obj, nonLinearObj)
         self.nonlinear_obj.append(obj)
@@ -590,7 +590,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
     def __set_A_pattern(self, est_num_F, est_num_sol):
         """Set the pattern of A. 
-        
+
         We do three things:
         - analyze the linear constraints, generate a list of sparse-like matrix
         - analyze the additional cost functions such as penalty on addX
@@ -609,9 +609,9 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
     def __analyze_linear_constr(self):
         """Detect the sparse A for linear constraints.
-        
+
         returns lstA, lstArow, lstAcol: list of sparse matrix A from linear constraints.
-        
+
         """
         lstA = []
         lstArow = []
@@ -760,9 +760,9 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
     def __calc_nonlinear_obj(self, x, y, G, row, col, curRow, curNg, rec, needg):
         """Calculate the nonlinear functions. 
-        
+
         See :func:`trajOptMultiPhaseCollocationProblem.trajOptMultiPhaseCollocProblem.__calc_nonlinear_constr`
-        
+
         """
         tmpout = np.zeros(1)
         y[0] = 0  # since this row is purely linear
@@ -793,7 +793,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
     def __calc_nonlinear_constr(self, curRow, curNg, x, y, G, row, col, rec, needg):
         """Calculation of nonlinear constraints.
-        
+
         :param x: the long vector of solution
         :param y: where to store constraint function evaluation
         :param G, row, col: the sparse Jacobian is stored here
