@@ -880,7 +880,7 @@ class trajOptCollocProblem(probFun):
     def __copy_into_g__(self, index, G, row, col, curRow, curNg, nG, time_index, plus, rec,
                         G_src, row_src, col_src, col_offset=0):
         """With sparsity calculated in self.G, we assign to correct G.
-        
+
         :param index: int, we are evaluating this at which point
         :param G, row, col: the G, row, col vector storing sparse Jacobian.
         :param curRow: accumulated row number.
@@ -1340,7 +1340,7 @@ class trajOptCollocProblem(probFun):
 
     def addLinearConstr(self, constr):
         """Add a linear constraint to the problem.
-        
+
         :param constr: a linearConstr object
 
         """
@@ -1349,7 +1349,7 @@ class trajOptCollocProblem(probFun):
 
     def addLinearPointConstr(self, constr, path=False):
         """Add a linear point constraint to the problem.
-        
+
         :param constr: a linearPointConstr object
         :param path: if this constraint is path constraint
 
@@ -1362,7 +1362,7 @@ class trajOptCollocProblem(probFun):
 
     def addObj(self, obj, path=False):
         """A high level function that add objective function of any kind.
-        
+
         :param obj: an objective object.
         :param path: bool, if the point objective is an integral one.
 
@@ -1380,10 +1380,10 @@ class trajOptCollocProblem(probFun):
 
     def addConstr(self, constr, path=False):
         """Add a constraint to the problem.
-        
+
         :param constr: a constraint object.
         :param path: bool, if this constraint is a path constraint. Only applies for point constraint.
-        
+
         """
         if isinstance(constr, linearConstr):
             self.addLinearConstr(constr)
