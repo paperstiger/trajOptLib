@@ -157,6 +157,10 @@ def checkInBounds(x, bds):
     """
     threshold = 1e-6
     lb, ub = bds
+    if np.isscalar(x) and np.isscalar(lb) and np.isscalar(ub):
+        x = np.atleast_1d(x)
+        lb = np.atleast_1d(lb)
+        ub = np.atleast_1d(ub)
     assert len(lb) == len(ub)
     lenbd = len(lb)
     if x.ndim == 1:
@@ -186,6 +190,7 @@ def checkInBounds(x, bds):
         return position.flatten()
     else:
         return position
+
 
 
 if __name__ == '__main__':

@@ -204,15 +204,19 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         est_num_F = 1 + self.sum_num_f  # without additional param for objective, this is
         # get additional constraints number
         linear_F = 0
+        nonlinear_F = 0
         for constr in self.connect_linear_constr:
             est_num_F += constr.nf
             linear_F += constr.nf
         for constr in self.connect_nonlinear_constr:
             est_num_F += constr.nf
+            nonlinear_F += constr.nf
         for constr in self.nonlinear_constr:
             est_num_F += constr.nf
+            nonlinear_F += constr.nf
         for constr in self.addx_nonlinear_constr:
             est_num_F += constr.nf
+            nonlinear_F += constr.nf
         for constr in self.addx_linear_constr:
             est_num_F += constr.nf
             linear_F += constr.nf
@@ -223,6 +227,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         self.num_f = est_num_F + self.num_aux_obj_var
         self.num_sol = est_num_sol + self.num_aux_obj_var
         self.num_linear_constr = linear_F
+        self.num_nonlinear_constr = nonlinear_F
         self.nx = self.num_sol
         self.nf = self.num_f
         # find number of G
@@ -325,7 +330,52 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             if traj[key] is not None:
                 traj[key] = np.concatenate(traj[key], axis=0)
         traj['phases'] = phases
+        # parse addx
+        if self.len_addX > 0:
+            traj['addx'] = self.__parseAddX__(sol)
         return traj
+
+    def parse_f(self, sol):
+        """Use the solution and evaluate on all constraints.
+        Check which are active and analyze why we are not converging.
+
+        :param sol: ndarray, the solution we want to analyze
+
+        """
+        assert len(sol) == self.num_sol
+        rst = []
+        for phase_num, phase in enumerate(self.phases):
+            piece = self.__get_phase_sol_piece(sol, phase_num)
+            subrst = phase.parseF(piece)
+            rst.append(subrst)
+        # parse the rest of constraints, we do not care about linear ones
+        y = np.zeros(self.num_nonlinear_constr)
+        # evaluate the nonlinear constraints
+        curRow = 0
+        curNg = 0
+        curRow, curNg = self.__calc_nonlinear_constr(curRow, curNg, sol, y, np.zeros(1), np.zeros(1), np.zeros(1), False, False)
+        # evaluate additional nonlinear objective functions
+        connect_nonlinear_constr = []
+        curRow = 0
+        for i, constr in enumerate(self.connect_nonlinear_constr):
+            connect_nonlinear_constr.append((i, y[curRow: curRow + constr.nf]))
+            curRow += constr.nf
+        addx_nonlinear_constr = []
+        for i, constr in enumerate(self.addx_nonlinear_constr):
+            addx_nonlinear_constr.append((i, y[curRow: curRow + constr.nf]))
+            curRow += constr.nf
+        nonlinear_constr = []
+        for i, constr in enumerate(self.nonlinear_constr):
+            nonlinear_constr.append((i, y[curRow: curRow + constr.nf]))
+            curRow += constr.nf
+        # append those constraints evaluation
+        dct = {'con_con': connect_nonlinear_constr, 'addx_con': addx_nonlinear_constr, 'nonlin_con': nonlinear_constr}
+        # append parsed addx
+        if self.len_addX > 0:
+            for i, addx in enumerate(self.addX):
+                dct['addx_%d' % i] = self.__get_addx_by_index(sol, i)
+        rst.append(dct)
+        return rst
 
     def add_obj(self, obj):
         """Add a objective function to the problem.

@@ -739,11 +739,11 @@ class trajOptCollocProblem(probFun):
         else:
             pbound = None
         if self.t0ind > 0:
-            t0bound = checkInBounds([guess[self.t0ind]], self.t0)
+            t0bound = checkInBounds(guess[self.t0ind], self.t0)
         else:
             t0bound = None
         if self.tfind > 0:
-            tfbound = checkInBounds([guess[self.tfind]], self.tf)
+            tfbound = checkInBounds(guess[self.tfind], self.tf)
         else:
             tfbound = None
         if self.lenAddX > 0:
@@ -751,9 +751,25 @@ class trajOptCollocProblem(probFun):
             addXbound = [checkInBounds(addx_, [addx__.lb, addx__.ub]) for addx_, addx__ in zip(addx, self.addX)]
         else:
             addXbound = None
-        return {'obj': obj, 'dyn': dynCon, 'defect': defectCon, 'point': pointCon, 'path': pathCon, 'nonlin': nonLinCon,
+        useX, useU, useP = self.__parseX__(guess)
+        rst = {'obj': obj, 'dyn': dynCon, 'defect': defectCon, 'point': pointCon, 'path': pathCon, 'nonlin': nonLinCon,
                 'Xbd': Xbound, 'Ubd': ubound, 'x0bd': x0bound, 'xfbd': xfbound, 'Pbd': pbound,
-                't0bd': t0bound, 'tfbd': tfbound, 'addXbd': addXbound}
+                't0bd': t0bound, 'tfbd': tfbound, 'addXbd': addXbound,
+                'X': useX, 'U': useU, 'P': useP}
+        if self.t0ind > 0:
+            rst['t0'] = guess[self.t0ind]
+        else:
+            rst['t0'] = self.t0
+        if self.tfind > 0:
+            rst['tf'] = guess[self.tfind]
+        else:
+            rst['tf'] = self.tf
+        # parse addx
+        if self.lenAddX > 0:
+            addx = self.__parseAddX__(guess)
+            for i, addx_ in addx:
+                rst['addx_%d' % i] = addx_
+        return rst
 
     def __parseAddX__(self, x):
         numTraj = self.numTraj
