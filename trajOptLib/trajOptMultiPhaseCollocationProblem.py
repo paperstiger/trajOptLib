@@ -230,6 +230,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         self.num_nonlinear_constr = nonlinear_F
         self.nx = self.num_sol
         self.nf = self.num_f
+
         # find number of G
         rdx = self.random_gen_x()
         nG = self.__find_num_G(rdx)  # TODO: allow user not to give nG if given in human-mode?
@@ -289,6 +290,67 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             curRow, curNg = self.__calc_nonlinear_obj(curRow, curNg, x, y, G, row, col, rec, needg)
         else:
             y[0] = 0  # just to make sure
+
+    # interface functions for ipopt
+    def ipEvalF(self, x):
+        """The eval_f function required by ipopt.
+
+        :param x: a guess/solution of the problem
+        :return f: float, objective function
+
+        """
+        row0 = self.spA.getrow(0)
+        return np.dot(row0.data, x[row0.indices])
+
+    def ipEvalGradF(self, x):
+        """Evaluation of the gradient of objective function.
+
+        :param x: guess/solution to the problem
+        :return grad: gradient of objective function w.r.t x
+
+        """
+        return self.spA.getrow(0).toarray().flatten()
+
+    def ipEvalG(self, x):
+        """Evaluation of the constraint function.
+
+        :param x: ndarray, guess/solution to the problem.
+        :return g: constraint function
+
+        """
+        y = np.zeros(self.numF)
+        G = np.zeros(1)
+        row = np.zeros(1, dtype=int)
+        col = np.zeros(1, dtype=int)
+        self.__callg__(x, y, G, row, col, False, False)
+        # y should plus A times x
+        y += self.spA.dot(x)
+        return y
+
+    def ipEvalJacG(self, x, flag):
+        """Evaluate jacobian of constraints. I simply call __callg__
+
+        :param x: ndarray, guess / solution to the problem
+        :param flag: bool, True return row/col, False return values
+
+        """
+        y = np.zeros(self.numF)
+        G = np.zeros(self.nG + self.spA.nnz)
+        if flag:
+            row = np.ones(self.nG + self.spA.nnz, dtype=int)
+            col = np.ones(self.nG + self.spA.nnz, dtype=int)
+            self.__callg__(x, y, G, row, col, True, True)
+            # good news is there is no overlap of A and G
+            row[self.nG:] = tmpA.row
+            col[self.nG:] = tmpA.col
+            return row, col
+        else:
+            row = np.ones(1, dtype=int)
+            col = np.ones(1, dtype=int)
+            self.__callg__(x, y, G, row, col, False, True)
+            G[self.nG:] = self.spA_coo.data
+            return G
+
 
     def parse_sol(self, sol):
         """Given a solution, we parse and return readable data structure.
@@ -656,6 +718,8 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         self.Aval = np.concatenate(lstA + lstA2 + lstA3)
         self.Arow = np.concatenate(lstArow + lstArow2 + lstArow3)
         self.Acol = np.concatenate(lstAcol + lstAcol2 + lstAcol3)
+        self.spA = csr_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.nf, self.nx))
+        self.spA_coo = self.spA.tocoo()
 
     def __analyze_linear_constr(self):
         """Detect the sparse A for linear constraints.

@@ -22,7 +22,7 @@ from .trajOptBase import addX
 from .trajOptBase import daeSystem
 from .libsnopt import snoptConfig, probFun, solver
 from .utility import randomGenInBound, checkInBounds
-from scipy.sparse import spmatrix, coo_matrix
+from scipy.sparse import spmatrix, coo_matrix, csr_matrix
 
 
 class trajOptCollocProblem(probFun):
@@ -276,6 +276,8 @@ class trajOptCollocProblem(probFun):
         self.Aval = np.concatenate(lstCA)
         self.Arow = np.concatenate(lstCArow)
         self.Acol = np.concatenate(lstCAcol)
+        self.spA = csr_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.nf, self.nx))
+        self.spA_coo = self.spA.tocoo()
 
     def __setDefectPattern(self, ndyncon):
         """Set the sparse linear constraints from defect constraints.
@@ -767,7 +769,7 @@ class trajOptCollocProblem(probFun):
         # parse addx
         if self.lenAddX > 0:
             addx = self.__parseAddX__(guess)
-            for i, addx_ in addx:
+            for i, addx_ in enumerate(addx):
                 rst['addx_%d' % i] = addx_
         return rst
 
@@ -1082,13 +1084,8 @@ class trajOptCollocProblem(probFun):
         :return f: float, objective function
 
         """
-        y = np.zeros(1)
-        h, useT = self.__get_time_grid__(x)
-        useX, useU, useP = self.__parseX__(x)
-        G = np.zeros(1)
-        row = np.zeros(1, dtype=int)
-        self.__objModeG__(0, 0, h, useT, useX, useU, useP, x, y, G, row, row, False, False)
-        return y[0]
+        row0 = self.spA.getrow(0)
+        return np.dot(row0.data, x[row0.indices])
 
     def ipEvalGradF(self, x):
         """Evaluation of the gradient of objective function.
@@ -1097,19 +1094,7 @@ class trajOptCollocProblem(probFun):
         :return grad: gradient of objective function w.r.t x
 
         """
-        h, useT = self.__get_time_grid__(x)
-        useX, useU, useP = self.__parseX__(x)
-        y = np.zeros(1)
-        if not self.objSparseMode:
-            tmpG = self.__objDenseGradient__(h, useT, useX, useU, useP, x, y, True)
-        else:
-            tmpG = np.zeros(self.numSol)
-            spG = np.zeros(self.numObjG)
-            spRow = np.zeros(self.numObjG, dtype=int)
-            spCol = np.zeros(self.numObjG, dtype=int)
-            self.__objModeGKnown__(0, 0, h, useT, useX, useU, useP, x, y, spG, spRow, spCol, True, True)
-            tmpG[spCol] = spG
-        return tmpG
+        return self.spA.getrow(0).toarray().flatten()
 
     def ipEvalG(self, x):
         """Evaluation of the constraint function.
@@ -1119,14 +1104,12 @@ class trajOptCollocProblem(probFun):
 
         """
         y = np.zeros(self.numF)
-        if self.gradmode:
-            G = np.zeros(1)
-            row = np.zeros(1, dtype=int)
-            col = np.zeros(1, dtype=int)
-            self.__callg__(x, y, G, row, col, False, False)
-            return y
-        else:
-            self.__callf__(x, y)
+        G = np.zeros(1)
+        row = np.zeros(1, dtype=int)
+        col = np.zeros(1, dtype=int)
+        self.__callg__(x, y, G, row, col, False, False)
+        # y should plus A times x
+        y += self.spA.dot(x)
         return y
 
     def ipEvalJacG(self, x, flag):
@@ -1137,16 +1120,20 @@ class trajOptCollocProblem(probFun):
 
         """
         y = np.zeros(self.numF)
-        G = np.zeros(self.nG)
+        G = np.zeros(self.nG + self.spA.nnz)
         if flag:
-            row = np.ones(self.nG, dtype=int)
-            col = np.ones(self.nG, dtype=int)
+            row = np.ones(self.nG + self.spA.nnz, dtype=int)
+            col = np.ones(self.nG + self.spA.nnz, dtype=int)
             self.__callg__(x, y, G, row, col, True, True)
+            # good news is there is no overlap of A and G
+            row[self.nG:] = tmpA.row
+            col[self.nG:] = tmpA.col
             return row, col
         else:
             row = np.ones(1, dtype=int)
             col = np.ones(1, dtype=int)
             self.__callg__(x, y, G, row, col, False, True)
+            G[self.nG:] = self.spA_coo.data
             return G
 
     def __patchCol__(self, index, col, col_offset=0):

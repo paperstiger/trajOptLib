@@ -52,14 +52,16 @@ class ipOption(object):
 class ipSolver(object):
     """A solver class for ipopt. It accepts my conventional problem type."""
     def __init__(self, prob, option=None):
-        assert isinstance(prob, trajOptProblem)
         nvar = prob.numSol
         x_L = prob.xlb
         x_U = prob.xub
         ncon = prob.numF
         g_L = prob.lb
         g_U = prob.ub
-        nnzj = prob.nG
+        if hasattr(prob, 'spA'):
+            nnzj = prob.nG + prob.spA.nnz
+        else:
+            nnzj = prob.nG
         nnzh = 1  # this is not reasonable
         self.prob = prob
         self.nlp = pyipopt.create(nvar, x_L, x_U, ncon, g_L, g_U, nnzj, nnzh, prob.ipEvalF,
