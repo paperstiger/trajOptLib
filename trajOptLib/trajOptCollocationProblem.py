@@ -1127,8 +1127,8 @@ class trajOptCollocProblem(probFun):
             tmpx = self.randomGenX()
             self.__callg__(tmpx, y, G, row, col, True, True)
             # good news is there is no overlap of A and G
-            row[self.nG:] = self.spA.row
-            col[self.nG:] = self.spA.col
+            row[self.nG:] = self.spA_coo.row
+            col[self.nG:] = self.spA_coo.col
             return row, col
         else:
             row = np.ones(1, dtype=int)
