@@ -17,7 +17,7 @@ import numpy as np
 import logging
 from pyLib.io import getOnOffArgs
 sys.path.append('../')
-from trajOptLib.trajOptBase import system, nonPointObj, nonLinObj, lqrObj
+from trajOptLib.trajOptBase import system, nonLinearPointObj, nonLinearObj, lqrObj
 from trajOptLib.trajOptProblem import trajOptProblem
 from trajOptLib.libsnopt import snoptConfig, probFun, solver
 from trajOptLib.utility import showSol
@@ -46,11 +46,11 @@ class quadrotor(system, Rotor):
         return f, J
 
 
-class quadCost(nonLinObj):
+class quadCost(nonLinearObj):
     """A quadratic cost on control."""
     def __init__(self, N, dimx, dimu):
         lenSol = N * (dimx + dimu)
-        nonLinObj.__init__(self, lenSol, 'user', nG=N*dimu)
+        nonLinearObj.__init__(self, lenSol, 'user', nG=N*dimu)
         self.R = 1.0
         self.N = N
         self.dimx = dimx
@@ -85,7 +85,7 @@ def main():
     prob.xfbd[0][:3] = 5
     prob.xfbd[1][:3] = 5
     if False:
-        prob.addNonLinObj(cost)
+        prob.addNonLinearObj(cost)
     else:
         lqr = lqrObj(R=np.ones(4))
         prob.addLQRObj(lqr)
@@ -100,7 +100,7 @@ def main():
     straightx = np.reshape(guessx[:N*dimx], (N, dimx))
     for i in range(3):
         straightx[:, i] = np.linspace(0, prob.xfbd[0][i], N)
-    guessx[N*dimx:] = np.random.random(N * dimu)
+    guessx[N*dimx:-1] = np.random.random(N * dimu)
     rst = slv.solveGuess(guessx)
     print(rst.flag)
     if False: #rst.flag == 1:
