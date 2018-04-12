@@ -136,14 +136,19 @@ class trajOptCollocProblem(probFun):
         self.numTraj = numSol  # make it clear, numTraj contains numDynVar + time
         self.numSol = numSol + self.lenAddX
         self.t0ind, self.tfind = self.__getTimeIndices()
+        self.colloc_constr_is_on = False
 
-    def preProcess(self):
+    def preProcess(self, colloc_constr_is_on=False):
         """Initialize the instances of probFun now we are ready.
 
         Call this function after the objectives and constraints have been set appropriately.
         It calculate the space required for SNOPT and allocates sparsity structure if necessary.
 
+        :param colloc_constr_is_on: bool, if we also impose constraints on those collocation points.
+        Caveat: it might make problem over-constrained, if the path constraints are equality constraints.
+
         """
+        self.colloc_constr_is_on = colloc_constr_is_on
         numDyn = self.dimdyn * self.nPoint  # constraints from system dynamics, they are imposed everywhere
         dynDefectSize = 2 * self.daeOrder * self.dimdyn
         defectSize = dynDefectSize + self.dimu + self.dimp  # from x, dx, and u, p are average
@@ -155,14 +160,20 @@ class trajOptCollocProblem(probFun):
         for constr in self.pointConstr:
             numC += constr.nf
         for constr in self.pathConstr:
-            numC += self.N * constr.nf  # TODO: verify we do not have to impose those constraints on collocation points
+            if self.colloc_constr_is_on:
+                numC += self.nPoint * constr.nf
+            else:
+                numC += self.N * constr.nf
         for constr in self.nonLinConstr: # TODO: as Posa approach, user is able to make constraints satisfied at mid-points by introducing more variables
             numC += constr.nf
         nnonlincon = numC
         for constr in self.linPointConstr:
             numC += constr.A.shape[0]
         for constr in self.linPathConstr:
-            numC += constr.A.shape[0] * self.N  # this remains being argued
+            if self.colloc_constr_is_on:
+                numC += constr.A.shape[0] * self.nPoint
+            else:
+                numC += constr.A.shape[0] * self.N
         for constr in self.linearConstr:
             numC += constr.A.shape[0]
         nlincon = numC - nnonlincon
@@ -221,7 +232,7 @@ class trajOptCollocProblem(probFun):
         for obj in self.linPointObj:
             A[self.__patchCol__(obj.index, obj.A.col)] += obj.A.data
         for obj in self.linPathObj:  # this is not particularly useful, I have to say
-            for i in range(self.numPoint):
+            for i in range(self.nPoint):
                 A[self.__patchCol__(i, obj.A.col)] += obj.A.data
         # get sparse representation of A
         nnzind = np.nonzero(A)[0]
@@ -352,8 +363,11 @@ class trajOptCollocProblem(probFun):
             lstCAcol.append(self.__patchCol__(constr.index, constr.A.col))  # take care on here
             curRow += constr.A.shape[0]
         for constr in self.linPathConstr:
-            for i in range(self.N):
-                index = 2 * i
+            for j in range(self.nPoint):
+                if not self.colloc_constr_is_on:
+                    if j % 2 == 1:
+                        continue
+                index = j
                 lstCA.append(constr.A.data)
                 lstCArow.append(constr.A.row + curRow)
                 lstCAcol.append(self.__patchCol__(index, constr.A.col))
@@ -453,11 +467,17 @@ class trajOptCollocProblem(probFun):
                 n = len(constr.timeindex)
                 numCG += (self.numT - 1) * n
         for constr in self.pathConstr:
-            numCG += self.N * constr.nG
+            if self.colloc_constr_is_on:
+                numCG += self.nPoint * constr.nG
+            else:
+                numCG += self.N * constr.nG
             constr.findTimeGradient(tmpx)
             if not constr.autonomous:
                 n = len(constr.timeindex)
-                numCG += (self.numT - 1) * n * self.N
+                if self.colloc_constr_is_on:
+                    numCG += (self.numT - 1) * n * self.nPoint
+                else:
+                    numCG += (self.numT - 1) * n * self.N
         for constr in self.nonLinConstr:
             numCG += constr.nG
         numG = numObjG + numDynG + numCG
@@ -654,9 +674,13 @@ class trajOptCollocProblem(probFun):
             cub[cind0: cindf] = constr.ub
             cind0 = cindf
         for constr in self.linPathConstr:
-            cindf = cind0 + self.N * constr.A.shape[0]
-            clb[cind0: cindf] = np.tile(constr.lb, (self.N, 1)).flatten()
-            cub[cind0: cindf] = np.tile(constr.ub, (self.N, 1)).flatten()
+            if self.colloc_constr_is_on:
+                N = self.nPoint
+            else:
+                N = self.N
+            cindf = cind0 + N * constr.A.shape[0]
+            clb[cind0: cindf] = np.tile(constr.lb, (N, 1)).flatten()
+            cub[cind0: cindf] = np.tile(constr.ub, (N, 1)).flatten()
             cind0 = cindf
         for constr in self.linearConstr:
             cindf = cind0 + constr.A.shape[0]
@@ -1044,8 +1068,11 @@ class trajOptCollocProblem(probFun):
         if len(self.pathConstr) > 0:
             for constr in self.pathConstr:
                 if constr.autonomous:
-                    for j in range(self.N):
-                        i = 2 * j
+                    for j in range(self.nPoint):
+                        if not self.colloc_constr_is_on:
+                            if j % 2 == 1:
+                                continue
+                        i = j
                         tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
                         pieceG = G[curNg: curNg + constr.nG]
                         pieceRow = row[curNg: curNg + constr.nG]
@@ -1057,8 +1084,11 @@ class trajOptCollocProblem(probFun):
                         curRow += constr.nf
                         curNg += constr.nG
                 else:
-                    for j in range(self.N):
-                        i = 2 * j
+                    for j in range(self.nPoint):
+                        if not self.colloc_constr_is_on:
+                            if j % 2 == 1:
+                                continue
+                        i = j
                         tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
                         constr.__callg__(tmpx, y[curRow: curRow + constr.nf], self.G, self.row, self.col, rec, needg)
                         curNg = self.__copy_into_g__(i, G, row, col, curRow, curNg, constr.nG, constr.timeindex, True, rec,
