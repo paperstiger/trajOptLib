@@ -15,6 +15,7 @@ import sys, os, time
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
+from scipy.interpolate import interp1d
 from . import plot as pld
 
 
@@ -124,6 +125,8 @@ def randomGenInBound(bds, n=None):
     :return x: ndarray, the random generated variable
 
     """
+    if not isinstance(bds, list):
+        return bds
     assert len(bds) == 2
     lb, ub = bds
     if lb is not None:
@@ -191,6 +194,41 @@ def checkInBounds(x, bds):
     else:
         return position
 
+
+def interp(t, X, teval, Xeval, kind):
+    """Do interpolation on previous calculated solution.
+
+    It handles case when t is None, in which case, teval is not used and we use a uniform grid in [0, 1]
+
+    :param t: array-like, user-specified time stamps
+    :param X: ndarray, (*, *), variable to be interpolated
+    :param teval: array-like, where to evaluate for the interpolation
+    :param Xeval: ndarray, (*, *), where to store the evaluation. It might has more columns than X, in which case we fill higher-order derivative
+    :param kind: str, interpolation type for scipy.interpolate.interp1d, can be (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic’, ‘cubic’)
+
+    """
+    targetN = Xeval.shape[0]
+    giveN = X.shape[0]
+    Xcol = X.shape[1]
+    XevalCol = Xeval.shape[1]
+    order = XevalCol // Xcol
+    if t is None:
+        teval = np.linspace(0, 1, targetN)
+        t = np.linspace(0, 1, giveN)
+    # construct object
+    if order == 1:
+        interp_ = interp1d(t, X, kind=kind, axis=0)
+        Xeval[:] = interp_(teval)
+    else:
+        interp_ = CubicSpline(t, X)
+        Xeval[:, :X.shape[1]] = interp_(teval)
+        curind = 1
+        while order > 1:
+            interp_ = interp_.derivative()
+            Xeval[:, curind*Xcol: (curind+1)*Xcol] = interp_(teval)
+            order -= 1
+            curind += 1
+    return
 
 
 if __name__ == '__main__':

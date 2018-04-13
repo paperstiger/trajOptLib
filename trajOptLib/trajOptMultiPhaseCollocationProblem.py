@@ -33,9 +33,8 @@ class NonLinearConnectConstr(object):
         :param phase1/phase2: int, phase number that constraint is imposed. We read data from them
         :param nc: int, dimension of constraint function
         :param lb, ub: lower and upper bound of the constraint function. None means equal to 0
-        :param nG, int, number of nnz of Jacobian
-        :param index1/index2: int, by default we connect last point of phase 1 with first point of phase 2.
-        However, we allow manual assignment of them.
+        :param nG: int, number of nnz of Jacobian
+        :param index1/index2: int, by default we connect last point of phase 1 with first point of phase 2. However, we allow manual assignment of them.
         :param addx_index: int, which additional x we use to connect those two phases
 
         """
@@ -121,9 +120,8 @@ class LinearConnectConstr(object):
         :param phase1/phase2: int, phase number that constraint is imposed. We read data from them
         :param a1/a2: ndarray, the constraint, :math: `l \le A_1 x_1 + A_2 x_2 \le u`
         :param lb, ub: lower and upper bound of the constraint function. None means equal to 0
-        :param nG, int, number of nnz of Jacobian
-        :param index1/index2: int, by default we connect last point of phase 1 with first point of phase 2.
-        However, we allow manual assignment of them.
+        :param nG: int, number of nnz of Jacobian
+        :param index1/index2: int, by default we connect last point of phase 1 with first point of phase 2. However, we allow manual assignment of them.
         :param adda: ndarray, if additional parameter comes into play, we use this
         :param addx_index: int, index of the additional parameters
 
@@ -266,7 +264,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         :param x: ndarray, the solution to the problem
         :param y: ndarray, return F
         :param G, row, col: ndarray, information of gradient
-        :param rec, needg: if we record/ if we need gradient
+        :param rec, needg: if we record / if we need gradient
 
         """
         curRow = 1
@@ -914,6 +912,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         :param G, row, col: the sparse Jacobian is stored here
         :param curRow, curNg: accumulated number of y/G
         :return curRow, curNg: updated number of used y/G
+
         """
         # loop over connect_nonlinear_constr
         for constr in self.connect_nonlinear_constr:
@@ -1017,6 +1016,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
         :param G, row, col: the Jacobian matrix to check
         :param curNg: accumulated G.
+
         """
         boolMat1 = np.zeros((self.nf, self.nx), dtype=bool)
         boolMat1[self.Arow, self.Acol] = True

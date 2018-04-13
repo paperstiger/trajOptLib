@@ -13,6 +13,7 @@ This class implements the direct collocation approach for humanoid trajectory op
 """
 from __future__ import division
 import numpy as np
+from scipy.interpolate import interp1d
 from .trajOptBase import linearObj, linearPointObj
 from .trajOptBase import linearPointConstr, linearConstr
 from .trajOptBase import nonLinearPointObj, nonLinearObj
@@ -21,7 +22,7 @@ from .trajOptBase import lqrObj
 from .trajOptBase import addX
 from .trajOptBase import daeSystem
 from .libsnopt import snoptConfig, probFun, solver
-from .utility import randomGenInBound, checkInBounds
+from .utility import randomGenInBound, checkInBounds, interp
 from scipy.sparse import spmatrix, coo_matrix, csr_matrix
 
 
@@ -30,12 +31,9 @@ class trajOptCollocProblem(probFun):
 
     A general framework for using this class is to:
 
-    1. Define a class which implements a DAE system, f(t, x, p, u)=0.
-    This is a typical case for humanoid problem, but also flexible enough for simpler first order system.
-    2. Optionally, write desired cost function by inheriting/creating from the list of available cost functions.
-    This can be built incrementally by adding pieces.
-    3. Optionally, write desired constraint functions by inheriting from available constraints.
-    This can be built incrementally by adding pieces. Our approach can correctly detect the Jacobian structure.
+    1. Define a class which implements a DAE system, f(t, x, p, u)=0. This is a typical case for humanoid problem, but also flexible enough for simpler first order system.
+    2. Optionally, write desired cost function by subclass/creating from the list of available cost functions. This can be built incrementally by adding pieces.
+    3. Optionally, write desired constraint functions by subclass from available constraints. This can be built incrementally by adding pieces. Our approach can correctly detect the Jacobian structure.
     4. Create this class with selected system, discretization, t0, tf range
     5. Set bounds for state, control, parameters, x0 and xf
     6. Add objective functions and constraints to this class
@@ -145,7 +143,8 @@ class trajOptCollocProblem(probFun):
         It calculate the space required for SNOPT and allocates sparsity structure if necessary.
 
         :param colloc_constr_is_on: bool, if we also impose constraints on those collocation points.
-        Caveat: it might make problem over-constrained, if the path constraints are equality constraints.
+
+        **Caveat** it might make problem over-constrained, if the path constraints are equality constraints.
 
         """
         self.colloc_constr_is_on = colloc_constr_is_on
@@ -194,6 +193,94 @@ class trajOptCollocProblem(probFun):
         # detect gradient information
         randX = self.randomGenX()
         self.__turnOnGrad(randX)
+
+    def genGuessFromTraj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None, interp_kind='linear'):
+        """Generate an initial guess for the problem with user specified information.
+
+        An amazing feature is the user does not have to give a solution of exactly the same time-stamped trajectory used internally.
+        Interpolation approaches are used in such scenarios.
+        The user is not required to provide them all, although we suggest they do so.
+
+        :param X: ndarray, (*,*) each row corresponds to a state snapshot (if tstamp is None, assume equidistant grid). Column size can be dimx or dimx/sys.order
+        :param U: ndarray, (*, dimu) each row corresponds to a control snapshot. Similar to X but with column size equals dimu
+        :param P: ndarray, (*, dimp) each row corresponds to a parameter snapshot. Similar to X but with column size equals dimp
+        :param t0/tf: float/array-like, initial/final time. If None, we randomly generate one
+        :param addx: list of ndarray, guess of addx, if applicable
+        :param tstamp: ndarray, (*,), None if the X/U/P are provided using equidistant grid.
+        :param interp_kind: str, interpolation type for scipy.interpolate.interp1d, can be (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic’, ‘cubic’)
+
+        """
+        randX = 2 * np.random.random(self.numSol) - 1
+        Xtarget, Utarget, Ptarget = self.__parseX__(randX)
+        # generate t0 and tf, if applicable
+        if self.t0ind > 0:
+            if t0 is None:
+                randX[self.t0ind] = randomGenInBound(self.t0)
+            else:
+                randX[self.t0ind] = randomGenInBound(t0)
+            uset0 = randX[self.t0ind]
+        else:
+            uset0 = self.t0
+        if self.tfind > 0:
+            if tf is None:
+                randX[self.tfind] = randomGenInBound(self.tf)
+            else:
+                randX[self.tfind] = randomGenInBound(tf)
+            usetf = randX[self.tfind]
+        else:
+            usetf = self.tf
+        teval = np.linspace(uset0, usetf, self.nPoint)
+
+        # interpolation for state variables
+        nPoint = self.nPoint
+        dimx = self.dimx
+        dimx_ = dimx // self.sys.order
+        if X is not None:
+            Xcol = X.shape[1]
+            if not Xcol == dimx_ or Xcol == dimx:
+                print('The column of X is not %d or %d, not use it' % (dimx, dimx_))
+                X = None
+            else:  # use interpolation to do it
+                interp(tstamp, X, teval, Xtarget, interp_kind)
+        if X is None:
+            # straight path go there
+            for i in range(self.nPoint):
+                X[i] = randomGenInBound(self.xbd, self.dimx)
+            # randomly generate x0 and xf
+            X[0, :dimx] = randomGenInBound(self.x0bd, self.dimx)
+            X[-1, :dimx] = randomGenInBound(self.xfbd, self.dimx)
+
+        # interpolation for control variable
+        if U is not None:
+            interp(tstamp, U, teval, Utarget, interp_kind)
+        else:
+            for i in range(nPoint):
+                U[i] = randomGenInBound(self.ubd, self.dimu)
+        if self.numP > 0:
+            if P is not None:
+                interp(tstamp, P, teval, Ptarget, interp_kind)
+            else:
+                for i in range(nPoint):
+                    P[i] = randomGenInBound(self.pbd, self.dimp)
+        # generate for
+        if self.lenAddX > 0:
+            if addx is None:
+                for field, addx_ in zip(self.__parseAddX__(randX), self.addX):
+                    field[:] = randomGenInBound([addx_.lb, addx_.ub], addx_.n)
+            else:
+                for guess, field, addx_ in zip(addx, self.__parseAddX__(randX), self.addX):
+                    field[:] = randomGenInBound(guess, addx_.n)
+        # I do not have to worry about objaddn since they are linear
+        return randX
+
+    def genGuessFromSol(self, parsed_sol, perturb=None):
+        """Generate an initial guess from a previous solution. Mainly change grid size or add perturbation. But determining structure is difficult"""
+        t = parsed_sol['t']
+        x = parsed_sol['x']
+        u = parsed_sol['u']
+        p = parsed_sol['p']
+        addx = parsed_sol['addx']
+        return self.genGuessFromTraj(X=x, U=u, P=p, t0=t[0], tf=t[-1], addx=addx, tstamp=t, interp_kind='cubic')
 
     def __findMaxNG(self):
         """Loop over all the constraints, find max NG. We then create temporary data for them."""
