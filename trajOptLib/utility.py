@@ -201,9 +201,9 @@ def interp(t, X, teval, Xeval, kind):
     It handles case when t is None, in which case, teval is not used and we use a uniform grid in [0, 1]
 
     :param t: array-like, user-specified time stamps
-    :param X: ndarray, (*, *), variable to be interpolated
+    :param X: ndarray, (x, x), variable to be interpolated
     :param teval: array-like, where to evaluate for the interpolation
-    :param Xeval: ndarray, (*, *), where to store the evaluation. It might has more columns than X, in which case we fill higher-order derivative
+    :param Xeval: ndarray, (x, x), where to store the evaluation. It might has more columns than X, in which case we fill higher-order derivative
     :param kind: str, interpolation type for scipy.interpolate.interp1d, can be (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic’, ‘cubic’)
 
     """

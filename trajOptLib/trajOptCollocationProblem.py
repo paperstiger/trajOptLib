@@ -201,12 +201,12 @@ class trajOptCollocProblem(probFun):
         Interpolation approaches are used in such scenarios.
         The user is not required to provide them all, although we suggest they do so.
 
-        :param X: ndarray, (*,*) each row corresponds to a state snapshot (if tstamp is None, assume equidistant grid). Column size can be dimx or dimx/sys.order
-        :param U: ndarray, (*, dimu) each row corresponds to a control snapshot. Similar to X but with column size equals dimu
-        :param P: ndarray, (*, dimp) each row corresponds to a parameter snapshot. Similar to X but with column size equals dimp
+        :param X: ndarray, (x, x) each row corresponds to a state snapshot (if tstamp is None, assume equidistant grid). Column size can be dimx or dimx/sys.order
+        :param U: ndarray, (x, dimu) each row corresponds to a control snapshot. Similar to X but with column size equals dimu
+        :param P: ndarray, (x, dimp) each row corresponds to a parameter snapshot. Similar to X but with column size equals dimp
         :param t0/tf: float/array-like, initial/final time. If None, we randomly generate one
         :param addx: list of ndarray, guess of addx, if applicable
-        :param tstamp: ndarray, (*,), None if the X/U/P are provided using equidistant grid.
+        :param tstamp: ndarray, (x,), None if the X/U/P are provided using equidistant grid.
         :param interp_kind: str, interpolation type for scipy.interpolate.interp1d, can be (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic’, ‘cubic’)
 
         """
@@ -273,8 +273,12 @@ class trajOptCollocProblem(probFun):
         # I do not have to worry about objaddn since they are linear
         return randX
 
-    def genGuessFromSol(self, parsed_sol, perturb=None):
-        """Generate an initial guess from a previous solution. Mainly change grid size or add perturbation. But determining structure is difficult"""
+    def genGuessFromSol(self, parsed_sol):
+        """Generate an initial guess from a previous solution. Mainly change grid size or add perturbation. But determining structure is difficult
+
+        :param parsed_sol: dictionary, output of calling parseSol
+
+        """
         t = parsed_sol['t']
         x = parsed_sol['x']
         u = parsed_sol['u']
