@@ -835,8 +835,8 @@ class trajOptCollocProblem(probFun):
         obj = y[0]
         dynCon = np.reshape(y[1:(2*N-1)*dimdyn+1], (2*N - 1, dimdyn))
         curN = 1 + (2 * N - 1) * dimdyn
-        curNf = curN + (N - 1) * 4 * dimdyn
-        defectCon = np.reshape(y[curN: curNf], (N - 1, 4*dimdyn))
+        curNf = curN + self.defectDyn
+        defectCon = np.reshape(y[curN: curNf], (N - 1, -1))
         curN = curNf
         pointCon = []
         for constr in self.pointConstr:
