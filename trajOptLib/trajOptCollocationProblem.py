@@ -896,6 +896,16 @@ class trajOptCollocProblem(probFun):
             numTraj += addx.n
         return addX
 
+    def getAddXIndexByIndex(self, i):
+        """With i as index of addx, it returns the starting index in solution vector for this one.
+
+        :param i: int, the index of addX we want to query.
+        """
+        index = self.numTraj
+        for j in range(i):
+            index += self.addX[j].n
+        return index
+
     def __callg__(self, x, y, G, row, col, rec, needg):
         """Evaluate those constraints, objective functions, and constraints. It simultaneously allocates sparsity matrix.
 
