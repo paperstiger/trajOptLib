@@ -94,6 +94,7 @@ class daeSystem(object):
         :param np: int, dimension of parameter
         :param nf: int, dimension of dae system
         :param nG: int, nnz of Jacobian
+
         """
         self.nx = nx
         self.nu = nu
@@ -210,6 +211,7 @@ class addX(object):
         :param n: int, length of this variable.
         :param lb: ndarray, (n,) lower bounds for those variables. None means no bound
         :param ub: ndarray, (n,) uppere bounds for those variables. None means no bound
+
         """
         self.n = n
         if lb is None:
@@ -293,7 +295,7 @@ class nonLinearObj(baseFun):
 
         :param nsol: int, length of decision variable
         :param gradmode: str, how gradient is provided
-        :param nG, int, number of nnz of Jacobian
+        :param nG: int, number of nnz of Jacobian
 
         """
         baseFun.__init__(self, nsol, 1, gradmode, nG)
@@ -311,7 +313,7 @@ class nonLinearPointObj(baseFun):
         :param index: int, at which point is objective calculated
         :param nx, nu, np: int, dimensions
         :param gradmode: str, how gradient is provided
-        :param nG, int, number of nnz of Jacobian
+        :param nG: int, number of nnz of Jacobian
 
         """
         xdim = 1 + nx + nu + np
@@ -392,7 +394,7 @@ class nonLinearPointConstr(baseFun):
         :param nx, nu, np: int, dimensions
         :param lb, ub: lower and upper bound of the constraint function. None means equal to 0
         :param gradmode: str, how gradient is provided
-        :param nG, int, number of nnz of Jacobian
+        :param nG: int, number of nnz of Jacobian
 
         """
         xdim = 1 + nx + nu + np
@@ -411,7 +413,7 @@ class nonLinearConstr(baseFun):
         :param nc: int, dimension of constraint function
         :param lb, ub: lower and upper bound of the constraint function. None means equal to 0
         :param gradmode: str, how gradient is provided
-        :param nG, int, number of nnz of Jacobian
+        :param nG: int, number of nnz of Jacobian
 
         """
         baseFun.__init__(self, nsol, nc, gradmode, nG)

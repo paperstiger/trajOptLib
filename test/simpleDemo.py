@@ -109,7 +109,7 @@ def penMode(lqr):
     prob.x0bd = [np.array([0, 0]), np.array([0, 0])]
     prob.xfbd = [np.array([np.pi, 0]), np.array([np.pi, 0])]
     if not lqr:
-        prob.addNonPointObj(cost, True)  # add a path cost
+        prob.addNonLinearPointObj(cost, True)  # add a path cost
     else:
         lqr = lqrObj(R=np.ones(1))
         prob.addLQRObj(lqr)
@@ -140,7 +140,7 @@ def gradmode(lqr):
     prob.x0bd = [np.array([0, 0]), np.array([0, 0])]
     prob.xfbd = [np.array([1, 0]), np.array([1, 0])]
     if not lqr:
-        prob.addNonPointObj(cost, True)  # add a path cost
+        prob.addNonLinearPointObj(cost, True)  # add a path cost
     else:
         lqr = lqrObj(R=np.ones(1))
         prob.addLQRObj(lqr)
@@ -171,7 +171,7 @@ def ipMode(lqr):
     prob.x0bd = [np.array([0, 0]), np.array([0, 0])]
     prob.xfbd = [np.array([1, 0]), np.array([1, 0])]
     if not lqr:
-        prob.addNonPointObj(cost, True)  # add a path cost
+        prob.addNonLinearPointObj(cost, True)  # add a path cost
     else:
         lqr = lqrObj(R=np.ones(1))
         prob.addLQRObj(lqr)
@@ -202,7 +202,7 @@ def fdmode(lqr):
     prob.x0bd = [np.array([0, 0]), np.array([0, 0])]
     prob.xfbd = [np.array([1, 0]), np.array([1, 0])]
     if not lqr:
-        prob.addNonPointObj(cost, True)  # add a path cost
+        prob.addNonLinearPointObj(cost, True)  # add a path cost
     else:
         lqr = lqrObj(R=np.ones(1))
         prob.addLQRObj(lqr)

@@ -370,7 +370,7 @@ class trajOptProblem(probFun):
         for obj in self.nonPointObj:
             nG += obj.nG
         for obj in self.nonPathObj:
-            nG += self.nPoint * obj.nG
+            nG += (self.N - 1) * obj.nG
         return nG
 
     def __getTimeIndices(self):
@@ -834,7 +834,7 @@ class trajOptProblem(probFun):
         if len(self.nonPathObj) > 0:
             for obj in self.nonPathObj:
                 y[curRow] = 0
-                for i in range(self.nPoint):
+                for i in range(self.N - 1):
                     tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
                     Gpiece = G[curNg: curNg + obj.nG]
                     rowpiece = row[curNg: curNg + obj.nG]

@@ -29,7 +29,7 @@ class ipOption(object):
         self.floatOpt = []
         self.tol = 1e-6
         self.max_iter = 1000
-        self.dual_inf_tol = 10
+        self.dual_inf_tol = 1e-6
         self.constr_vio_tol = 1e-6
 
     def addIntOption(self, key, value):
@@ -52,10 +52,10 @@ class ipOption(object):
 class ipSolver(object):
     """A solver class for ipopt. It accepts my conventional problem type."""
     def __init__(self, prob, option=None):
-        nvar = prob.numSol
+        nvar = prob.nx
         x_L = prob.xlb
         x_U = prob.xub
-        ncon = prob.numF
+        ncon = prob.nf
         g_L = prob.lb
         g_U = prob.ub
         if hasattr(prob, 'spA'):

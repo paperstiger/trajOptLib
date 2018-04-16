@@ -21,7 +21,7 @@ from .trajOptBase import nonLinearPointConstr, nonLinearConstr
 from .trajOptBase import addX
 from .libsnopt import snoptConfig, probFun, solver, result
 from .utility import randomGenInBound
-from scipy.sparse import coo_matrix
+from scipy.sparse import coo_matrix, csr_matrix
 from .trajOptCollocationProblem import trajOptCollocProblem
 
 
@@ -33,9 +33,8 @@ class NonLinearConnectConstr(object):
         :param phase1/phase2: int, phase number that constraint is imposed. We read data from them
         :param nc: int, dimension of constraint function
         :param lb, ub: lower and upper bound of the constraint function. None means equal to 0
-        :param nG, int, number of nnz of Jacobian
-        :param index1/index2: int, by default we connect last point of phase 1 with first point of phase 2.
-        However, we allow manual assignment of them.
+        :param nG: int, number of nnz of Jacobian
+        :param index1/index2: int, by default we connect last point of phase 1 with first point of phase 2. However, we allow manual assignment of them.
         :param addx_index: int, which additional x we use to connect those two phases
 
         """
@@ -121,9 +120,8 @@ class LinearConnectConstr(object):
         :param phase1/phase2: int, phase number that constraint is imposed. We read data from them
         :param a1/a2: ndarray, the constraint, :math: `l \le A_1 x_1 + A_2 x_2 \le u`
         :param lb, ub: lower and upper bound of the constraint function. None means equal to 0
-        :param nG, int, number of nnz of Jacobian
-        :param index1/index2: int, by default we connect last point of phase 1 with first point of phase 2.
-        However, we allow manual assignment of them.
+        :param nG: int, number of nnz of Jacobian
+        :param index1/index2: int, by default we connect last point of phase 1 with first point of phase 2. However, we allow manual assignment of them.
         :param adda: ndarray, if additional parameter comes into play, we use this
         :param addx_index: int, index of the additional parameters
 
@@ -187,9 +185,9 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         self.addx_linear_obj = []  # always extends functions that probably no one uses
         self.nonlinear_obj = []  # a general objective function on the whole x
         # data for determining size of the problem
-        vec_num_sol = np.array([prob.numSol for prob in self.phases])
+        vec_num_sol = np.array([prob.nx for prob in self.phases])
         self.accum_num_sol = np.insert(np.cumsum(vec_num_sol), 0, 0)
-        vec_num_f = np.array([prob.numF - 1 for prob in self.phases])  # -1 to remove objf row
+        vec_num_f = np.array([prob.nf - 1 for prob in self.phases])  # -1 to remove objf row
         self.accum_num_f = np.insert(np.cumsum(vec_num_f), 0, 0)
         self.sum_num_f = self.accum_num_f[-1]
         self.__add_connect_time_constr()
@@ -230,6 +228,8 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         self.num_nonlinear_constr = nonlinear_F
         self.nx = self.num_sol
         self.nf = self.num_f
+        self.spA = csr_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.nf, self.nx))
+        self.spA_coo = self.spA.tocoo()
 
         # find number of G
         rdx = self.random_gen_x()
@@ -264,7 +264,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         :param x: ndarray, the solution to the problem
         :param y: ndarray, return F
         :param G, row, col: ndarray, information of gradient
-        :param rec, needg: if we record/ if we need gradient
+        :param rec, needg: if we record / if we need gradient
 
         """
         curRow = 1
@@ -318,7 +318,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         :return g: constraint function
 
         """
-        y = np.zeros(self.numF)
+        y = np.zeros(self.num_f)
         G = np.zeros(1)
         row = np.zeros(1, dtype=int)
         col = np.zeros(1, dtype=int)
@@ -334,15 +334,16 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         :param flag: bool, True return row/col, False return values
 
         """
-        y = np.zeros(self.numF)
+        y = np.zeros(self.num_f)
         G = np.zeros(self.nG + self.spA.nnz)
         if flag:
             row = np.ones(self.nG + self.spA.nnz, dtype=int)
             col = np.ones(self.nG + self.spA.nnz, dtype=int)
-            self.__callg__(x, y, G, row, col, True, True)
+            tmpx = self.randomGenX()
+            self.__callg__(tmpx, y, G, row, col, True, True)
             # good news is there is no overlap of A and G
-            row[self.nG:] = tmpA.row
-            col[self.nG:] = tmpA.col
+            row[self.nG:] = self.spA_coo.row
+            col[self.nG:] = self.spA_coo.col
             return row, col
         else:
             row = np.ones(1, dtype=int)
@@ -718,8 +719,6 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         self.Aval = np.concatenate(lstA + lstA2 + lstA3)
         self.Arow = np.concatenate(lstArow + lstArow2 + lstArow3)
         self.Acol = np.concatenate(lstAcol + lstAcol2 + lstAcol3)
-        self.spA = csr_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.nf, self.nx))
-        self.spA_coo = self.spA.tocoo()
 
     def __analyze_linear_constr(self):
         """Detect the sparse A for linear constraints.
@@ -880,7 +879,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         """
         tmpout = np.zeros(1)
         y[0] = 0  # since this row is purely linear
-        curRow = self.numF - self.num_aux_obj_var
+        curRow = self.num_f - self.num_aux_obj_var
         # loop over addx_nonlinear_obj, it is a pointObj with index information inside it
         for obj in self.addx_nonlinear_obj:
             idx = obj.index
@@ -913,6 +912,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         :param G, row, col: the sparse Jacobian is stored here
         :param curRow, curNg: accumulated number of y/G
         :return curRow, curNg: updated number of used y/G
+
         """
         # loop over connect_nonlinear_constr
         for constr in self.connect_nonlinear_constr:
@@ -1016,6 +1016,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
         :param G, row, col: the Jacobian matrix to check
         :param curNg: accumulated G.
+
         """
         boolMat1 = np.zeros((self.nf, self.nx), dtype=bool)
         boolMat1[self.Arow, self.Acol] = True

@@ -13,6 +13,7 @@ This class implements the direct collocation approach for humanoid trajectory op
 """
 from __future__ import division
 import numpy as np
+from scipy.interpolate import interp1d
 from .trajOptBase import linearObj, linearPointObj
 from .trajOptBase import linearPointConstr, linearConstr
 from .trajOptBase import nonLinearPointObj, nonLinearObj
@@ -21,7 +22,7 @@ from .trajOptBase import lqrObj
 from .trajOptBase import addX
 from .trajOptBase import daeSystem
 from .libsnopt import snoptConfig, probFun, solver
-from .utility import randomGenInBound, checkInBounds
+from .utility import randomGenInBound, checkInBounds, interp
 from scipy.sparse import spmatrix, coo_matrix, csr_matrix
 
 
@@ -30,12 +31,9 @@ class trajOptCollocProblem(probFun):
 
     A general framework for using this class is to:
 
-    1. Define a class which implements a DAE system, f(t, x, p, u)=0.
-    This is a typical case for humanoid problem, but also flexible enough for simpler first order system.
-    2. Optionally, write desired cost function by inheriting/creating from the list of available cost functions.
-    This can be built incrementally by adding pieces.
-    3. Optionally, write desired constraint functions by inheriting from available constraints.
-    This can be built incrementally by adding pieces. Our approach can correctly detect the Jacobian structure.
+    1. Define a class which implements a DAE system, f(t, x, p, u)=0. This is a typical case for humanoid problem, but also flexible enough for simpler first order system.
+    2. Optionally, write desired cost function by subclass/creating from the list of available cost functions. This can be built incrementally by adding pieces.
+    3. Optionally, write desired constraint functions by subclass from available constraints. This can be built incrementally by adding pieces. Our approach can correctly detect the Jacobian structure.
     4. Create this class with selected system, discretization, t0, tf range
     5. Set bounds for state, control, parameters, x0 and xf
     6. Add objective functions and constraints to this class
@@ -136,14 +134,20 @@ class trajOptCollocProblem(probFun):
         self.numTraj = numSol  # make it clear, numTraj contains numDynVar + time
         self.numSol = numSol + self.lenAddX
         self.t0ind, self.tfind = self.__getTimeIndices()
+        self.colloc_constr_is_on = False
 
-    def preProcess(self):
+    def preProcess(self, colloc_constr_is_on=False):
         """Initialize the instances of probFun now we are ready.
 
         Call this function after the objectives and constraints have been set appropriately.
         It calculate the space required for SNOPT and allocates sparsity structure if necessary.
 
+        :param colloc_constr_is_on: bool, if we also impose constraints on those collocation points.
+
+        **Caveat** it might make problem over-constrained, if the path constraints are equality constraints.
+
         """
+        self.colloc_constr_is_on = colloc_constr_is_on
         numDyn = self.dimdyn * self.nPoint  # constraints from system dynamics, they are imposed everywhere
         dynDefectSize = 2 * self.daeOrder * self.dimdyn
         defectSize = dynDefectSize + self.dimu + self.dimp  # from x, dx, and u, p are average
@@ -155,14 +159,20 @@ class trajOptCollocProblem(probFun):
         for constr in self.pointConstr:
             numC += constr.nf
         for constr in self.pathConstr:
-            numC += self.N * constr.nf  # TODO: verify we do not have to impose those constraints on collocation points
+            if self.colloc_constr_is_on:
+                numC += self.nPoint * constr.nf
+            else:
+                numC += self.N * constr.nf
         for constr in self.nonLinConstr: # TODO: as Posa approach, user is able to make constraints satisfied at mid-points by introducing more variables
             numC += constr.nf
         nnonlincon = numC
         for constr in self.linPointConstr:
             numC += constr.A.shape[0]
         for constr in self.linPathConstr:
-            numC += constr.A.shape[0] * self.N  # this remains being argued
+            if self.colloc_constr_is_on:
+                numC += constr.A.shape[0] * self.nPoint
+            else:
+                numC += constr.A.shape[0] * self.N
         for constr in self.linearConstr:
             numC += constr.A.shape[0]
         nlincon = numC - nnonlincon
@@ -183,6 +193,98 @@ class trajOptCollocProblem(probFun):
         # detect gradient information
         randX = self.randomGenX()
         self.__turnOnGrad(randX)
+
+    def genGuessFromTraj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None, interp_kind='linear'):
+        """Generate an initial guess for the problem with user specified information.
+
+        An amazing feature is the user does not have to give a solution of exactly the same time-stamped trajectory used internally.
+        Interpolation approaches are used in such scenarios.
+        The user is not required to provide them all, although we suggest they do so.
+
+        :param X: ndarray, (x, x) each row corresponds to a state snapshot (if tstamp is None, assume equidistant grid). Column size can be dimx or dimx/sys.order
+        :param U: ndarray, (x, dimu) each row corresponds to a control snapshot. Similar to X but with column size equals dimu
+        :param P: ndarray, (x, dimp) each row corresponds to a parameter snapshot. Similar to X but with column size equals dimp
+        :param t0/tf: float/array-like, initial/final time. If None, we randomly generate one
+        :param addx: list of ndarray, guess of addx, if applicable
+        :param tstamp: ndarray, (x,), None if the X/U/P are provided using equidistant grid.
+        :param interp_kind: str, interpolation type for scipy.interpolate.interp1d, can be (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic’, ‘cubic’)
+
+        """
+        randX = 2 * np.random.random(self.numSol) - 1
+        Xtarget, Utarget, Ptarget = self.__parseX__(randX)
+        # generate t0 and tf, if applicable
+        if self.t0ind > 0:
+            if t0 is None:
+                randX[self.t0ind] = randomGenInBound(self.t0)
+            else:
+                randX[self.t0ind] = randomGenInBound(t0)
+            uset0 = randX[self.t0ind]
+        else:
+            uset0 = self.t0
+        if self.tfind > 0:
+            if tf is None:
+                randX[self.tfind] = randomGenInBound(self.tf)
+            else:
+                randX[self.tfind] = randomGenInBound(tf)
+            usetf = randX[self.tfind]
+        else:
+            usetf = self.tf
+        teval = np.linspace(uset0, usetf, self.nPoint)
+
+        # interpolation for state variables
+        nPoint = self.nPoint
+        dimx = self.dimx
+        dimx_ = dimx // self.sys.order
+        if X is not None:
+            Xcol = X.shape[1]
+            if not Xcol == dimx_ or Xcol == dimx:
+                print('The column of X is not %d or %d, not use it' % (dimx, dimx_))
+                X = None
+            else:  # use interpolation to do it
+                interp(tstamp, X, teval, Xtarget, interp_kind)
+        if X is None:
+            # straight path go there
+            for i in range(self.nPoint):
+                X[i] = randomGenInBound(self.xbd, self.dimx)
+            # randomly generate x0 and xf
+            X[0, :dimx] = randomGenInBound(self.x0bd, self.dimx)
+            X[-1, :dimx] = randomGenInBound(self.xfbd, self.dimx)
+
+        # interpolation for control variable
+        if U is not None:
+            interp(tstamp, U, teval, Utarget, interp_kind)
+        else:
+            for i in range(nPoint):
+                U[i] = randomGenInBound(self.ubd, self.dimu)
+        if self.numP > 0:
+            if P is not None:
+                interp(tstamp, P, teval, Ptarget, interp_kind)
+            else:
+                for i in range(nPoint):
+                    P[i] = randomGenInBound(self.pbd, self.dimp)
+        # generate for
+        if self.lenAddX > 0:
+            if addx is None:
+                for field, addx_ in zip(self.__parseAddX__(randX), self.addX):
+                    field[:] = randomGenInBound([addx_.lb, addx_.ub], addx_.n)
+            else:
+                for guess, field, addx_ in zip(addx, self.__parseAddX__(randX), self.addX):
+                    field[:] = randomGenInBound(guess, addx_.n)
+        # I do not have to worry about objaddn since they are linear
+        return randX
+
+    def genGuessFromSol(self, parsed_sol):
+        """Generate an initial guess from a previous solution. Mainly change grid size or add perturbation. But determining structure is difficult
+
+        :param parsed_sol: dictionary, output of calling parseSol
+
+        """
+        t = parsed_sol['t']
+        x = parsed_sol['x']
+        u = parsed_sol['u']
+        p = parsed_sol['p']
+        addx = parsed_sol['addx']
+        return self.genGuessFromTraj(X=x, U=u, P=p, t0=t[0], tf=t[-1], addx=addx, tstamp=t, interp_kind='cubic')
 
     def __findMaxNG(self):
         """Loop over all the constraints, find max NG. We then create temporary data for them."""
@@ -221,7 +323,7 @@ class trajOptCollocProblem(probFun):
         for obj in self.linPointObj:
             A[self.__patchCol__(obj.index, obj.A.col)] += obj.A.data
         for obj in self.linPathObj:  # this is not particularly useful, I have to say
-            for i in range(self.numPoint):
+            for i in range(self.nPoint):
                 A[self.__patchCol__(i, obj.A.col)] += obj.A.data
         # get sparse representation of A
         nnzind = np.nonzero(A)[0]
@@ -352,8 +454,11 @@ class trajOptCollocProblem(probFun):
             lstCAcol.append(self.__patchCol__(constr.index, constr.A.col))  # take care on here
             curRow += constr.A.shape[0]
         for constr in self.linPathConstr:
-            for i in range(self.N):
-                index = 2 * i
+            for j in range(self.nPoint):
+                if not self.colloc_constr_is_on:
+                    if j % 2 == 1:
+                        continue
+                index = j
                 lstCA.append(constr.A.data)
                 lstCArow.append(constr.A.row + curRow)
                 lstCAcol.append(self.__patchCol__(index, constr.A.col))
@@ -453,11 +558,17 @@ class trajOptCollocProblem(probFun):
                 n = len(constr.timeindex)
                 numCG += (self.numT - 1) * n
         for constr in self.pathConstr:
-            numCG += self.N * constr.nG
+            if self.colloc_constr_is_on:
+                numCG += self.nPoint * constr.nG
+            else:
+                numCG += self.N * constr.nG
             constr.findTimeGradient(tmpx)
             if not constr.autonomous:
                 n = len(constr.timeindex)
-                numCG += (self.numT - 1) * n * self.N
+                if self.colloc_constr_is_on:
+                    numCG += (self.numT - 1) * n * self.nPoint
+                else:
+                    numCG += (self.numT - 1) * n * self.N
         for constr in self.nonLinConstr:
             numCG += constr.nG
         numG = numObjG + numDynG + numCG
@@ -654,9 +765,13 @@ class trajOptCollocProblem(probFun):
             cub[cind0: cindf] = constr.ub
             cind0 = cindf
         for constr in self.linPathConstr:
-            cindf = cind0 + self.N * constr.A.shape[0]
-            clb[cind0: cindf] = np.tile(constr.lb, (self.N, 1)).flatten()
-            cub[cind0: cindf] = np.tile(constr.ub, (self.N, 1)).flatten()
+            if self.colloc_constr_is_on:
+                N = self.nPoint
+            else:
+                N = self.N
+            cindf = cind0 + N * constr.A.shape[0]
+            clb[cind0: cindf] = np.tile(constr.lb, (N, 1)).flatten()
+            cub[cind0: cindf] = np.tile(constr.ub, (N, 1)).flatten()
             cind0 = cindf
         for constr in self.linearConstr:
             cindf = cind0 + constr.A.shape[0]
@@ -780,6 +895,16 @@ class trajOptCollocProblem(probFun):
             addX.append(x[numTraj: numTraj + addx.n])
             numTraj += addx.n
         return addX
+
+    def getAddXIndexByIndex(self, i):
+        """With i as index of addx, it returns the starting index in solution vector for this one.
+
+        :param i: int, the index of addX we want to query.
+        """
+        index = self.numTraj
+        for j in range(i):
+            index += self.addX[j].n
+        return index
 
     def __callg__(self, x, y, G, row, col, rec, needg):
         """Evaluate those constraints, objective functions, and constraints. It simultaneously allocates sparsity matrix.
@@ -1044,8 +1169,11 @@ class trajOptCollocProblem(probFun):
         if len(self.pathConstr) > 0:
             for constr in self.pathConstr:
                 if constr.autonomous:
-                    for j in range(self.N):
-                        i = 2 * j
+                    for j in range(self.nPoint):
+                        if not self.colloc_constr_is_on:
+                            if j % 2 == 1:
+                                continue
+                        i = j
                         tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
                         pieceG = G[curNg: curNg + constr.nG]
                         pieceRow = row[curNg: curNg + constr.nG]
@@ -1057,8 +1185,11 @@ class trajOptCollocProblem(probFun):
                         curRow += constr.nf
                         curNg += constr.nG
                 else:
-                    for j in range(self.N):
-                        i = 2 * j
+                    for j in range(self.nPoint):
+                        if not self.colloc_constr_is_on:
+                            if j % 2 == 1:
+                                continue
+                        i = j
                         tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
                         constr.__callg__(tmpx, y[curRow: curRow + constr.nf], self.G, self.row, self.col, rec, needg)
                         curNg = self.__copy_into_g__(i, G, row, col, curRow, curNg, constr.nG, constr.timeindex, True, rec,
@@ -1127,8 +1258,8 @@ class trajOptCollocProblem(probFun):
             tmpx = self.randomGenX()
             self.__callg__(tmpx, y, G, row, col, True, True)
             # good news is there is no overlap of A and G
-            row[self.nG:] = self.spA.row
-            col[self.nG:] = self.spA.col
+            row[self.nG:] = self.spA_coo.row
+            col[self.nG:] = self.spA_coo.col
             return row, col
         else:
             row = np.ones(1, dtype=int)
