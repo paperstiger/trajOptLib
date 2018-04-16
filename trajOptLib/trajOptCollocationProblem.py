@@ -234,7 +234,7 @@ class trajOptCollocProblem(probFun):
         # interpolation for state variables
         nPoint = self.nPoint
         dimx = self.dimx
-        dimx_ = dimx // self.sys.order
+        dimx_ = dimx // (self.sys.order + 1)
         if X is not None:
             Xcol = X.shape[1]
             if not Xcol == dimx_ or Xcol == dimx:
@@ -245,10 +245,10 @@ class trajOptCollocProblem(probFun):
         if X is None:
             # straight path go there
             for i in range(self.nPoint):
-                X[i] = randomGenInBound(self.xbd, self.dimx)
+                Xtarget[i] = randomGenInBound(self.xbd, self.dimx)
             # randomly generate x0 and xf
-            X[0, :dimx] = randomGenInBound(self.x0bd, self.dimx)
-            X[-1, :dimx] = randomGenInBound(self.xfbd, self.dimx)
+            Xtarget[0, :dimx] = randomGenInBound(self.x0bd, self.dimx)
+            Xtarget[-1, :dimx] = randomGenInBound(self.xfbd, self.dimx)
 
         # interpolation for control variable
         if U is not None:
