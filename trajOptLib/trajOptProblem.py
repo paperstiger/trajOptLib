@@ -993,6 +993,8 @@ class trajOptProblem(probFun):
         dimx, dimu, dimp = self.dimx, self.dimu, self.dimp
         newcol = col[col > 0].copy()  # TODO: check if __patchCol__ causes error when time is involved.
         maskx = (col > 0) & (col < 1 + dimx)
+        if index == -1:
+            index = self.N - 1
         newcol[maskx] = index * self.dimx + col[maskx] - 1
         masku = (col >= 1 + dimx) & (col < 1 + dimx + dimu)
         newcol[masku] = self.numX + index * self.dimu + col[masku] - 1 - dimx
