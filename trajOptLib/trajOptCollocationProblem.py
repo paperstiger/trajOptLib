@@ -745,9 +745,13 @@ class trajOptCollocProblem(probFun):
                 cub[cind0: cind0 + constr.nf] = constr.ub
             cind0 += constr.nf
         for constr in self.pathConstr:
-            tmplb = np.reshape(clb[cind0: cind0 + constr.nf * self.N], (self.N, constr.nf))
-            tmpub = np.reshape(cub[cind0: cind0 + constr.nf * self.N], (self.N, constr.nf))
-            cind0 += constr.nf * self.N
+            if self.colloc_constr_is_on:
+                useN = self.nPoint
+            else:
+                useN = self.N
+            tmplb = np.reshape(clb[cind0: cind0 + constr.nf * useN], (useN, constr.nf))
+            tmpub = np.reshape(cub[cind0: cind0 + constr.nf * useN], (useN, constr.nf))
+            cind0 += constr.nf * useN
             if constr.lb is not None:
                 tmplb[:] = constr.lb
             if constr.ub is not None:
@@ -820,6 +824,7 @@ class trajOptCollocProblem(probFun):
         """
         assert len(guess) == self.numSol
         N = self.N
+        nPoint = self.nPoint
         dimx = self.dimx
         dimdyn = self.dimdyn
         y = np.zeros(self.numF)
@@ -839,8 +844,12 @@ class trajOptCollocProblem(probFun):
             curN += constr.nf
         pathCon = []
         for constr in self.pathConstr:
-            pathCon.append(np.reshape(y[curN: curN+N*constr.nf], (N, constr.nf)))
-            curN += N*constr.nf
+            if self.colloc_constr_is_on:
+                useN = nPoint
+            else:
+                useN = N
+            pathCon.append(np.reshape(y[curN: curN+useN*constr.nf], (useN, constr.nf)))
+            curN += useN*constr.nf
         nonLinCon = []
         for constr in self.nonLinConstr:
             nonLinCon.append(y[curN: curN+constr.nf])
