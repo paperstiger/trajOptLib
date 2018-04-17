@@ -237,7 +237,7 @@ class trajOptCollocProblem(probFun):
         dimx_ = dimx // (self.sys.order + 1)
         if X is not None:
             Xcol = X.shape[1]
-            if not Xcol == dimx_ or Xcol == dimx:
+            if not (Xcol == dimx_ or Xcol == dimx):
                 print('The column of X is not %d or %d, not use it' % (dimx, dimx_))
                 X = None
             else:  # use interpolation to do it

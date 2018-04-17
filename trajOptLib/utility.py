@@ -15,7 +15,7 @@ import sys, os, time
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, CubicSpline
 from . import plot as pld
 
 

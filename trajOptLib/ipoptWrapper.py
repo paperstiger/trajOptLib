@@ -31,6 +31,8 @@ class ipOption(object):
         self.max_iter = 1000
         self.dual_inf_tol = 1e-6
         self.constr_vio_tol = 1e-6
+        self.print_level = 5
+        self.print_frequency_iter = 10
 
     def addIntOption(self, key, value):
         self.intOpt.append((key, value))
@@ -76,6 +78,8 @@ class ipSolver(object):
         self.nlp.int_option('max_iter', option.max_iter)
         self.nlp.num_option('dual_inf_tol', option.dual_inf_tol)
         self.nlp.num_option('constr_viol_tol', option.constr_vio_tol)
+        self.nlp.int_option('print_level', option.print_level)
+        self.nlp.int_option('print_frequency_iter', option.print_frequency_iter)
         for key, value in option.intOpt:
             self.nlp.int_option(key, value)
         for key, value in option.floatOpt:
@@ -99,9 +103,12 @@ class ipSolver(object):
 
         """
         x, zl, zu, lmd, obj, status = self.nlp.solve(x0)
-        self.nlp.close()
+        # self.nlp.close()
         rst = result()
         rst.flag = status + 1  # such that 1 means successful
         rst.sol = x
         rst.obj = obj
         return rst
+
+    def __del__(self):
+        self.nlp.close()
