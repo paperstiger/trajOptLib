@@ -378,6 +378,34 @@ class lqrObj(object):
             self.P = None
 
 
+class quadPenalty(nonLinearObj):
+    """In many scenarios, we want to minimize the quadratic of some variables for some variables.
+
+    This is generally different from LQR objective by that it is a point constraint and thus not integral one.
+    To make it versatile, the user is allowed to pass indices so we can directly evaluate those variables.
+    User friendly classes are also created so the indices are calculated internally.
+
+    """
+    def __init__(self, indices, weights):
+        """Constructor for the class.
+
+        :param indices: ndarray, indices of variables we aim to penalize.
+        :param weights: float/ndarray, weights for terms
+
+        """
+        self.indices = indices
+        self.weights = weights
+        nonLinearObj.__init__(self, -1, 'user', nG=len(indices))
+
+    def __callg__(self, x, y, G, row, col, rec, needg):
+        y[0] = np.sum(self.weights * x[self.indices] ** 2)
+        if needg:
+            G[:] = 2 * self.weights * x[self.indices]
+            if rec:
+                row[:] = 0
+                col[:] = self.indices
+
+
 class nonDiagLQRObj(object):
     """Class for LQR objective with non-diagonal entries"""
     # TODO: implement me

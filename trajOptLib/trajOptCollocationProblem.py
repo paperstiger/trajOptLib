@@ -18,7 +18,7 @@ from .trajOptBase import linearObj, linearPointObj
 from .trajOptBase import linearPointConstr, linearConstr
 from .trajOptBase import nonLinearPointObj, nonLinearObj
 from .trajOptBase import nonLinearPointConstr, nonLinearConstr
-from .trajOptBase import lqrObj
+from .trajOptBase import lqrObj, quadPenalty
 from .trajOptBase import addX
 from .trajOptBase import daeSystem
 from .libsnopt import snoptConfig, probFun, solver
@@ -909,11 +909,45 @@ class trajOptCollocProblem(probFun):
         """With i as index of addx, it returns the starting index in solution vector for this one.
 
         :param i: int, the index of addX we want to query.
+
         """
         index = self.numTraj
         for j in range(i):
             index += self.addX[j].n
         return index
+
+    def getStateIndexByIndex(self, i):
+        """With i as index for state variable, return the starting index in solution vector.
+
+        :param i: int, the index of State we want to query
+
+        """
+        if i >= 0:
+            return self.dimpoint * i
+        else:
+            return (self.nPoint + i) * self.dimpoint
+
+    def getContrlIndexByIndex(self, i):
+        """With i as index for control variable, return the starting index in solution vector.
+
+        :param i: int, the index of control we want to query
+
+        """
+        if i >= 0:
+            return self.dimpoint * i + self.dimx
+        else:
+            return (self.nPoint + i) * self.dimpoint + self.dimx
+
+    def getParamIndexByIndex(self, i):
+        """With i as index for parameter variable, return the starting index in solution vector.
+
+        :param i: int, the index of parameter we want to query
+
+        """
+        if i >= 0:
+            return self.dimpoint * i + self.dimx + self.dimu
+        else:
+            return (self.nPoint + i) * self.dimpoint + self.dimx + self.dimu
 
     def __callg__(self, x, y, G, row, col, rec, needg):
         """Evaluate those constraints, objective functions, and constraints. It simultaneously allocates sparsity matrix.
@@ -1399,6 +1433,118 @@ class trajOptCollocProblem(probFun):
             y[0] = yF + yQ + yR + yP + yTf
 
         self.lqrObj = __callg__
+
+    def addVanillaQuadPenalty(self, indices, weights):
+        """Add a quadratic penalty term based on indices in the solution vector and weights.
+
+        This is dangerous and might cause unexpected trouble unless you are sure indices are correct.
+        You can always use addStateQuadPenalty/addControlQuadPenalty/addParamQuadPenalty/addAddXQuadPenalty to finish these.
+
+        :param indices: indices of variables to be penalized
+        :param weights: float/ndarray weights associated with those variables.
+
+        """
+        self.addNonLinearObj(quadPenalty(indices, weights))
+
+    def addStateQuadPenalty(self, index, weights, mask=None):
+        """Add a quadratic penalty on selected state variables.
+
+        :param index: int/array-like, indices of state variables to be penalized.
+        :param weights: float/array-like, weights of penalty
+        :param mask: mask-like, filter for selecting subset of variables
+
+        """
+        stateindex = np.array(index)
+        if np.isscalar(weights):
+            useweight = weights
+        else:
+            useweight = []
+        index = []
+        for idx in stateindex:
+            i0 = self.getStateIndexByIndex(idx)
+            if mask is None:
+                index.append(np.arange(i0, i0 + self.dimx))
+            else:
+                index.append(np.arange(i0, i0 + self.dimx)[mask])
+            if not np.isscalar(weights):
+                useweight.append(weights)
+        indexes = np.concatenate(index)
+        if isinstance(weights, list):
+            useweight = np.concatenate(useweight)
+        self.addVanillaQuadPenalty(indexes, useweight)
+
+    def addControlQuadPenalty(self, index, weights, mask=None):
+        """Add a quadratic penalty on selected control variables.
+
+        :param index: int/array-like, indices of control variables to be penalized.
+        :param weights: float/array-like, weights of penalty
+        :param mask: filter to select subset
+
+        """
+        ctrlindex = np.array(index)
+        if np.isscalar(weights):
+            useweight = weights
+        else:
+            useweight = []
+        index = []
+        for idx in ctrlindex:
+            i0 = self.getControlIndexByIndex(idx)
+            if mask is None:
+                index.append(np.arange(i0, i0 + self.dimu))
+            else:
+                index.append(np.arange(i0, i0 + self.dimu)[mask])
+            if isinstance(weights, list):
+                useweight.append(weights)
+        indexes = np.concatenate(index)
+        if isinstance(weights, list):
+            useweight = np.concatenate(useweight)
+        self.addVanillaQuadPenalty(indexes, useweight)
+
+    def addParamQuadPenalty(self, index, weights, mask=None):
+        """Add a quadratic penalty on selected parameter variables.
+
+        :param index: int/array-like, indices of parameter variables to be penalized.
+        :param weights: float/array-like, weights of penalty
+        :param mask: filter of variables
+
+        """
+        paramindex = np.array(index)
+        if np.isscalar(weights):
+            useweight = weights
+        else:
+            useweight = []
+        index = []
+        for idx in ctrlindex:
+            i0 = self.getParamIndexByIndex(idx)
+            if mask is None:
+                index.append(np.arange(i0, i0 + self.dimp))
+            else:
+                index.append(np.arange(i0, i0 + self.dimp)[mask])
+            if isinstance(weights, list):
+                useweight.append(weights)
+        indexes = np.concatenate(index)
+        if isinstance(weights, list):
+            useweight = np.concatenate(useweight)
+        self.addVanillaQuadPenalty(indexes, useweight)
+
+    def addAddXQuadPenalty(self, index, weights, mask=None):
+        """Add quadratic penalty to addx variables.
+
+        The API is slightly different from previous three since we cannot guarantee weights are of the same lenght.
+
+        :param index: int, indices of parameter variables to be penalized.
+        :param weights: float/array-like, weights of penalty
+        :param mask: filter
+
+        """
+        assert isinstance(index, int)
+        i0 = self.getAddXIndexByIndex(index)
+        naddx = self.addX[index].n
+        if mask is None:
+            indexes = np.arange(i0, i0 + naddx)
+        else:
+            indexes = np.arange(i0, i0 + naddx)[mask]
+        self.addVanillaQuadPenalty(indexes, weights)
 
     def addLinearObj(self, linObj):
         """Add linear objective function.
