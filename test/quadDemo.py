@@ -15,12 +15,12 @@ Use the classical model used everywhere else.
 import sys, os, time
 import numpy as np
 import logging
-from pyLib.io import getOnOffArgs
 sys.path.append('../')
 from trajOptLib.trajOptBase import system, nonLinearPointObj, nonLinearObj, lqrObj
 from trajOptLib.trajOptProblem import trajOptProblem
 from trajOptLib.libsnopt import snoptConfig, probFun, solver
 from trajOptLib.utility import showSol
+from trajOptLib.io import getOnOffArgs
 from scipy.sparse import coo_matrix
 from libRotor import Rotor
 
