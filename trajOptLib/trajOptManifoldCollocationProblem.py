@@ -19,6 +19,7 @@ import numpy as np
 from .trajOptCollocationProblem import trajOptCollocProblem
 from .libsnopt import probFun
 from scipy.sparse import csr_matrix, coo_matrix
+from .utility import randomGenInBound, checkInBounds, interp
 
 
 class manifoldConstr(object):
@@ -321,6 +322,97 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
                 colx[mask] += self.getAuxVcIndexByIndex(i) - dimdyn  # since this part only has vel, we have to subtract q part
             cur_row += self.dynDefectSize
         return curRow, curNg
+
+    def parseF(self, guess):
+        """Give an guess, evaluate it and parse into parts.
+
+        :param guess: ndarray, (numSol, ) a guess or a solution to check
+        :returns: dict, containing objective and parsed constraints
+
+        """
+        assert len(guess) == self.numSol
+        N = self.N
+        nPoint = self.nPoint
+        dimx = self.dimx
+        dimdyn = self.dimdyn
+        nc = self.man_constr.nc
+        nf = self.man_constr.nf
+        y = np.zeros(self.numF)
+        if self.grad:
+            self.__callg__(guess, y, np.zeros(1), np.zeros(1), np.zeros(1), False, False)
+        else:
+            self.__callf__(guess, y)
+        # parse dynamics constraints
+        dynCon = np.reshape(y[1:(2 * N - 1) * dimdyn + 1], (2 * N - 1, dimdyn))
+        curN = 1 + (2 * N - 1) * dimdyn
+        curNf = curN + self.numDefectDyn  # this is actually wrong since dyn comes before u/p
+        defectCon = np.reshape(y[curN: curNf], (N - 1, -1))
+        curN = curNf
+        pointCon = []
+        for constr in self.pointConstr:
+            pointCon.append(y[curN: curN + constr.nf])
+            curN += constr.nf
+        pathCon = []
+        for constr in self.pathConstr:
+            if self.colloc_constr_is_on:
+                useN = nPoint
+            else:
+                useN = N
+            pathCon.append(np.reshape(y[curN: curN + useN * constr.nf], (useN, constr.nf)))
+            curN += useN * constr.nf
+        nonLinCon = []
+        for constr in self.nonLinConstr:
+            nonLinCon.append(y[curN: curN + constr.nf])
+            curN += constr.nf
+        manCon = np.reshape(y[curN: curN + N*nf], (N, nf))
+        # check bounds, return a -1, 1 value for non-equality bounds, and 0 for equality bounds
+        useX, useU, useP = self.__parseX__(guess)
+        Xbound = checkInBounds(useX[:, :dimx], self.xbd)
+        x0bound = checkInBounds(useX[0, :dimx], self.x0bd)
+        xfbound = checkInBounds(useX[-1, :dimx], self.xfbd)  # TODO: support acceleration bound check
+        ubound = checkInBounds(useU, self.ubd)
+        if self.dimp > 0:
+            pbound = checkInBounds(useP, self.pbd)
+        else:
+            pbound = None
+        if self.t0ind > 0:
+            t0bound = checkInBounds(guess[self.t0ind], self.t0)
+        else:
+            t0bound = None
+        if self.tfind > 0:
+            tfbound = checkInBounds(guess[self.tfind], self.tf)
+        else:
+            tfbound = None
+        if self.lenAddX > 0:
+            addx = self.__parseAddX__(guess)
+            addXbound = [checkInBounds(addx_, [addx__.lb, addx__.ub]) for addx_, addx__ in zip(addx, self.addX)]
+        else:
+            addXbound = None
+
+        useGamma = self.__parseGamma__(guess)
+        useAuxVc = self.__parseAuxVc__(guess)
+
+        # get values of objective functions
+        obj = guess[self.numSol - self.objaddn:]
+
+        rst = {'obj': obj, 'dyn': dynCon, 'defect': defectCon, 'point': pointCon, 'path': pathCon, 'nonlin': nonLinCon,
+               'Xbd': Xbound, 'Ubd': ubound, 'x0bd': x0bound, 'xfbd': xfbound, 'Pbd': pbound, 'man': manCon,
+               't0bd': t0bound, 'tfbd': tfbound, 'addXbd': addXbound,
+               'X': useX, 'U': useU, 'P': useP, 'Gamma': useGamma, 'useVc': useAuxVc}
+        if self.t0ind > 0:
+            rst['t0'] = guess[self.t0ind]
+        else:
+            rst['t0'] = self.t0
+        if self.tfind > 0:
+            rst['tf'] = guess[self.tfind]
+        else:
+            rst['tf'] = self.tf
+        # parse addx
+        if self.lenAddX > 0:
+            addx = self.__parseAddX__(guess)
+            for i, addx_ in enumerate(addx):
+                rst['addx_%d' % i] = addx_
+        return rst
 
     def __parseGamma__(self, x):
         """Return gamma as a N - 1 by correct size np array"""
