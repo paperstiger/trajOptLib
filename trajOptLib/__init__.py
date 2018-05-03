@@ -14,5 +14,6 @@ from .trajOptCollocationProblem import trajOptCollocProblem
 from .trajOptMultiPhaseCollocationProblem import NonLinearConnectConstr
 from .trajOptMultiPhaseCollocationProblem import LinearConnectConstr
 from .trajOptMultiPhaseCollocationProblem import TrajOptMultiPhaseCollocProblem
+from .trajOptManifoldCollocationProblem import manifoldConstr, trajOptManifoldCollocProblem
 
-import .fakeio as io
+from . import fakeio as io

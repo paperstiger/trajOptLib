@@ -150,11 +150,35 @@ class trajOptCollocProblem(probFun):
         self.colloc_constr_is_on = colloc_constr_is_on
         numDyn = self.dimdyn * self.nPoint  # constraints from system dynamics, they are imposed everywhere
         dynDefectSize = 2 * self.daeOrder * self.dimdyn
+        self.dynDefectSize = dynDefectSize
         defectSize = dynDefectSize + self.dimu + self.dimp  # from x, dx, and u, p are average
         self.defectSize = defectSize
         numDefectDyn = (self.N - 1) * defectSize  # from enforcing those guys
         self.numDefectDyn = numDefectDyn
         self.numDyn = numDyn + numDefectDyn  # from both nonlinear dynamics and linear defect constraints
+        numC, nnonlincon, nlincon = self.__sumConstrNum__()
+
+        self.numLinCon = nlincon
+        self.numNonLinCon = nnonlincon
+        self.__findMaxNG__()
+        self.numF = 1 + numDyn + numDefectDyn + numC
+
+        # analyze all objective functions in order to detect pattern for A, and additional variables for other nonlinear objective function
+        spA, addn = self.__analyzeObj__(self.numSol, self.numF)
+        self.objaddn = addn  # this is important for multiple objective function support
+        self.numSol += addn
+        self.numF += addn
+        probFun.__init__(self, self.numSol, self.numF)  # not providing G means we use finite-difference
+        # we are ready to write Aval, Arow, Acol for this problem. They are arranged right after dynamics
+        self.__setAPattern__(numDyn, nnonlincon, spA)
+        self.__setXbound__()
+        self.__setFbound__()
+        # detect gradient information
+        randX = self.randomGenX()
+        self.__turnOnGrad__(randX)
+
+    def __sumConstrNum__(self):
+        """It simply calculate constraint numbers."""
         numC = 0
         for constr in self.pointConstr:
             numC += constr.nf
@@ -163,7 +187,7 @@ class trajOptCollocProblem(probFun):
                 numC += self.nPoint * constr.nf
             else:
                 numC += self.N * constr.nf
-        for constr in self.nonLinConstr: # TODO: as Posa approach, user is able to make constraints satisfied at mid-points by introducing more variables
+        for constr in self.nonLinConstr:
             numC += constr.nf
         nnonlincon = numC
         for constr in self.linPointConstr:
@@ -176,23 +200,7 @@ class trajOptCollocProblem(probFun):
         for constr in self.linearConstr:
             numC += constr.A.shape[0]
         nlincon = numC - nnonlincon
-        self.numLinCon = nlincon
-        self.numNonLinCon = nnonlincon
-        self.__findMaxNG()
-        self.numF = 1 + numDyn + numDefectDyn + numC
-        # analyze all objective functions in order to detect pattern for A, and additional variables for other nonlinear objective function
-        spA, addn = self.__analyzeObj(self.numSol, self.numF)
-        self.objaddn = addn  # this is important for multiple objective function support
-        self.numSol += addn
-        self.numF += addn
-        probFun.__init__(self, self.numSol, self.numF)  # not providing G means we use finite-difference
-        # we are ready to write Aval, Arow, Acol for this problem. They are arranged right after dynamics
-        self.__setAPattern(numDyn, nnonlincon, spA)
-        self.__setXbound()
-        self.__setFbound()
-        # detect gradient information
-        randX = self.randomGenX()
-        self.__turnOnGrad(randX)
+        return numC, nnonlincon, nlincon
 
     def genGuessFromTraj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None, interp_kind='linear'):
         """Generate an initial guess for the problem with user specified information.
@@ -286,7 +294,7 @@ class trajOptCollocProblem(probFun):
         addx = parsed_sol['addx']
         return self.genGuessFromTraj(X=x, U=u, P=p, t0=t[0], tf=t[-1], addx=addx, tstamp=t, interp_kind='cubic')
 
-    def __findMaxNG(self):
+    def __findMaxNG__(self):
         """Loop over all the constraints, find max NG. We then create temporary data for them."""
         maxnG = 0
         maxnG = max(maxnG, self.sys.nG)
@@ -300,7 +308,7 @@ class trajOptCollocProblem(probFun):
         self.row = np.zeros(maxnG, dtype=int)
         self.col = np.zeros(maxnG, dtype=int)
 
-    def __analyzeObj(self, numSol, numF):
+    def __analyzeObj__(self, numSol, numF):
         """Analyze the objective function.
 
         :param numSol: current estimation of free variables
@@ -345,7 +353,7 @@ class trajOptCollocProblem(probFun):
         spA = coo_matrix((catA, (catArow, catAcol)))
         return spA, addn
 
-    def __setAPattern(self, ndyncon, nnonlincon, spA, withp=True):
+    def __setAPattern__(self, ndyncon, nnonlincon, spA, withp=True):
         """Set sparsity pattern from linear constraints and objective functions.
 
         It finds sparsity pattern from defect constraints, linear constraints, and objective functions.
@@ -365,10 +373,10 @@ class trajOptCollocProblem(probFun):
         :param withp: bool, if we set defect constraint on parameter p
 
         """
-        curRow, A, row, col = self.__setDefectPattern(ndyncon, withp)
+        curRow, A, row, col = self.__setDefectPattern__(ndyncon, withp)
         curRow += nnonlincon
         # we are ready to parse linear constraints
-        lstCA, lstCArow, lstCAcol = self.__parseLinearConstraints(curRow)
+        lstCA, lstCArow, lstCAcol = self.__parseLinearConstraints__(curRow)
         # concatenate all those things together
         lstCA.append(spA.data)
         lstCA.append(A)
@@ -382,7 +390,7 @@ class trajOptCollocProblem(probFun):
         self.spA = csr_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.nf, self.nx))
         self.spA_coo = self.spA.tocoo()
 
-    def __setDefectPattern(self, ndyncon, withp=True):
+    def __setDefectPattern__(self, ndyncon, withp=True, withv=True):
         """Set the sparse linear constraints from defect constraints.
 
         :param ndyncon: number of dynamical constraints. This sets starting row.
@@ -445,7 +453,7 @@ class trajOptCollocProblem(probFun):
             curRow += dimu + dimp
         return curRow, A, row, col
 
-    def __parseLinearConstraints(self, curRow):
+    def __parseLinearConstraints__(self, curRow):
         """Parse the linear constraints and form a sparse matrix.
 
         :param curRow: current row of accumulated constraints.
@@ -538,12 +546,12 @@ class trajOptCollocProblem(probFun):
         # I do not have to worry about objaddn since they are linear
         return randX
 
-    def __turnOnGrad(self, x0):
+    def __turnOnGrad__(self, x0):
         """Turn on gradient, this is called after an initial x0 has been generated"""
         self.grad = True
-        self.__getSparsity(x0)
+        self.__getSparsity__(x0)
 
-    def __getSparsity(self, x0):
+    def __getSparsity__(self, x0):
         """Detect sparsity of the problem with an initial guess."""
         numObjG = self.__getObjSparsity(x0)
         self.numObjG = numObjG
@@ -656,7 +664,7 @@ class trajOptCollocProblem(probFun):
                 tfind = lenX + 1
         return t0ind, tfind
 
-    def __setXbound(self):
+    def __setXbound__(self):
         """Set bounds on decision variables."""
         # create bound on x
         dimpnt = self.dimpoint
@@ -733,7 +741,7 @@ class trajOptCollocProblem(probFun):
         self.xlb = xlb
         self.xub = xub
 
-    def __setFbound(self):
+    def __setFbound__(self):
         """Set bound on F"""
         # set bound on F
         numF = self.numF
@@ -743,14 +751,14 @@ class trajOptCollocProblem(probFun):
         clb[0] = -1e20
         cub[0] = 1e20
         cind0 = 1 + numDyn
-        cind0 = self.__setNonLinConstr(clb, cub, cind0)
-        cind0 = self.__setLinConstr(clb, cub, cind0)
+        cind0 = self._setNonLinConstr(clb, cub, cind0)
+        cind0 = self._setLinConstr(clb, cub, cind0)
         # the bounds for objaddn is 0 so we are good so far
         # assign to where it should belong to
         self.lb = clb
         self.ub = cub
 
-    def __setNonLinConstr(self, clb, cub, cind0):
+    def _setNonLinConstr(self, clb, cub, cind0):
         for constr in self.pointConstr:
             if constr.lb is not None:
                 clb[cind0: cind0 + constr.nf] = constr.lb
@@ -777,7 +785,7 @@ class trajOptCollocProblem(probFun):
             cind0 += constr.nf
         return cind0
 
-    def __setLinConstr(self, clb, cub, cind0):
+    def _setLinConstr(self, clb, cub, cind0):
         # the rest are linear constraints and we should write those bounds, too
         for constr in self.linPointConstr:
             cindf = cind0 + constr.A.shape[0]
