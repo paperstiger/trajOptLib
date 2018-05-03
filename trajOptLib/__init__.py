@@ -14,3 +14,5 @@ from .trajOptCollocationProblem import trajOptCollocProblem
 from .trajOptMultiPhaseCollocationProblem import NonLinearConnectConstr
 from .trajOptMultiPhaseCollocationProblem import LinearConnectConstr
 from .trajOptMultiPhaseCollocationProblem import TrajOptMultiPhaseCollocProblem
+
+import .fakeio as io

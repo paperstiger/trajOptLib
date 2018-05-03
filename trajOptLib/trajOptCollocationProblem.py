@@ -152,9 +152,9 @@ class trajOptCollocProblem(probFun):
         dynDefectSize = 2 * self.daeOrder * self.dimdyn
         defectSize = dynDefectSize + self.dimu + self.dimp  # from x, dx, and u, p are average
         self.defectSize = defectSize
-        defectDyn = (self.N - 1) * defectSize  # from enforcing those guys
-        self.defectDyn = defectDyn
-        self.numDyn = numDyn + defectDyn  # from both nonlinear dynamics and linear defect constraints
+        numDefectDyn = (self.N - 1) * defectSize  # from enforcing those guys
+        self.numDefectDyn = numDefectDyn
+        self.numDyn = numDyn + numDefectDyn  # from both nonlinear dynamics and linear defect constraints
         numC = 0
         for constr in self.pointConstr:
             numC += constr.nf
@@ -179,7 +179,7 @@ class trajOptCollocProblem(probFun):
         self.numLinCon = nlincon
         self.numNonLinCon = nnonlincon
         self.__findMaxNG()
-        self.numF = 1 + numDyn + defectDyn + numC
+        self.numF = 1 + numDyn + numDefectDyn + numC
         # analyze all objective functions in order to detect pattern for A, and additional variables for other nonlinear objective function
         spA, addn = self.__analyzeObj(self.numSol, self.numF)
         self.objaddn = addn  # this is important for multiple objective function support
@@ -345,7 +345,7 @@ class trajOptCollocProblem(probFun):
         spA = coo_matrix((catA, (catArow, catAcol)))
         return spA, addn
 
-    def __setAPattern(self, ndyncon, nnonlincon, spA):
+    def __setAPattern(self, ndyncon, nnonlincon, spA, withp=True):
         """Set sparsity pattern from linear constraints and objective functions.
 
         It finds sparsity pattern from defect constraints, linear constraints, and objective functions.
@@ -362,9 +362,10 @@ class trajOptCollocProblem(probFun):
         :param ndyncon: int, describes how many dynamics constraints we have
         :param nnonlincon: int, describes how many nonlinear constraints we have
         :param spA: sparse matrix, how the objective function is described linearly.
+        :param withp: bool, if we set defect constraint on parameter p
 
         """
-        curRow, A, row, col = self.__setDefectPattern(ndyncon)
+        curRow, A, row, col = self.__setDefectPattern(ndyncon, withp)
         curRow += nnonlincon
         # we are ready to parse linear constraints
         lstCA, lstCArow, lstCAcol = self.__parseLinearConstraints(curRow)
@@ -381,16 +382,20 @@ class trajOptCollocProblem(probFun):
         self.spA = csr_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.nf, self.nx))
         self.spA_coo = self.spA.tocoo()
 
-    def __setDefectPattern(self, ndyncon):
+    def __setDefectPattern(self, ndyncon, withp=True):
         """Set the sparse linear constraints from defect constraints.
 
         :param ndyncon: number of dynamical constraints. This sets starting row.
+        :param withp: bool, determines if we set defect constraint on p
+
         """
         dimx, dimu, dimp, dimpoint, dimdyn = self.dimx, self.dimu, self.dimp, self.dimpoint, self.dimdyn
+        if not withp:
+            dimp = 0
         if self.fixTimeMode:
-            lenA = (10*self.daeOrder*self.dimdyn + 3*(self.dimu + self.dimp)) * (self.N - 1)
+            lenA = (10*self.daeOrder*self.dimdyn + 3*(self.dimu + dimp)) * (self.N - 1)
         else:
-            lenA = (6*self.daeOrder*self.dimdyn + 3*(self.dimu + self.dimp)) * (self.N - 1)
+            lenA = (6*self.daeOrder*self.dimdyn + 3*(self.dimu + dimp)) * (self.N - 1)
         A = np.zeros(lenA)
         row = np.zeros(lenA, dtype=int)
         col = np.zeros(lenA, dtype=int)
@@ -585,7 +590,7 @@ class trajOptCollocProblem(probFun):
         :param x: ndarray, the guess/sol
 
         """
-        # this row is the case when defectDyn are imposed in G rather than A
+        # this row is the case when numDefectDyn are imposed in G rather than A
         # dynG = self.sys.nG * self.nPoint + (20 * self.dimdyn + 3*(self.dimu + self.dimp)) * (self.N - 1)
         dynG = self.sys.nG * self.nPoint
         usex = x[:self.dimpoint]
@@ -738,6 +743,14 @@ class trajOptCollocProblem(probFun):
         clb[0] = -1e20
         cub[0] = 1e20
         cind0 = 1 + numDyn
+        cind0 = self.__setNonLinConstr(clb, cub, cind0)
+        cind0 = self.__setLinConstr(clb, cub, cind0)
+        # the bounds for objaddn is 0 so we are good so far
+        # assign to where it should belong to
+        self.lb = clb
+        self.ub = cub
+
+    def __setNonLinConstr(self, clb, cub, cind0):
         for constr in self.pointConstr:
             if constr.lb is not None:
                 clb[cind0: cind0 + constr.nf] = constr.lb
@@ -762,6 +775,9 @@ class trajOptCollocProblem(probFun):
             if constr.ub is not None:
                 cub[cind0: cind0 + constr.nf] = constr.ub
             cind0 += constr.nf
+        return cind0
+
+    def __setLinConstr(self, clb, cub, cind0):
         # the rest are linear constraints and we should write those bounds, too
         for constr in self.linPointConstr:
             cindf = cind0 + constr.A.shape[0]
@@ -782,10 +798,7 @@ class trajOptCollocProblem(probFun):
             clb[cind0: cindf] = constr.lb
             cub[cind0: cindf] = constr.ub
             cind0 = cindf
-        # the bounds for objaddn is 0 so we are good so far
-        # assign to where it should belong to
-        self.lb = clb
-        self.ub = cub
+        return cind0
 
     def __get_time_grid__(self, x):
         """Based on initial guess x, get the time grid for discretization.
@@ -835,7 +848,7 @@ class trajOptCollocProblem(probFun):
         obj = y[0]
         dynCon = np.reshape(y[1:(2*N-1)*dimdyn+1], (2*N - 1, dimdyn))
         curN = 1 + (2 * N - 1) * dimdyn
-        curNf = curN + self.defectDyn
+        curNf = curN + self.numDefectDyn
         defectCon = np.reshape(y[curN: curNf], (N - 1, -1))
         curN = curNf
         pointCon = []
@@ -997,7 +1010,7 @@ class trajOptCollocProblem(probFun):
             curRow += self.dimdyn
         # offset of row number due to defect dynamics constraint
         if self.fixTimeMode:
-            curRow += self.defectDyn 
+            curRow += self.numDefectDyn 
         else:
             # manually set those defect dynamics and gradients, etc
             defectRow = (self.N - 1) * 2 * self.daeOrder * dimdyn
