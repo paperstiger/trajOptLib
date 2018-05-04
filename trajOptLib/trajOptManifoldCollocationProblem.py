@@ -158,14 +158,14 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         # calculate number of constraint
         numC, nnonlincon, nlincon = self.__sumConstrNum__()
         nnonlincon += self.N * self.man_constr.nf
-        nauxvccon = (self.N - 1) * self.dimdyn
+        # add constraints from auxiliary velocities
+        nauxvccon = self.numAuxVc
         numC += nauxvccon
         # add constraint from manifold constraint
         numC += self.N * self.man_constr.nf
 
         self.numLinCon = nlincon
         self.numNonLinCon = nnonlincon
-        self.numAuxVcCon = nauxvccon
         trajOptCollocProblem.__findMaxNG__(self)
         self.numF = 1 + numDyn + numDefectDyn + numC
 
@@ -261,6 +261,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         curRow, curNg = self.__constr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
         curRow, curNg = self.__manifold_constr_mode_g__(curRow, curNg, useX, y, G, row, col, rec, needg)
         curRow += self.numLinCon
+        curRow += self.numAuxVc
         # loop over all the objective functions, I haven't checked if order is correct since some linear constraints are followed
         curRow, curNg = self.__obj_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
         pass
@@ -273,7 +274,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
             pieceG = G[curNg: next_Ng]
             pieceRow = row[curNg: next_Ng]
             pieceCol = col[curNg: next_Ng]
-            self.man_constr.__callg__(useX[2*i], y[curRow: curRow + next_Row], pieceG, pieceRow, pieceCol, rec, needg)
+            self.man_constr.__callg__(useX[2*i], y[curRow: next_Row], pieceG, pieceRow, pieceCol, rec, needg)
             if rec:
                 pieceRow += curRow
                 pieceCol += self.getStateIndexByIndex(2*i)
