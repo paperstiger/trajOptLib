@@ -33,6 +33,22 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+class SimpleOmniCar(daeSystem):
+    """A car without constraint. you use control to guarantee it"""
+    def __init__(self):
+        daeSystem.__init__(self, 6, 2, 0, 2, 4)
+
+    def dyn(self, t, x, u, p, y, G, row, col, rec, needg):
+        y[0] = x[4] - u[0]
+        y[1] = x[5] - u[1]
+        if needg:
+            G[0:2] = 1.0
+            G[2:4] = -1.0
+            if rec:
+                row[:] = [0, 1, 0, 1]
+                col[:] = [5, 6, 7, 8]
+
+
 class OmniCar(daeSystem):
     """A omni-car system in 2D space.
 
@@ -127,18 +143,21 @@ class circleConstr(manifoldConstr):
 
 
 def main():
-    args = getOnOffArgs('car', 'debug')
+    args = getOnOffArgs('car', 'debug', 'naive')
     if args.debug:
         sys.path.append('/home/motion/GAO/ThirdPartyLibs/pycharm-debug.egg')
         import pydevd
         pydevd.settrace('10.197.47.90', port=10000, stdoutToServer=True, stderrToServer=True)
-    # testNaiveCar()
-    testCar()
+    if args.naive:
+        testNaiveCar()
+    if args.car:
+        testCar()
 
 
 def testCar():
     """Test the omni-directional car problem."""
-    sys = OmniCar()
+    # sys = OmniCar()
+    sys = SimpleOmniCar()
     N = 10
     t0 = 0
     tf = 1
@@ -146,7 +165,7 @@ def testCar():
     prob = trajOptManifoldCollocProblem(sys, N, t0, tf, man_constr)
     prob.xbd = [-1e20*np.ones(6), 1e20*np.ones(6)]
     prob.ubd = [-1e20*np.ones(2), 1e20*np.ones(2)]
-    prob.pbd = [np.zeros(1), 1e20*np.ones(1)]
+    # prob.pbd = [np.zeros(1), 1e20*np.ones(1)]
     x0bd = np.array([0, 0, 0, 0, -1e20, -1e20])
     prob.x0bd = [x0bd, -x0bd]
     xflb = np.array([1, 1, 0, 0, -1e20, -1e20])
@@ -165,8 +184,6 @@ def testCar():
     if True:  #rst.flag == 1 or rst.flag == 2:
         psf = prob.parseF(rst.sol.copy())
         print(psf['Gamma'])
-        print(psf['useVc'])
-        print(psf['X'][:, 2:4])
         # parse the solution
         sol = prob.parseSol(rst.sol.copy())
         showSol(sol)

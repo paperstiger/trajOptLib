@@ -437,7 +437,11 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         trajOptCollocProblem.__setXbound__(self)
         # we only need to set gamma which are unbounded
         curN = self.numTraj + self.lenAddX
-        finalN = curN + self.numGamma + self.numAuxVc
+        # gamma cannot be too large, I guess
+        self.batchSetXlb(-1e1*np.ones(self.numGamma), curN)
+        self.batchSetXub(1e1*np.ones(self.numGamma), curN)
+        curN += self.numGamma
+        finalN = self.numSol
         self.batchSetXlb(-1e20*np.ones(finalN - curN), curN)
         self.batchSetXub(1e20*np.ones(finalN - curN), curN)
 
