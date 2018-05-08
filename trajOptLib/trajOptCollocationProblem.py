@@ -136,22 +136,30 @@ class trajOptCollocProblem(probFun):
         self.t0ind, self.tfind = self.__getTimeIndices()
         self.colloc_constr_is_on = False
 
-    def preProcess(self, colloc_constr_is_on=False):
+    def preProcess(self, colloc_constr_is_on=False, defect_u=True, defect_p=True):
         """Initialize the instances of probFun now we are ready.
 
         Call this function after the objectives and constraints have been set appropriately.
         It calculate the space required for SNOPT and allocates sparsity structure if necessary.
 
         :param colloc_constr_is_on: bool, if we also impose constraints on those collocation points.
+        :param defect_u: bool, if we want to impose defect constraint on u, i.e. umid=(u0+uf)/2
+        :param defect_p: bool, if we want to impose defect constraint on p, i.e. pmid=(p0+pf)/2
 
         **Caveat** it might make problem over-constrained, if the path constraints are equality constraints.
 
         """
+        self.defectU = defect_u
+        self.defectP = defect_p
         self.colloc_constr_is_on = colloc_constr_is_on
         numDyn = self.dimdyn * self.nPoint  # constraints from system dynamics, they are imposed everywhere
         dynDefectSize = 2 * self.daeOrder * self.dimdyn
         self.dynDefectSize = dynDefectSize
-        defectSize = dynDefectSize + self.dimu + self.dimp  # from x, dx, and u, p are average
+        defectSize = dynDefectSize
+        if defect_u:
+            defectSize += self.dimu
+        if defect_p:
+            defectSize += self.dimp
         self.defectSize = defectSize
         numDefectDyn = (self.N - 1) * defectSize  # from enforcing those guys
         self.numDefectDyn = numDefectDyn
@@ -353,7 +361,7 @@ class trajOptCollocProblem(probFun):
         spA = coo_matrix((catA, (catArow, catAcol)))
         return spA, addn
 
-    def __setAPattern__(self, ndyncon, nnonlincon, spA, withp=True):
+    def __setAPattern__(self, ndyncon, nnonlincon, spA):
         """Set sparsity pattern from linear constraints and objective functions.
 
         It finds sparsity pattern from defect constraints, linear constraints, and objective functions.
@@ -370,10 +378,9 @@ class trajOptCollocProblem(probFun):
         :param ndyncon: int, describes how many dynamics constraints we have
         :param nnonlincon: int, describes how many nonlinear constraints we have
         :param spA: sparse matrix, how the objective function is described linearly.
-        :param withp: bool, if we set defect constraint on parameter p
 
         """
-        curRow, A, row, col = self.__setDefectPattern__(ndyncon, withp)
+        curRow, A, row, col = self.__setDefectPattern__(ndyncon, self.defectU, self.defectP)
         curRow += nnonlincon
         # we are ready to parse linear constraints
         lstCA, lstCArow, lstCAcol = self.__parseLinearConstraints__(curRow)
@@ -390,20 +397,23 @@ class trajOptCollocProblem(probFun):
         self.spA = csr_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.nf, self.nx))
         self.spA_coo = self.spA.tocoo()
 
-    def __setDefectPattern__(self, ndyncon, withp=True, withv=True):
+    def __setDefectPattern__(self, ndyncon, withu=True, withp=True):
         """Set the sparse linear constraints from defect constraints.
 
         :param ndyncon: number of dynamical constraints. This sets starting row.
+        :param withu: bool, determines if we set defect constraint on u
         :param withp: bool, determines if we set defect constraint on p
 
         """
         dimx, dimu, dimp, dimpoint, dimdyn = self.dimx, self.dimu, self.dimp, self.dimpoint, self.dimdyn
         if not withp:
             dimp = 0
+        if not withu:
+            dimu = 0
         if self.fixTimeMode:
-            lenA = (10*self.daeOrder*self.dimdyn + 3*(self.dimu + dimp)) * (self.N - 1)
+            lenA = (10*self.daeOrder*self.dimdyn + 3*(dimu + dimp)) * (self.N - 1)
         else:
-            lenA = (6*self.daeOrder*self.dimdyn + 3*(self.dimu + dimp)) * (self.N - 1)
+            lenA = (6*self.daeOrder*self.dimdyn + 3*(dimu + dimp)) * (self.N - 1)
         A = np.zeros(lenA)
         row = np.zeros(lenA, dtype=int)
         col = np.zeros(lenA, dtype=int)
@@ -436,19 +446,17 @@ class trajOptCollocProblem(probFun):
             righti = 2*(i + 1)
             A[curNA: curNA + 2*dimu] = 0.5
             A[curNA + 2*dimu: curNA + 3*dimu] = -1
-            if dimp > 0:
-                A[curNA + 3*dimu: curNA + 3 * dimu + 2*dimp] = 0.5
-                A[curNA + 3*dimu + 2 * dimp: curNA + 3*dimu + 3*dimp] = -1
+            A[curNA + 3*dimu: curNA + 3 * dimu + 2*dimp] = 0.5
+            A[curNA + 3*dimu + 2 * dimp: curNA + 3*dimu + 3*dimp] = -1
             row[curNA: curNA + 3 * dimu] = curRow + np.tile(np.arange(dimu), (3, 1)).flatten()
             col[curNA: curNA + dimu] = lefti * dimpoint + dimx + np.arange(dimu)
             col[curNA + dimu: curNA + 2 * dimu] = righti * dimpoint + dimx + np.arange(dimu)
             col[curNA + 2 * dimu: curNA + 3 * dimu] = midi * dimpoint + dimx + np.arange(dimu)
             curNA_ = curNA + 3 * dimu
-            if dimp > 0:
-                row[curNA_: curNA_ + 3 * dimp] = curRow + dimu + np.tile(np.arange(dimp), (3, 1)).flatten()
-                col[curNA_: curNA_ + dimp] = lefti * dimpoint + dimx + dimu + np.arange(dimp)
-                col[curNA_ + dimp: curNA_ + 2 * dimp] = righti * dimpoint + dimx + dimu + np.arange(dimp)
-                col[curNA_ + 2 * dimp: curNA_ + 3 * dimp] = midi * dimpoint + dimx + dimu + np.arange(dimp)
+            row[curNA_: curNA_ + 3 * dimp] = curRow + dimu + np.tile(np.arange(dimp), (3, 1)).flatten()
+            col[curNA_: curNA_ + dimp] = lefti * dimpoint + dimx + dimu + np.arange(dimp)
+            col[curNA_ + dimp: curNA_ + 2 * dimp] = righti * dimpoint + dimx + dimu + np.arange(dimp)
+            col[curNA_ + 2 * dimp: curNA_ + 3 * dimp] = midi * dimpoint + dimx + dimu + np.arange(dimp)
             curNA += 3 * (dimu + dimp)
             curRow += dimu + dimp
         return curRow, A, row, col
@@ -836,10 +844,11 @@ class trajOptCollocProblem(probFun):
         useP = X[:, self.dimpoint - self.dimp:]
         return useX, useU, useP
 
-    def parseF(self, guess):
+    def parseF(self, guess, y=None):
         """Give an guess, evaluate it and parse into parts.
 
         :param guess: ndarray, (numSol, ) a guess or a solution to check
+        :param y: ndarray, (numF, ) if None, it stores the solution
         :returns: dict, containing objective and parsed constraints
 
         """
@@ -848,16 +857,36 @@ class trajOptCollocProblem(probFun):
         nPoint = self.nPoint
         dimx = self.dimx
         dimdyn = self.dimdyn
-        y = np.zeros(self.numF)
+        if y is None:
+            y = np.zeros(self.numF)
         if self.grad:
             self.__callg__(guess, y, np.zeros(1), np.zeros(1), np.zeros(1), False, False)
         else:
             self.__callf__(guess, y)
+        y += self.spA.dot(guess)
         obj = y[0]
         dynCon = np.reshape(y[1:(2*N-1)*dimdyn+1], (2*N - 1, dimdyn))
         curN = 1 + (2 * N - 1) * dimdyn
-        curNf = curN + self.numDefectDyn
-        defectCon = np.reshape(y[curN: curNf], (N - 1, -1))
+        curNf = curN + self.dynDefectSize * (N - 1)
+        defectCon = dict()
+        dynDefectCon = np.reshape(y[curN: curNf], (N - 1, -1))
+        defectCon['dyn'] = dynDefectCon
+        curN = curNf
+        if self.defectU:
+            dimu = self.dimu
+        else:
+            dimu = 0
+        if self.defectP:
+            dimp = self.dimp
+        else:
+            dimp = 0
+        curNf += (dimu + dimp) * (N - 1)
+        upDefectCon = np.reshape(y[curN: curNf], (N - 1, -1))
+        if dimu > 0:
+            defectCon['u'] = upDefectCon[:, :dimu]
+        if dimp > 0:
+            defectCon['p'] = upDefectCon[:, dimu:dimu+dimp]
+
         curN = curNf
         pointCon = []
         for constr in self.pointConstr:
@@ -875,11 +904,12 @@ class trajOptCollocProblem(probFun):
         for constr in self.nonLinConstr:
             nonLinCon.append(y[curN: curN+constr.nf])
             curN += constr.nf
+        # all linear constraints can be ignored, here we ignore them
         # check bounds, return a -1, 1 value for non-equality bounds, and 0 for equality bounds
         useX, useU, useP = self.__parseX__(guess)
         Xbound = checkInBounds(useX[:, :dimx], self.xbd)
         x0bound = checkInBounds(useX[0, :dimx], self.x0bd)
-        xfbound = checkInBounds(useX[-1, :dimx], self.xfbd) # TODO: support acceleration bound check
+        xfbound = checkInBounds(useX[-1, :dimx], self.xfbd)
         ubound = checkInBounds(useU, self.ubd)
         if self.dimp > 0:
             pbound = checkInBounds(useP, self.pbd)
@@ -899,7 +929,8 @@ class trajOptCollocProblem(probFun):
         else:
             addXbound = None
         useX, useU, useP = self.__parseX__(guess)
-        rst = {'obj': obj, 'dyn': dynCon, 'defect': defectCon, 'point': pointCon, 'path': pathCon, 'nonlin': nonLinCon,
+        objs = guess[self.numSol - self.objaddn:]
+        rst = {'obj': obj, 'objs': objs, 'dyn': dynCon, 'defect': defectCon, 'point': pointCon, 'path': pathCon, 'nonlin': nonLinCon,
                 'Xbd': Xbound, 'Ubd': ubound, 'x0bd': x0bound, 'xfbd': xfbound, 'Pbd': pbound,
                 't0bd': t0bound, 'tfbd': tfbound, 'addXbd': addXbound,
                 'X': useX, 'U': useU, 'P': useP}
@@ -1018,7 +1049,7 @@ class trajOptCollocProblem(probFun):
             curRow += self.dimdyn
         # offset of row number due to defect dynamics constraint
         if self.fixTimeMode:
-            curRow += self.numDefectDyn 
+            curRow += self.numDefectDyn
         else:
             # manually set those defect dynamics and gradients, etc
             defectRow = (self.N - 1) * 2 * self.daeOrder * dimdyn
@@ -1065,7 +1096,10 @@ class trajOptCollocProblem(probFun):
                                     col[curNg: curNg + 2*dimdyn] = self.tfind
                                 curNg += 2*dimdyn
                     curRow += 2 * dimdyn
-            curRow += (self.N - 1) * (dimp + dimu)  # defect constraints on ctrl and parameters are linear
+            if self.defectU:
+                curRow += (self.N - 1) * self.dimu
+            if self.defectP:
+                curRow += (self.N - 1) * self.dimp
         return curRow, curNg
 
     def __copy_into_g__(self, index, G, row, col, curRow, curNg, nG, time_index, plus, rec,
@@ -1408,24 +1442,25 @@ class trajOptCollocProblem(probFun):
             yP = 0.0
             yTf = tfweight * (h * (self.N - 1))
             curG = 0
+            G_ = np.reshape(G[:num1], (nPoint, -1))  # use the same structure with col_
             if useQ > 0:
-                yQ = np.dot(weight[:, 0], np.sum(((useX[:, Qcol] - lqrobj.xbase[Qcol]) ** 2) * self.lqrobj.Q.data, axis=1)) * h
+                yQ = np.dot(weight[:, 0], np.sum(((useX[:, Qcol] - lqrobj.xbase[Qcol]) ** 2) * lqrobj.Q.data, axis=1)) * h
                 if needg:
-                    G[curG: curG + nPoint * useQ] = 2.0 * h * (weight * ((useX[:, Qcol] - lqrobj.xbase[Qcol]) * lqrobj.Q.data)).flatten()
+                    G_[:, :useQ] = 2.0 * h * (weight * ((useX[:, Qcol] - lqrobj.xbase[Qcol]) * lqrobj.Q.data))
                     if rec:
                         col_[:, :useQ] = Qcol + baseCol
                     curG += nPoint * useQ
             if useR > 0:
                 yR = np.dot(weight[:, 0], np.sum(((useU[:, Rcol] - lqrobj.ubase[Rcol]) ** 2) * lqrobj.R.data, axis=1)) * h
                 if needg:
-                    G[curG: curG + nPoint * useR] = 2.0 * h * (weight * ((useU[:, Rcol] - lqrobj.ubase[Rcol]) * lqrobj.R.data)).flatten()
+                    G_[:, useQ: useQ + useR] = (2.0 * h * (weight * ((useU[:, Rcol] - lqrobj.ubase[Rcol]) * lqrobj.R.data)))
                     if rec:
                         col_[:, useQ: useQ+useR] = Rcol + baseCol + self.dimx
                     curG += nPoint * useR
             if useP > 0:
-                yP = np.dot(weight[:, 0], lqrobj.P.data * np.sum((useP_[:, Pcol] - lqrobj.pbase[Pcol]) ** 2, axis=0)) * h
+                yP = np.dot(weight[:, 0], np.sum(((useP_[:, Pcol] - lqrobj.pbase[Pcol]) ** 2) * lqrobj.P.data, axis=1)) * h
                 if needg:
-                    G[curG: curG + nPoint * useP] = 2.0 * h * (weight * ((useP_[:, Pcol] - lqrobj.pbase[Pcol]) * lqrobj.P.data)).flatten()
+                    G_[:, useQ+useR: useQ+useR+useP] = (2.0 * h * (weight * ((useP_[:, Pcol] - lqrobj.pbase[Pcol]) * lqrobj.P.data)))
                     if rec:
                         col_[:, useQ+useR: useQ+useR+useP] = Pcol + baseCol + self.dimx + self.dimu
                     curG += nPoint * useP
