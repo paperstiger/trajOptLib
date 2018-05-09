@@ -188,33 +188,6 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         randX = self.randomGenX()
         self.__turnOnGrad__(randX)
 
-    def __setAPattern__(self, ndyncon, nnonlincon, nlincon, spA):
-        """Set sparsity pattern from linear constraints and objective functions.
-
-        see trajOptCollocProblem for details
-
-        This overrides previous one by considering auxiliary Vc variables
-
-        """
-        curRow, A, row, col = self.__setDefectPattern__(ndyncon, self.defectU, self.defectP)
-        curRow += nnonlincon
-        # we are ready to parse linear constraints
-        lstCA, lstCArow, lstCAcol = self.__parseLinearConstraints__(curRow)
-
-        # concatenate all those things together
-        lstCA.append(spA.data)
-        lstCA.append(A)
-        lstCArow.append(spA.row)
-        lstCArow.append(row)
-        lstCAcol.append(spA.col)
-        lstCAcol.append(col)
-
-        self.Aval = np.concatenate(lstCA)
-        self.Arow = np.concatenate(lstCArow)
-        self.Acol = np.concatenate(lstCAcol)
-        self.spA = csr_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.nf, self.nx))
-        self.spA_coo = self.spA.tocoo()
-
 
     def __getSparsity__(self, x0):
         """Detect the sparsity pattern with an initial guess."""
@@ -271,13 +244,20 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         """
         nPoint = self.nPoint
         dimdyn = self.dimdyn
-        cur_row = curRow + nPoint * dimdyn + dimdyn  # We add additional dimdyn since it where J^T\gamma comes into play
+        dimq = self.dimq
+        if self.daeOrder == 2:
+            cur_row = curRow + nPoint * dimdyn + dimq  # We add additional dimdyn since it where J^T\gamma comes into play
+            row_step = self.dynDefectSize
+        else:
+            cur_row = curRow
+            row_step = dimdyn
         # call ordinary dyn constr
         curRow, curNg = trajOptCollocProblem.__dynconstr_mode_g__(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
         # loop over defect constraints
         for i in range(self.N - 1):
             # this is done by calling the __calc_correction__ function implemented by the user
             # the only difference is it calculates two sets of sparse Jacobian, and it is autonomous
+            # for second-order system, there is no problem, but for first order one, we implicitly assume the first dimq are
             Gx = G[curNg: curNg + self.man_constr.nnzJ_x]
             rowx = row[curNg: curNg + self.man_constr.nnzJ_x]
             colx = col[curNg: curNg + self.man_constr.nnzJ_x]
@@ -286,14 +266,14 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
             rowg = row[curNg: curNg + self.man_constr.nnzJ_gamma]
             colg = col[curNg: curNg + self.man_constr.nnzJ_gamma]
             curNg += self.man_constr.nnzJ_gamma
-            self.man_constr.__calc_correction__(useX[2*i + 1, :dimdyn], useGamma[i], y[cur_row: cur_row+dimdyn],
+            self.man_constr.__calc_correction__(useX[2*i + 1, :dimq], useGamma[i], y[cur_row: cur_row+dimq],
                                                 Gx, rowx, colx, Gg, rowg, colg, rec, needg)
             if rec:
                 rowx += cur_row
                 rowg += cur_row
                 colg += self.getGammaIndexByIndex(i)
                 colx += self.getStateIndexByIndex(2*i + 1)
-            cur_row += self.dynDefectSize
+            cur_row += row_step
         return curRow, curNg
 
     def parseF(self, guess):

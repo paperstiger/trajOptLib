@@ -89,6 +89,10 @@ class trajOptCollocProblem(probFun):
         self.dimp = sys.np
         self.dimpoint = sys.nx + sys.nu + sys.np  # each point have those variables
         self.daeOrder = sys.order
+        if self.daeOrder == 1:
+            self.dimq = self.dimdyn // 2
+        elif self.daeOrder == 2:
+            self.dimq = self.dimdyn
         self.ubd = [None, None]
         self.xbd = [None, None]
         self.pbd = [None, None]
