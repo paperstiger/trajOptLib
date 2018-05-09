@@ -220,8 +220,6 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         curRow += self.numLinCon
         # loop over all the objective functions, I haven't checked if order is correct since some linear constraints are followed
         curRow, curNg = self.__obj_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
-        print(x[:21])
-        print(y[281:287])
         pass
 
     def __manifold_constr_mode_g__(self, curRow, curNg, useX, y, G, row, col, rec, needg):
@@ -256,6 +254,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         # call ordinary dyn constr
         curRow, curNg = trajOptCollocProblem.__dynconstr_mode_g__(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
         # loop over defect constraints
+        tmpy = np.zeros(dimq)
         for i in range(self.N - 1):
             # this is done by calling the __calc_correction__ function implemented by the user
             # the only difference is it calculates two sets of sparse Jacobian, and it is autonomous
@@ -268,8 +267,9 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
             rowg = row[curNg: curNg + self.man_constr.nnzJ_gamma]
             colg = col[curNg: curNg + self.man_constr.nnzJ_gamma]
             curNg += self.man_constr.nnzJ_gamma
-            self.man_constr.__calc_correction__(useX[2*i + 1, :dimq], useGamma[i], y[cur_row: cur_row+dimq],
+            self.man_constr.__calc_correction__(useX[2*i + 1, :dimq], useGamma[i], tmpy,
                                                 Gx, rowx, colx, Gg, rowg, colg, rec, needg)
+            y[cur_row: cur_row+dimq] += tmpy
             if rec:
                 rowx += cur_row
                 rowg += cur_row
