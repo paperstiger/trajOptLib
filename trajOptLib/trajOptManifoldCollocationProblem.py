@@ -23,8 +23,14 @@ from .utility import randomGenInBound, checkInBounds, interp
 
 
 class manifoldConstr(object):
-    """An object which defines state manifold constraints. We might need other ugly hacks."""
-    def __init__(self, nx, nc, order, constr_order=0, nG=0, nnzJx=0, nnzJg=0):
+    """An object which defines state manifold constraints. We might need other ugly hacks.
+
+    Update 1, remove support for constr_order, only allow holonomic constraint, i.e. q
+    However, user is allowed to control to any level, position / velocity / acceleration level.
+    For different daeOrder, the implementation is slightly different
+
+    """
+    def __init__(self, nx, nc, order=2, nG=0, nnzJx=0, nnzJg=0):
         """Constructor for the class.
 
         Parameters
@@ -40,15 +46,13 @@ class manifoldConstr(object):
         """
         self.nx = nx
         self.nc = nc
-        self.order = order
-        self.constr_order = constr_order
-        self.nf = (order - constr_order + 1) * nc
+        self.nf = (order + 1) * nc
         self.nG = nG
         self.nnzJ_gamma = nnzJg
         self.nnzJ_x = nnzJx
 
     def __callg__(self, x, F, G, row, col, rec, needg):
-        """Constraint evaluation to order with no correction.
+        """Constraint evaluation up to order with no correction.
 
         This function serves as a basic path constraint imposed on every knot point
         It is different from nonLinearPointConstr in the following:
@@ -109,8 +113,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
     2. t0 and tf region, it might be empty
     3. addX region, of length lenAddX
     4. gamma region, of length (N-1) * (man_constr.nf)
-    5. auxiliary vc region, this is used for nasty conflict issue (N-1)*dimdyn # TODO: this needs verification and generalization
-    4. Auxiliary objective region
+    5. Auxiliary objective region
 
     """
     def __init__(self, sys, N, t0, tf, man_constr, addx=None):
@@ -132,18 +135,17 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         man_constr_dim = man_constr.nc
         ext_man_constr_dim = man_constr.nf
         self.numGamma = (N - 1) * man_constr_dim
-        self.numAuxVc = (N - 1) * self.dimdyn
         assert isinstance(man_constr, manifoldConstr)
         self.man_constr = man_constr
         self.man_constr_dim = man_constr_dim
         self.ext_man_constr_dim = ext_man_constr_dim
         self.numSol += self.numGamma  # add those values to optimization variables
-        self.numSol += self.numAuxVc  # add those values for inconvenient un-repeat issue between linear and nonlinear Jacobian
 
-    def preProcess(self, defect_u=True, defect_p=False):
+    def preProcess(self, defect_u=True, defect_p=False, gamma_bound=1):
         """Initialize the problem, allocating spaces.
 
         Compared iwth trajOptCollocProblem, it has new sets of variables, different constraints.
+        It supports limitation of magnitude of gamma, as gamma_bound means.
 
         """
         self.colloc_constr_is_on = False  # we never need this, actually
@@ -164,9 +166,6 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         # calculate number of constraint
         numC, nnonlincon, nlincon = self.__sumConstrNum__()
         nnonlincon += self.N * self.man_constr.nf
-        # add constraints from auxiliary velocities
-        nauxvccon = self.numAuxVc
-        numC += nauxvccon
         # add constraint from manifold constraint
         numC += self.N * self.man_constr.nf
 
@@ -183,7 +182,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         probFun.__init__(self, self.numSol, self.numF)  # not providing G means we use finite-difference
         # we are ready to write Aval, Arow, Acol for this problem. They are arranged right after dynamics
         self.__setAPattern__(numDyn, nnonlincon, nlincon, spA)
-        self.__setXbound__()
+        self.__setXbound__(gamma_bound)
         self.__setFbound__()
         # detect gradient information
         randX = self.randomGenX()
@@ -201,27 +200,6 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         curRow += nnonlincon
         # we are ready to parse linear constraints
         lstCA, lstCArow, lstCAcol = self.__parseLinearConstraints__(curRow)
-
-        # append the auxiliary vc constraints right after linear constraints
-        curRow += nlincon
-        new_A = np.zeros((self.N - 1) * self.dimdyn * 2)
-        new_A_row = np.zeros((self.N - 1) * self.dimdyn * 2, dtype=int)
-        new_A_col = np.zeros((self.N - 1) * self.dimdyn * 2, dtype=int)
-        accum_n = 0
-        baseRange = np.arange(self.dimdyn)
-        # set A for auxiliary velocity variables
-        for i in range(self.N - 1):
-            new_A[accum_n: accum_n + self.dimdyn] = 1.0
-            new_A[accum_n + self.dimdyn: accum_n + 2*self.dimdyn] = -1.0
-            new_A_row[accum_n: accum_n + self.dimdyn] = curRow + baseRange
-            new_A_row[accum_n + self.dimdyn: accum_n + 2*self.dimdyn] = curRow + baseRange
-            new_A_col[accum_n: accum_n + self.dimdyn] = self.getStateIndexByIndex(2*i + 1) + self.dimdyn + baseRange  # TODO: assume vc is dq term
-            new_A_col[accum_n + self.dimdyn: accum_n + 2*self.dimdyn] = self.getAuxVcIndexByIndex(i) + baseRange  # TODO: assume vc has length dimdyn
-            curRow += self.dimdyn
-            accum_n += 2*self.dimdyn
-        lstCA.append(new_A)
-        lstCArow.append(new_A_row)
-        lstCAcol.append(new_A_col)
 
         # concatenate all those things together
         lstCA.append(spA.data)
@@ -260,15 +238,13 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         h, useT = self.__get_time_grid__(x)
         useX, useU, useP = self.__parseX__(x)
         useGamma = self.__parseGamma__(x)
-        useAuxVc = self.__parseAuxVc__(x)
         # loop over all system dynamics constraint
         curRow = 1
         curNg = 0
-        curRow, curNg = self.__dynconstr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, useGamma, useAuxVc, y, G, row, col, rec, needg)
+        curRow, curNg = self.__dynconstr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, useGamma, y, G, row, col, rec, needg)
         curRow, curNg = self.__constr_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
         curRow, curNg = self.__manifold_constr_mode_g__(curRow, curNg, useX, y, G, row, col, rec, needg)
         curRow += self.numLinCon
-        curRow += self.numAuxVc
         # loop over all the objective functions, I haven't checked if order is correct since some linear constraints are followed
         curRow, curNg = self.__obj_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
         pass
@@ -289,16 +265,14 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
             curNg = next_Ng
         return curRow, curNg
 
-    def __dynconstr_mode_g__(self, curRow, curNg, h, useT, useX, useU, useP, useGamma, useAux, y, G, row, col, rec, needg):
+    def __dynconstr_mode_g__(self, curRow, curNg, h, useT, useX, useU, useP, useGamma, y, G, row, col, rec, needg):
         """Evaluate the constraints imposed by system dynamics. Code are copied and modified.
         We implement this by call the trajOptCollocProblem version and append some variables
         """
         nPoint = self.nPoint
         dimdyn = self.dimdyn
-        cur_row = curRow + nPoint * dimdyn + dimdyn*(2*self.man_constr.constr_order+1)  # from the 2*N - 1 dimdyn constraints from dynamics
-        # explanation of why we use 2*constr_order + 1:
-        # constr_order is for in case the constraint is based on control so we have to correct for acceleration
-        # the 1 is because we are correcting for time derivative part, and in our (q, dq) pair q is leading
+        cur_row = curRow + nPoint * dimdyn + dimdyn  # We add additional dimdyn since it where J^T\gamma comes into play
+        # call ordinary dyn constr
         curRow, curNg = trajOptCollocProblem.__dynconstr_mode_g__(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
         # loop over defect constraints
         for i in range(self.N - 1):
@@ -312,22 +286,13 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
             rowg = row[curNg: curNg + self.man_constr.nnzJ_gamma]
             colg = col[curNg: curNg + self.man_constr.nnzJ_gamma]
             curNg += self.man_constr.nnzJ_gamma
-            tmpX = useX[2*i + 1].copy()
-            tmpX[dimdyn: 2*dimdyn] = useAux[i]
-            self.man_constr.__calc_correction__(tmpX, useGamma[i], y[cur_row: cur_row+dimdyn],
+            self.man_constr.__calc_correction__(useX[2*i + 1, :dimdyn], useGamma[i], y[cur_row: cur_row+dimdyn],
                                                 Gx, rowx, colx, Gg, rowg, colg, rec, needg)
-            y[cur_row: cur_row + dimdyn] *= -1
-            if needg:
-                Gx[:] *= -1
-                Gg[:] *= -1
             if rec:
                 rowx += cur_row
                 rowg += cur_row
                 colg += self.getGammaIndexByIndex(i)
-                # create a mask for colx filter out which are assoicated with vc, move it to aux
-                mask = (colx >= dimdyn) & (colx < 2*dimdyn)
-                colx[~mask] += self.getStateIndexByIndex(2*i + 1)
-                colx[mask] += self.getAuxVcIndexByIndex(i) - dimdyn  # since this part only has vel, we have to subtract q part
+                colx += self.getStateIndexByIndex(2*i + 1)
             cur_row += self.dynDefectSize
         return curRow, curNg
 
@@ -358,9 +323,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         # we ignore linear and auxVc constraints
 
         useGamma = self.__parseGamma__(guess)
-        useAuxVc = self.__parseAuxVc__(guess)
         rst['gamma'] = useGamma
-        rst['useVc'] = useAuxVc
 
         return rst
 
@@ -369,30 +332,18 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         n1 = self.numTraj + self.lenAddX
         return np.reshape(x[n1: n1 + self.numGamma], (self.N - 1, -1))
 
-    def __parseAuxVc__(self, x):
-        n1 = self.numTraj + self.lenAddX + self.numGamma
-        return np.reshape(x[n1: n1+self.numAuxVc], (self.N - 1, -1))
-
     def getGammaIndexByIndex(self, i):
         """Return the index of gamma by its index."""
         return self.numTraj + self.lenAddX + i * self.man_constr_dim
 
-    def getAuxVcIndexByIndex(self, i):
-        """Return the index of gamma by its index."""
-        return self.numTraj + self.lenAddX + self.numGamma + i * self.dimdyn
-
-    def __setXbound__(self):
+    def __setXbound__(self, gamma_bound):
         """Set bounds on decision variables."""
         trajOptCollocProblem.__setXbound__(self)
         # we only need to set gamma which are unbounded
         curN = self.numTraj + self.lenAddX
         # gamma cannot be too large, I guess
-        self.batchSetXlb(-1e20*np.ones(self.numGamma), curN)
-        self.batchSetXub(1e20*np.ones(self.numGamma), curN)
-        curN += self.numGamma
-        finalN = self.numSol
-        self.batchSetXlb(-1e20*np.ones(finalN - curN), curN)
-        self.batchSetXub(1e20*np.ones(finalN - curN), curN)
+        self.batchSetXlb(-gamma_bound*np.ones(self.numGamma), curN)
+        self.batchSetXub(gamm_bound*np.ones(self.numGamma), curN)
 
     def __setFbound__(self):
         """Set bound on F"""
@@ -407,7 +358,6 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         cind0 = self._setNonLinConstr(clb, cub, cind0)
         cind0 = self._setManifoldConstr(clb, cub, cind0)
         cind0 = self._setLinConstr(clb, cub, cind0)
-        # the bounds for objaddn and auxVcCon is 0 so we are good so far
         # assign to where it should belong to
         self.lb = clb
         self.ub = cub
