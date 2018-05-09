@@ -220,6 +220,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         curRow += self.numLinCon
         # loop over all the objective functions, I haven't checked if order is correct since some linear constraints are followed
         curRow, curNg = self.__obj_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
+        print(x[:21])
         print(y[281:287])
         pass
 
