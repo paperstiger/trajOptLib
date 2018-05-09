@@ -139,12 +139,12 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         self.man_constr = man_constr
         self.man_constr_dim = man_constr_dim
         self.ext_man_constr_dim = ext_man_constr_dim
-        self.numSol += self.numGamma  # add those values to optimization variables
+        self.numSol += self.numGamma  # add gamma to optimization variables
 
     def preProcess(self, defect_u=True, defect_p=False, gamma_bound=1):
         """Initialize the problem, allocating spaces.
 
-        Compared iwth trajOptCollocProblem, it has new sets of variables, different constraints.
+        Compared with trajOptCollocProblem, it has new sets of variables, different constraints.
         It supports limitation of magnitude of gamma, as gamma_bound means.
 
         """
@@ -181,7 +181,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         self.numF += addn
         probFun.__init__(self, self.numSol, self.numF)  # not providing G means we use finite-difference
         # we are ready to write Aval, Arow, Acol for this problem. They are arranged right after dynamics
-        self.__setAPattern__(numDyn, nnonlincon, nlincon, spA)
+        self.__setAPattern__(numDyn, nnonlincon, spA)
         self.__setXbound__(gamma_bound)
         self.__setFbound__()
         # detect gradient information
@@ -323,7 +323,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         curN = self.numTraj + self.lenAddX
         # gamma cannot be too large, I guess
         self.batchSetXlb(-gamma_bound*np.ones(self.numGamma), curN)
-        self.batchSetXub(gamm_bound*np.ones(self.numGamma), curN)
+        self.batchSetXub(gamma_bound*np.ones(self.numGamma), curN)
 
     def __setFbound__(self):
         """Set bound on F"""
