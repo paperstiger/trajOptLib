@@ -1377,7 +1377,7 @@ class trajOptCollocProblem(probFun):
 
         """
         col = col[col > 0]  # get rid of those with time
-        return col - 1 + index * self.dimpoint + col_offset
+        return col - 1 + self.getStateIndexByIndex(index) + col_offset
 
     def parseSol(self, sol):
         """Call parseX function from utility and return a dict of solution."""
@@ -1446,7 +1446,8 @@ class trajOptCollocProblem(probFun):
             yP = 0.0
             yTf = tfweight * (h * (self.N - 1))
             curG = 0
-            G_ = np.reshape(G[:num1], (nPoint, -1))  # use the same structure with col_
+            if needg:
+                G_ = np.reshape(G[:num1], (nPoint, -1))  # use the same structure with col_
             if useQ > 0:
                 yQ = np.dot(weight[:, 0], np.sum(((useX[:, Qcol] - lqrobj.xbase[Qcol]) ** 2) * lqrobj.Q.data, axis=1)) * h
                 if needg:

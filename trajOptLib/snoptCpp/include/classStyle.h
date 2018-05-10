@@ -56,6 +56,7 @@ class pySnoptWrapper: public snoptWrapper{
             rst.c = c;
             MapV Mx(getX(), getVarNum());
             rst.sol = Mx;
+            rst.val = getObj();
             return rst;
         }
         optResult solve(){
@@ -68,6 +69,7 @@ class pySnoptWrapper: public snoptWrapper{
             rst.c = c;
             MapV Mx(getX(), getVarNum());
             rst.sol = Mx;
+            rst.val = getObj();
             return rst;
         }
         VX fEval(RefV x){

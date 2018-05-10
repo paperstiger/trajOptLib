@@ -16,11 +16,11 @@ import sys, os, time
 import numpy
 import matplotlib.pyplot as plt
 import logging
-import libsnopt
 import autograd.numpy as np
 from autograd import jacobian, elementwise_grad, grad
 from functools import partial
-from snoptWrapper import gradSolve
+from trajOptLib import libsnopt
+from trajOptLib.snoptWrapper import gradSolve
 
 
 logging.basicConfig(level=logging.INFO)

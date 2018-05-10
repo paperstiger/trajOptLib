@@ -33,6 +33,7 @@ optResult directSolve(plainFun fun, RefV x0, int nx, int nf, cRefV xlb, cRefV xu
     rst.c = c;
     MapV Mx(snwrap.getX(), snwrap.getVarNum());
     rst.sol = Mx;
+    rst.val = snwrap.getObj();
     return rst;
 }
 
@@ -62,6 +63,7 @@ optResult directInSolve(inPlainFun fun, RefV x0, int nx, int nf, cRefV xlb, cRef
     rst.c = c;
     MapV Mx(snwrap.getX(), snwrap.getVarNum());
     rst.sol = Mx;
+    rst.val = snwrap.getObj();
     return rst;
 }
 
@@ -91,6 +93,7 @@ optResult gradFunSolve(gradFun fun, RefV x0, int nx, int nf, cRefV xlb, cRefV xu
     rst.c = c;
     MapV Mx(snwrap.getX(), snwrap.getVarNum());
     rst.sol = Mx;
+    rst.val = snwrap.getObj();
     return rst;
 }
 
@@ -121,6 +124,7 @@ optResult inGradFunSolve(inGradFun fun, RefV x0, int nx, int nf, cRefV xlb, cRef
     rst.c = c;
     MapV Mx(snwrap.getX(), snwrap.getVarNum());
     rst.sol = Mx;
+    rst.val = snwrap.getObj();
     return rst;
 }
 
@@ -151,6 +155,7 @@ optResult spGradFunSolve(spGradFun fun, RefV x0, int nx, int nf, int nG, cRefV x
     rst.c = c;
     MapV Mx(snwrap.getX(), snwrap.getVarNum());
     rst.sol = Mx;
+    rst.val = snwrap.getObj();
     return rst;
 }
 
@@ -181,5 +186,6 @@ optResult inSpGradFunSolve(inSpGradFun fun, RefV x0, int nx, int nf, int nG, cRe
     rst.c = c;
     MapV Mx(snwrap.getX(), snwrap.getVarNum());
     rst.sol = Mx;
+    rst.val = snwrap.getObj();
     return rst;
 }

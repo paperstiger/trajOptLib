@@ -167,7 +167,7 @@ extern ProblemFun *PROB;
 
 class snoptWrapper{
 private:
-    integer n, neF, lenA, lenG;
+    integer n, neF, neA, neG, lenA, lenG;
     integer *iAfun, *jAvar, *iGfun, *jGvar, *xstate, *Fstate;
     doublereal *mA, *G, *x, *xlow, *xupp, *xmul, *F, *Flow, *Fupp, *Fmul;
     char *xnames, *Fnames;
@@ -276,8 +276,8 @@ public:
         }
         // Set the problem, what's left is the initial guess
         if(pfun->getGrad()){
-            int neA = lenA;
-            int neG = lenG;
+            neA = lenA;
+            neG = lenG;
             if(!useA)
                 neA = 0;
             ToyProb.setNeA         ( neA );
@@ -531,6 +531,10 @@ public:
         }
         else{
             prob->operator()(Mx, c);
+        }
+        // do not forget those linear terms, I do it myself
+        for(int i = 0; i < neA; i++){
+            F[iAfun[i]] += mA[i] * _x[jAvar[i]];
         }
         VX out = c;
         return out;

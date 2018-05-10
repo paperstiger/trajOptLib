@@ -15,7 +15,7 @@ import sys, os, time
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
-from libsnopt import snoptConfig, probFun, solver
+from trajOptLib.libsnopt import snoptConfig, probFun, solver
 
 
 logging.basicConfig(level=logging.INFO)
@@ -51,7 +51,7 @@ def main():
     cfg = snoptConfig()
     slv = solver(prob, cfg)
     rst = slv.solveRand()
-    print(rst.flag, rst.sol)
+    print(rst.flag, rst.sol, rst.obj)
 
 
 if __name__ == '__main__':

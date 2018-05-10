@@ -132,18 +132,21 @@ class daeSystemWrapper(daeSystem):
 class nonLinearPointConstrWrapper(nonLinearPointConstr):
     """This class takes a function and wrap it as a point constraint."""
     def __init__(self, fun, nx, nu, np, nc, index, lb=None, ub=None, args=None):
-        nG = nf * (nx + nu + np)
+        nG = nc * (nx + nu + np)
         nonLinearPointConstr.__init__(self, index, nc, nx, nu, np, lb, ub, nG=nG)
 
         def wrapfun(X, *args):
             x = X[:nx]
             u = X[nx:nx+nu]
             p = X[nx+nu:nx+nu+np]
-            return fun(t, x, u, p, *args)
+            return fun(0, x, u, p, *args)
 
         self.fun = wrapfun
         self.gfun = jacobian(wrapfun)
-        self.args = args
+        if args is not None:
+            self.args = args
+        else:
+            self.args = ()
 
     def __callg__(self, X, F, G, row, col, rec, needg):
         """override a function"""
@@ -152,5 +155,6 @@ class nonLinearPointConstrWrapper(nonLinearPointConstr):
         F[:] = y
         if needg:
             g = self.gfun(X[1:], *self.args)
+            G[:] = g
             if rec:
                 row[:], col[:] = blockIndex(0, 1, self.nf, self.nx - 1)
