@@ -15,3 +15,5 @@ from .trajOptMultiPhaseCollocationProblem import NonLinearConnectConstr
 from .trajOptMultiPhaseCollocationProblem import LinearConnectConstr
 from .trajOptMultiPhaseCollocationProblem import TrajOptMultiPhaseCollocProblem
 from .trajOptManifoldCollocationProblem import manifoldConstr, trajOptManifoldCollocProblem
+
+from .classBuilder import systemWrapper, daeSystemWrapper, nonLinearPointConstrWrapper

@@ -44,6 +44,14 @@ trajOptLib.trajOptCollocationProblem module
     :undoc-members:
     :show-inheritance:
 
+trajOptLib.trajOptManifoldCollocationProblem module
+---------------------------------------------------
+
+.. automodule:: trajOptLib.trajOptManifoldCollocationProblem
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 trajOptLib.trajOptMultiPhaseCollocationProblem module
 -----------------------------------------------------
 
