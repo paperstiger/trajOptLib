@@ -935,9 +935,9 @@ class trajOptCollocProblem(probFun):
         useX, useU, useP = self.__parseX__(guess)
         objs = guess[self.numSol - self.objaddn:]
         rst = {'obj': obj, 'objs': objs, 'dyn': dynCon, 'defect': defectCon, 'point': pointCon, 'path': pathCon, 'nonlin': nonLinCon,
-                'Xbd': Xbound, 'Ubd': ubound, 'x0bd': x0bound, 'xfbd': xfbound, 'Pbd': pbound,
+                'xbd': Xbound, 'ubd': ubound, 'x0bd': x0bound, 'xfbd': xfbound, 'pbd': pbound,
                 't0bd': t0bound, 'tfbd': tfbound, 'addXbd': addXbound,
-                'X': useX, 'U': useU, 'P': useP}
+                'x': useX, 'u': useU, 'p': useP}
         if self.t0ind > 0:
             rst['t0'] = guess[self.t0ind]
         else:
@@ -946,6 +946,7 @@ class trajOptCollocProblem(probFun):
             rst['tf'] = guess[self.tfind]
         else:
             rst['tf'] = self.tf
+        rst['t'] = np.linspace(rst['t0'], rst['tf'], 2*N - 1)
         # parse addx
         if self.lenAddX > 0:
             addx = self.__parseAddX__(guess)

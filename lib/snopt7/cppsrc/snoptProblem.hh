@@ -49,7 +49,7 @@ protected:
   integer     spec_len, prnt_len;
 
   void init2zero();
-  void setMemory();
+  virtual void setMemory();
   void alloc    ( integer lencw, integer leniw, integer lenrw );
   void realloc  ( integer lencw, integer leniw, integer lenrw );
   void memcpyIn ( char *tcw, integer *tiw, doublereal *trw,
@@ -94,9 +94,45 @@ public:
 };
 
 class snoptProblem2: public snoptProblem{
+private:
+    int intws = 0, realws = 0;
 public:
     int getInfo(){
         return inform;
+    }
+
+    void setIntWs(int iws){
+        intws = iws;
+    }
+
+    void setRealWs(int fws){
+        realws = fws;
+    }
+
+    void setMemory(){
+      int memoryGuess;
+      memoryGuess = this->snmema(mincw, miniw, minrw);
+      if(miniw < intws)
+          miniw = intws;
+      if(minrw < realws)
+          minrw = realws;
+      if ( mincw > lencw | miniw > leniw | minrw > lenrw ) {
+        // Reallocate memory while retaining the values set in sninit_
+        this->realloc( mincw, miniw, minrw );
+        // Save the lengths of the new work arrays.
+        this->setIntParameter((char*)"Total real workspace   ", lenrw );
+        this->setIntParameter((char*)"Total integer workspace", leniw );
+
+        // Did we have to guess values of neA and neG for snmema()
+        if ( memoryGuess == 1 ) {
+          this->computeJac();
+          memoryGuess = this->snmema(mincw, miniw, minrw);
+          assert( memoryGuess == 0 );
+          this->realloc( mincw, miniw, minrw );
+          this->setIntParameter((char*)"Total real workspace   ", lenrw );
+          this->setIntParameter((char*)"Total integer workspace", leniw );
+        }
+      }
     }
 };
 #endif

@@ -466,6 +466,12 @@ public:
     void setMinorIter(int val){
 	    ToyProb.setIntParameter( "Minor iterations limit", val);
     }
+    void setIntWorkspace(int iws){
+        ToyProb.setIntWs(iws);
+    }
+    void setRealWorkspace(int fws){
+        ToyProb.setRealWs(fws);
+    }
     //Solve the problem. Modified Aug 13 2017, no need to warm start
     int solve(){
         int appendcol = 0;

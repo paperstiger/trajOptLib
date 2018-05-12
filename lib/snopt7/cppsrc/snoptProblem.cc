@@ -388,7 +388,7 @@ void snoptProblem::solve( integer starttype )
   integer nS, nInf;
   doublereal sInf;
   this->increment(); //Convert array entries to Fortran style
-  this->setMemory();
+  setMemory();
   snopta_( &starttype, &neF, &n, &nxnames,
            &nFnames,
            &ObjAdd, &ObjRow, Prob,

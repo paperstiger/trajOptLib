@@ -85,6 +85,8 @@ PYBIND11_MODULE(libsnopt, m){
         .def("setFeaTol", &pySnoptWrapper::setFeaTol)
         .def("setIntOption", &pySnoptWrapper::setIntOption)
         .def("setFloatOption", &pySnoptWrapper::setDoubleOption)
+        .def("setIntWorkspace", &pySnoptWrapper::setIntWorkspace)
+        .def("setRealWorkspace", &pySnoptWrapper::setRealWorkspace)
         .def("setMajorIter", &pySnoptWrapper::setMajorIter)
         .def("setPrintFile", &pySnoptWrapper::setPrintFile)
         .def("solveRand", (optResult (pySnoptWrapper::*)()) &pySnoptWrapper::solve)
