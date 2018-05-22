@@ -112,6 +112,7 @@ class trajOptCollocProblem(probFun):
         # nonlinear constraints. Linear constraints are treated as nonlinear
         self.pointConstr = []  # general constraint imposed at a certain point, such as initial and final point
         self.pathConstr = []  # general constraint imposed everywhere such as collision avoidance
+        self.pathConstrIndexPairs = []  # this records the indexes that path constraints are imposed
         self.nonLinConstr = []  # stores general nonlinear constraint
         self.linPointConstr = []
         self.linPathConstr = []
@@ -194,11 +195,12 @@ class trajOptCollocProblem(probFun):
         numC = 0
         for constr in self.pointConstr:
             numC += constr.nf
-        for constr in self.pathConstr:
+        for constr, (start, end) in zip(self.pathConstr, self.pathConstrIndexPairs):
+            tmpN = end - start
             if self.colloc_constr_is_on:
-                numC += self.nPoint * constr.nf
+                numC += (2*tmpN - 1) * constr.nf
             else:
-                numC += self.N * constr.nf
+                numC += tmpN * constr.nf
         for constr in self.nonLinConstr:
             numC += constr.nf
         nnonlincon = numC
@@ -214,7 +216,7 @@ class trajOptCollocProblem(probFun):
         nlincon = numC - nnonlincon
         return numC, nnonlincon, nlincon
 
-    def genGuessFromTraj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None, interp_kind='linear'):
+    def genGuessFromTraj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None, obj=None, interp_kind='linear'):
         """Generate an initial guess for the problem with user specified information.
 
         An amazing feature is the user does not have to give a solution of exactly the same time-stamped trajectory used internally.
@@ -227,11 +229,15 @@ class trajOptCollocProblem(probFun):
         :param t0/tf: float/array-like, initial/final time. If None, we randomly generate one
         :param addx: list of ndarray, guess of addx, if applicable
         :param tstamp: ndarray, (x,), None if the X/U/P are provided using equidistant grid.
+        :param obj: ndarray, (x,) the objective part
         :param interp_kind: str, interpolation type for scipy.interpolate.interp1d, can be (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic’, ‘cubic’)
 
         """
         randX = 2 * np.random.random(self.numSol) - 1
         Xtarget, Utarget, Ptarget = self.__parseX__(randX)
+        if obj is not None:
+            obj_ = self.__parseObj__(randX)
+            obj_[:] = obj
         # generate t0 and tf, if applicable
         if self.t0ind > 0:
             if t0 is None:
@@ -302,9 +308,10 @@ class trajOptCollocProblem(probFun):
         t = parsed_sol['t']
         x = parsed_sol['x']
         u = parsed_sol['u']
-        p = parsed_sol['p']
-        addx = parsed_sol['addx']
-        return self.genGuessFromTraj(X=x, U=u, P=p, t0=t[0], tf=t[-1], addx=addx, tstamp=t, interp_kind='cubic')
+        p = parsed_sol.get('p', None)
+        addx = parsed_sol.get('addx', None)
+        obj = parsed_sol.get('obj', None)
+        return self.genGuessFromTraj(X=x, U=u, P=p, t0=t[0], tf=t[-1], addx=addx, tstamp=t, obj=obj, interp_kind='cubic')
 
     def __findMaxNG__(self):
         """Loop over all the constraints, find max NG. We then create temporary data for them."""
@@ -582,11 +589,12 @@ class trajOptCollocProblem(probFun):
             if not constr.autonomous:
                 n = len(constr.timeindex)
                 numCG += (self.numT - 1) * n
-        for constr in self.pathConstr:
+        for constr, (start, end) in zip(self.pathConstr, self.pathConstrIndexPairs):
+            tmpN = end - start
             if self.colloc_constr_is_on:
-                numCG += self.nPoint * constr.nG
+                numCG += (2*tmpN - 1) * constr.nG
             else:
-                numCG += self.N * constr.nG
+                numCG += tmpN * constr.nG
             constr.findTimeGradient(tmpx)
             if not constr.autonomous:
                 n = len(constr.timeindex)
@@ -692,30 +700,24 @@ class trajOptCollocProblem(probFun):
         # set bounds for q and dq, agree with previous convention
         if self.xbd[0] is not None:
             Mxlb[:, :dimx] = self.xbd[0]
-            # set lb for x0 and xf
-            if self.x0bd[0] is not None:
-                Mxlb[0, :dimx] = self.x0bd[0]
-            else:
-                self.x0bd[0] = self.xbd[0]
-            if self.xfbd[0] is not None:
-                Mxlb[-1, :dimx] = self.xfbd[0]
-            else:
-                self.xfbd[0] = self.xbd[0]
         else:
             Mxlb[:, :dimx] = -1e20
+        # set lb for x0 and xf
+        if self.x0bd[0] is not None:
+            Mxlb[0, :dimx] = self.x0bd[0]
+        if self.xfbd[0] is not None:
+            Mxlb[-1, :dimx] = self.xfbd[0]
+
         if self.xbd[1] is not None:
             Mxub[:, :dimx] = self.xbd[1]
-            # set ub for x0 and xf
-            if self.x0bd[1] is not None:
-                Mxub[0, :dimx] = self.x0bd[1]
-            else:
-                self.x0bd[1] = self.xbd[1]
-            if self.xfbd[1] is not None:
-                Mxub[-1, :dimx] = self.xfbd[1]
-            else:
-                self.xfbd[1] = self.xbd[1]
         else:
             Mxub[:, :dimx] = 1e20
+        # set ub for x0 and xf
+        if self.x0bd[1] is not None:
+            Mxub[0, :dimx] = self.x0bd[1]
+        if self.xfbd[1] is not None:
+            Mxub[-1, :dimx] = self.xfbd[1]
+
         # set bounds for control variable
         if self.ubd[0] is not None:
             Mulb[:] = self.ubd[0]
@@ -733,22 +735,26 @@ class trajOptCollocProblem(probFun):
             Mpub[:] = self.pbd[1]
         else:
             Mpub[:] = 1e20
+
+        # set bound on time
         if not self.fixt0:
             xlb[self.t0ind] = self.t0[0]
             xub[self.t0ind] = self.t0[1]
-        # set bound on time
         if not self.fixtf:
             xlb[self.tfind] = self.tf[0]
             xub[self.tfind] = self.tf[1]
+
         # set bound on addX
         if self.lenAddX != 0:
             curN = self.numTraj
             for addx in self.addX:
                 xlb[curN: curN + addx.n] = addx.lb
                 xub[curN: curN + addx.n] = addx.ub
+
         # set bound on objaddn, this is obvious
         xlb[-self.objaddn:] = -1e20
         xub[-self.objaddn:] = 1e20
+
         # assign to where it should belong to
         self.xlb = xlb
         self.xub = xub
@@ -777,11 +783,12 @@ class trajOptCollocProblem(probFun):
             if constr.ub is not None:
                 cub[cind0: cind0 + constr.nf] = constr.ub
             cind0 += constr.nf
-        for constr in self.pathConstr:
+        for constr, (start, end) in zip(self.pathConstr, self.pathConstrIndexPairs):
+            tmpN = end - start
             if self.colloc_constr_is_on:
-                useN = self.nPoint
+                useN = 2 * tmpN - 1
             else:
-                useN = self.N
+                useN = tmpN
             tmplb = np.reshape(clb[cind0: cind0 + constr.nf * useN], (useN, constr.nf))
             tmpub = np.reshape(cub[cind0: cind0 + constr.nf * useN], (useN, constr.nf))
             cind0 += constr.nf * useN
@@ -897,11 +904,12 @@ class trajOptCollocProblem(probFun):
             pointCon.append(y[curN: curN + constr.nf])
             curN += constr.nf
         pathCon = []
-        for constr in self.pathConstr:
+        for constr, (start, end) in zip(self.pathConstr, self.pathConstrIndexPairs):
+            tmpN = end - start
             if self.colloc_constr_is_on:
-                useN = nPoint
+                useN = 2*tmpN - 1
             else:
-                useN = N
+                useN = tmpN
             pathCon.append(np.reshape(y[curN: curN+useN*constr.nf], (useN, constr.nf)))
             curN += useN*constr.nf
         nonLinCon = []
@@ -961,6 +969,9 @@ class trajOptCollocProblem(probFun):
             addX.append(x[numTraj: numTraj + addx.n])
             numTraj += addx.n
         return addX
+
+    def __parseObj__(self, x):
+        return x[self.numSol - self.objaddn:]
 
     def getAddXIndexByIndex(self, i):
         """With i as index of addx, it returns the starting index in solution vector for this one.
@@ -1270,9 +1281,9 @@ class trajOptCollocProblem(probFun):
                                                  True, rec, self.G, self.row, self.col)
                 curRow += constr.nf
         if len(self.pathConstr) > 0:
-            for constr in self.pathConstr:
+            for constr, (start, end) in zip(self.pathConstr, self.pathConstrIndexPairs):
                 if constr.autonomous:
-                    for j in range(self.nPoint):
+                    for j in range(2*start, 2*end - 1):
                         if not self.colloc_constr_is_on:
                             if j % 2 == 1:
                                 continue
@@ -1386,10 +1397,11 @@ class trajOptCollocProblem(probFun):
         if self.dimp == 0:
             P = None
         h, tgrid = self.__get_time_grid__(sol)
+        obj = self.__parseObj__(sol)
         if self.lenAddX == 0:
-            return {'t': tgrid, 'x': X, 'u': U, 'p': P}
+            return {'t': tgrid, 'x': X, 'u': U, 'p': P, 'obj': obj}
         else:
-            return {'t': tgrid, 'x': X, 'u': U, 'p': P, 'addx': self.__parseAddX__(sol)}
+            return {'t': tgrid, 'x': X, 'u': U, 'p': P, 'addx': self.__parseAddX__(sol), 'obj': obj}
 
     def addLQRObj(self, lqrobj):
         """Add a lqr objective function to the problem. It changes lqrObj into a function being called.
@@ -1652,16 +1664,22 @@ class trajOptCollocProblem(probFun):
         else:
             self.nonPointObj.append(nonPntObj)
 
-    def addNonLinearPointConstr(self, pntConstr, path=False):
+    def addNonLinearPointConstr(self, pntConstr, path=False, **kwargs):
         """Add point constraint.
 
         :param pntConstr: pointConstr class
         :param path: bool, if this obj
+        :kwargs: additional parameters, users can specify starting and ending indexes by specifying start and end
 
         """
         assert isinstance(pntConstr, nonLinearPointConstr)
         if path:
+            start = kwargs.get('start', 0)
+            end = kwargs.get('end', self.N)
+            if end < 0:
+                end = self.N + end
             self.pathConstr.append(pntConstr)
+            self.pathConstrIndexPairs.append((start, end))
         else:
             self.pointConstr.append(pntConstr)
 
@@ -1714,7 +1732,7 @@ class trajOptCollocProblem(probFun):
         elif isinstance(obj, lqrObj):
             self.addLQRObj(obj)
 
-    def addConstr(self, constr, path=False):
+    def addConstr(self, constr, path=False, **kwargs):
         """Add a constraint to the problem.
 
         :param constr: a constraint object.
@@ -1728,7 +1746,7 @@ class trajOptCollocProblem(probFun):
         elif isinstance(constr, nonLinearConstr):
             self.addNonLinearConstr(constr)
         elif isinstance(constr, nonLinearPointConstr):
-            self.addNonLinearPointConstr(constr, path)
+            self.addNonLinearPointConstr(constr, path, **kwargs)
         else:
             raise NotImplementedError
 

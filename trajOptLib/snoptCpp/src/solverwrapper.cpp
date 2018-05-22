@@ -24,7 +24,8 @@ PYBIND11_MODULE(libsnopt, m){
         .def_readwrite("flag", &optResult::flag)
         .def_readwrite("obj", &optResult::val)
         .def_readwrite("sol", &optResult::sol)
-        .def_readwrite("fval", &optResult::c);
+        .def_readwrite("fval", &optResult::c)
+        .def_readwrite("lmd", &optResult::lmd);
 
     py::class_<snoptConfig>(m, "snoptConfig")
         .def(py::init<>())

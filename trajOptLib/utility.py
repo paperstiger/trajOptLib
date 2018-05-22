@@ -231,5 +231,18 @@ def interp(t, X, teval, Xeval, kind):
     return
 
 
+def getInf(n=None):
+    """Return an inf array.
+
+    :param n: int, size of the array to return, None means scalar
+    :returns y: the scalar inf or array of inf
+
+    """
+    if n is None:
+        return 1e20
+    else:
+        return 1e20*np.ones(n)
+
+
 if __name__ == '__main__':
     main()

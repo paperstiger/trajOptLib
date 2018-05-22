@@ -47,31 +47,35 @@ class pySnoptWrapper: public snoptWrapper{
             std::cout << "Entering construct of pySnoptWrapper\n";
 #endif
         };
+
         optResult solve(RefV x){
             int flag = snoptWrapper::solve(x.data());
             optResult rst;
             rst.flag = flag;
-            // evaluate and final call
-            VX c = snoptWrapper::fEval(getX());
-            rst.c = c;
-            MapV Mx(getX(), getVarNum());
-            rst.sol = Mx;
-            rst.val = getObj();
+            copyToResult(rst);
             return rst;
         }
+
         optResult solve(){
             srand(time(NULL));
             int flag = snoptWrapper::solve();
             optResult rst;
             rst.flag = flag;
-            // evaluate and final call
-            VX c = snoptWrapper::fEval(getX());
-            rst.c = c;
-            MapV Mx(getX(), getVarNum());
-            rst.sol = Mx;
-            rst.val = getObj();
+            copyToResult(rst);
             return rst;
         }
+
+        void copyToResult(optResult &rst){
+            rst.c.resize(neF);
+            rst.lmd.resize(neF);
+            rst.sol.resize(n);
+            // evaluate and final call
+            snoptWrapper::copyX(rst.sol.data());
+            snoptWrapper::copyF(rst.c.data());
+            snoptWrapper::copyLmd(rst.lmd.data());
+            rst.val = snoptWrapper::getObj();
+        }
+
         VX fEval(RefV x){
             return snoptWrapper::fEval(x.data());
         }

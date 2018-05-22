@@ -3,7 +3,7 @@ from .trajOptBase import system, daeSystem, baseFun, addX
 from .trajOptBase import lqrObj, linearPointObj, nonLinearObj, nonLinearPointObj, lqrObj
 from .trajOptBase import nonLinearPointConstr, nonLinearConstr
 from .trajOptBase import linearPointConstr, linearConstr
-from .utility import parseX, showSol
+from .utility import parseX, showSol, getInf
 # import from other directories
 from .libsnopt import snoptConfig, solver, probFun, result
 # the ipopt solver

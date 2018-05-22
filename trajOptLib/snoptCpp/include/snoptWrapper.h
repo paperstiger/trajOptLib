@@ -24,6 +24,7 @@ class optResult{
         double val;
         VX sol;
         VX c;
+        VX lmd;
         optResult(){}
 };
 
@@ -166,7 +167,7 @@ public:
 extern ProblemFun *PROB;
 
 class snoptWrapper{
-private:
+protected:
     integer n, neF, neA, neG, lenA, lenG;
     integer *iAfun, *jAvar, *iGfun, *jGvar, *xstate, *Fstate;
     doublereal *mA, *G, *x, *xlow, *xupp, *xmul, *F, *Flow, *Fupp, *Fmul;
@@ -354,10 +355,22 @@ public:
         for (int i = 0; i < n; ++i)
             x[i] = xin[i];
     }
+    
     void copyX(double *xout) const{
         for (int i = 0; i < n; ++i)
             xout[i] = x[i];
     }
+
+    void copyF(double *fout) const{
+        for(int i = 0; i < neF; i++)
+            fout[i] = F[i];
+    }
+
+    void copyLmd(double *lmd) const{
+        for(int i = 0; i < neF; i++)
+            lmd[i] = Fmul[i];
+    }
+
     void setxbound(){
         // Set the upper and lower bounds.
         if(prob->xlb.size() == 0){
@@ -544,6 +557,10 @@ public:
         }
         VX out = c;
         return out;
+    }
+
+    VX getMul(){
+        MapV lmd(Fmul, neF);
     }
 
     ~snoptWrapper(){
