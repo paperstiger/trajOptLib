@@ -36,7 +36,6 @@ class NonLinearConnectConstr(object):
         :param nG: int, number of nnz of Jacobian
         :param index1/index2: int, by default we connect last point of phase 1 with first point of phase 2. However, we allow manual assignment of them.
         :param addx_index: int, which additional x we use to connect those two phases
-
         """
         self.phases = (phase1, phase2)
         self.indexes = (index1, index2)
@@ -119,8 +118,7 @@ class LinearConnectConstr(object):
 
         :param phase1/phase2: int, phase number that constraint is imposed. We read data from them
         :param a1/a2: ndarray, the constraint, :math: `l \le A_1 x_1 + A_2 x_2 \le u`
-        :param lb, ub: lower and upper bound of the constraint function. None means equal to 0
-        :param nG: int, number of nnz of Jacobian
+        :param lb/ub: lower and upper bound of the constraint function. None means equal to 0
         :param index1/index2: int, by default we connect last point of phase 1 with first point of phase 2. However, we allow manual assignment of them.
         :param adda: ndarray, if additional parameter comes into play, we use this
         :param addx_index: int, index of the additional parameters
@@ -160,17 +158,18 @@ class TrajOptMultiPhaseCollocProblem(probFun):
     I can conveniently add support for other constraints that connects two phases.
 
     """
-    def __init__(self, probs, addx=None):
+    def __init__(self, probs, addx=None, process_args={}):
         """Initialize a multi-phase problem by a list of trajOptColloProblem objects.
 
         :param probs: a list of trajOptCollocProblem
         :param addx: a list of addX
+        :param process_args: arguments for preprocess used in each problem
 
         """
         assert isinstance(probs, list)
         for prob in probs:
             assert isinstance(prob, trajOptCollocProblem)
-            prob.preProcess()
+            prob.preProcess(**process_args)
         self.__parseAddX(addx)
         self.phases = probs
         self.num_phase = len(probs)
@@ -252,6 +251,64 @@ class TrajOptMultiPhaseCollocProblem(probFun):
                 field[:] = randomGenInBound([addx.lb, addx.ub], addx.n)
         # the num_aux_obj_var auxiliary variables need no effort
         return randX
+
+    def guess_gen_from_phase_sol(self, phase_sols, addX=[]):
+        """Generate an initial guess for the multi-phase problem by concatenating solutions from single phases.
+
+        :param phase_sols: list of dict, a list of guess of solutions to each phase
+        """
+        guess = np.zeros(self.num_sol)
+        assert len(phase_sols) == len(self.phases)
+        assert len(addX) == self.len_addX
+        for i, phase in enumerate(self.phases):
+            piecex = self.__get_phase_sol_piece(guess, i)
+            piecex[:] = phase_sols[i]
+        # assign addX
+        if self.len_addX > 0:
+            for field, addx in zip(self.__parseAddX__(guess), addX):
+                field[:] = addx
+        return guess
+
+    def guess_gen_from_phase_traj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None, obj=None, addX=None, interp_kind='linear'):
+        """Generate a guess from the trajectory in other phases.
+
+        The parameters are the same with .. py:classmethod::`trajOptCollocation.genGuessFromTraj` but a list version.
+
+        """
+
+        def _check_var(*args):
+            """Check a variable. Return a list of None if necessary."""
+            narg = len(args)
+            output = []
+            for x in args:
+                if x is None:
+                    output.append([None] * self.num_phase)
+                else:
+                    assert len(x) == self.num_phase
+                    output.append(x)
+            if narg == 1:
+                return output[0]
+            else:
+                return output
+
+        X, U, P, t0, tf, addx, tstamp, obj = _check_var(X, U, P, t0, tf, addx, tstamp, obj)
+        guess = np.zeros(self.num_sol)
+
+        # for each phase, we generate a guess
+        for i, phase in enumerate(self.phases):
+            piecex = self.__get_phase_sol_piece(guess, i)
+            piecex[:] = phase.genGuessFromTraj(X[i], U[i], P[i], t0[i], tf[i], addx[i], tstamp[i], obj[i])
+
+        # finally for addx as a whole problem
+        if self.len_addX > 0:
+            if addX is None:
+                for field, addx_ in zip(self.__parseAddX__(guess), self.addX):
+                    field[:] = randomGenInBound([addx_.lb, addx_.ub], addx_.n)
+            else:
+                assert len(addX) == len(self.phases)
+                for field, addx in zip(self.__parseAddX__(guess), addX):
+                    field[:] = addx
+        return guess
 
     def __callg__(self, x, y, G, row, col, rec, needg):
         """Evaluate those constraints, objective functions, and constraints. It simultaneously allocates sparsity matrix.
@@ -639,7 +696,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         It basically requires the continuity of time.
 
         """
-        num_phase = len(self.phases)
+        num_phase = self.num_phase
         for i in range(num_phase - 1):
             a1 = np.ones(1)
             a2 = -a1
@@ -737,7 +794,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             if auto1:  # actually this part can be merged
                 lstA.append(a1.data)
                 lstArow.append(curRow + a1.row)
-                lstAcol.append(col1 + a1.col)
+                lstAcol.append(col1 + a1.col - 1)  # note this -1, since our definition
             else:
                 timemask = np.zeros(a1.nnz, dtype=bool)
                 timemask[tidx1] = True

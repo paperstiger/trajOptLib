@@ -31,12 +31,19 @@ def blockIndex(i, j, rows, cols, order='C'):
 
     For example, blockIndex(1, 3, 2, 3, 'C') returns 
     (array([1, 1, 1, 2, 2, 2]), array([3, 4, 5, 3, 4, 5]))
-    :param i: int, the row of the upper left corner
-    :param j: int, the column of the upper left corner
-    :param rows: int, number of rows of the block
-    :param cols: int, number of columns of the block
-    :param order, char, ('C'/'F') if we return row or column major
 
+    Parameters
+    ----------
+    i: int
+        the row of the upper left corner
+    j: int
+        the column of the upper left corner
+    rows: int
+        number of rows of the block
+    cols: int
+        number of columns of the block
+    order: char
+        ('C'/'F') if we return row or column major
     """
     if order == 'C':
         row = i + (np.arange(rows)[:, np.newaxis] + np.zeros(cols)).flatten()
@@ -56,12 +63,16 @@ class systemWrapper(system):
 
         Parameters
         ----------
-        fun : a function that implements \dot{x}=f(t, x, u, p, *args) but does not depend on t
-        nx : int, length of x
-        nu : int, length of u
-        np : int, length of p
-        args : additional parameters to function
-
+        fun : callable
+            a function that implements \dot{x}=f(t, x, u, p, \*args) but does not depend on t
+        nx : int
+            length of x
+        nu : int
+            length of u
+        np : int
+            length of p
+        args : kwargs
+            additional parameters to function
         """
         system.__init__(self, nx, nu, np)
 
@@ -96,13 +107,18 @@ class daeSystemWrapper(daeSystem):
 
         Parameters
         ----------
-        fun : a function that implements f(t, x, u, p, *args) = 0 but does not depend on t
-        nx : int, length of x
-        nu : int, length of u
-        np : int, length of p
-        nf : int, length of output of f
-        args : additional parameters
-
+        fun : callable
+            a function that implements f(t, x, u, p, \*args) = 0 but does not depend on t
+        nx : int
+            length of x
+        nu : int
+            length of u
+        np : int
+            length of p
+        nf : int
+            length of output of f
+        args : kwargs
+            additional parameters
         """
         nG = nf * (nx + nu + np)
         daeSystem.__init__(self, nx, nu, np, nf, nG)

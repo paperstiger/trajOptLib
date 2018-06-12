@@ -41,6 +41,7 @@ release = u''
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
+    'sphinx.ext.napoleon'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -156,10 +157,16 @@ texinfo_documents = [
      'Miscellaneous'),
 ]
 
+# I do not want to sort member functions by alphabet
+autodoc_member_order = 'bysource'
 
 # -- Extension configuration -------------------------------------------------
 def skip(app, what, name, obj, skip, options):
     if name == "__init__":
+        return False
+    elif name == "__callg__":
+        return False
+    elif name == "__callf__":
         return False
     return skip
 

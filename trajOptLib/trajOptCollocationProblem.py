@@ -64,25 +64,7 @@ class trajOptCollocProblem(probFun):
         self.sys = sys
         self.N = N
         self.nPoint = 2 * self.N - 1
-        self.tf = tf
-        self.t0 = t0
-        numT = 2
-        if np.isscalar(tf):
-            self.fixtf = True
-            numT -= 1
-        else:
-            self.fixtf = False
-            assert tf[0] <= tf[1]
-        if np.isscalar(t0):
-            self.fixt0 = True
-            numT -= 1
-        else:
-            self.fixt0 = False
-            assert t0[0] <= t0[1]
-        if self.fixt0 and self.fixtf:
-            self.fixTimeMode = True
-        else:
-            self.fixTimeMode = False
+        numT = self._handleTime(t0, tf)
         self.dimx = sys.nx
         self.dimdyn = sys.nf  # dimension of dynamics constraint
         self.dimu = sys.nu
@@ -169,6 +151,9 @@ class trajOptCollocProblem(probFun):
         numDefectDyn = (self.N - 1) * defectSize  # from enforcing those guys
         self.numDefectDyn = numDefectDyn
         self.numDyn = numDyn + numDefectDyn  # from both nonlinear dynamics and linear defect constraints
+        # constrain t0 and tf
+        self._set_t0_tf_constr()
+
         numC, nnonlincon, nlincon = self.__sumConstrNum__()
 
         self.numLinCon = nlincon
@@ -189,6 +174,51 @@ class trajOptCollocProblem(probFun):
         # detect gradient information
         randX = self.randomGenX()
         self.__turnOnGrad__(randX)
+
+    def _handleTime(self, t0, tf):
+        """Deal with time settings.
+
+        If t0 and tf are both free, we want tf to be greater than t0
+
+        :param t0: float/array like, allowable t0
+        :param tf: float/array like, allowable tf
+        :return: int, number of variable associated with time
+        """
+        self.tf = tf
+        self.t0 = t0
+        numT = 2
+        if np.isscalar(tf):
+            self.fixtf = True
+            numT -= 1
+        else:
+            self.fixtf = False
+            assert tf[0] <= tf[1]
+        if np.isscalar(t0):
+            self.fixt0 = True
+            numT -= 1
+        else:
+            self.fixt0 = False
+            assert t0[0] <= t0[1]
+        if self.fixt0 and self.fixtf:
+            self.fixTimeMode = True
+        else:
+            self.fixTimeMode = False
+        return numT
+
+    def _set_t0_tf_constr(self):
+        """Based on occasions, we set constraints on time."""
+        if self.fixt0:
+            if not self.fixtf:
+                self.tf[0] = max(self.tf[0], self.t0 + 1e-6)
+        else:
+            if self.fixtf:
+                self.t0[1] = min(self.t0[1], self.tf - 1e-6)
+            else:
+                if self.t0[1] > self.tf[0]:  # we might have trouble
+                    a = np.zeros((1, self.numSol))
+                    a[0, self.t0ind] = 1
+                    a[0, self.tfind] = -1
+                    self.addConstr(linearConstr(a, -1e20*np.ones(1), 1e-6*np.ones(1)))
 
     def __sumConstrNum__(self):
         """It simply calculate constraint numbers."""
@@ -281,13 +311,13 @@ class trajOptCollocProblem(probFun):
             interp(tstamp, U, teval, Utarget, interp_kind)
         else:
             for i in range(nPoint):
-                U[i] = randomGenInBound(self.ubd, self.dimu)
+                Utarget[i] = randomGenInBound(self.ubd, self.dimu)
         if self.numP > 0:
             if P is not None:
                 interp(tstamp, P, teval, Ptarget, interp_kind)
             else:
                 for i in range(nPoint):
-                    P[i] = randomGenInBound(self.pbd, self.dimp)
+                    Ptarget[i] = randomGenInBound(self.pbd, self.dimp)
         # generate for
         if self.lenAddX > 0:
             if addx is None:
@@ -1022,8 +1052,8 @@ class trajOptCollocProblem(probFun):
 
         :param x: ndarray, the solution to the problem
         :param y: ndarray, return F
-        :param G, row, col: ndarray, information of gradient
-        :param rec, needg: if we record/ if we need gradient
+        :param G/row/col: ndarray, information of gradient
+        :param rec/needg: if we record/ if we need gradient
 
         """
         y[0] = 0  # since this row is purely linear
@@ -1299,7 +1329,7 @@ class trajOptCollocProblem(probFun):
                         curRow += constr.nf
                         curNg += constr.nG
                 else:
-                    for j in range(self.nPoint):
+                    for j in range(2*start, 2*end - 1):
                         if not self.colloc_constr_is_on:
                             if j % 2 == 1:
                                 continue
@@ -1445,7 +1475,7 @@ class trajOptCollocProblem(probFun):
             :param h: float, grid size
             :param useX, useU, useP: ndarray, parsed X, U, P from x
             :param y: ndarray, a location to write the objective function onto
-            :param G, row, col: the gradient information
+            :param G/row/col: the gradient information
             :param rec: if we record row and col
             :param needg: if we need gradient information.
 
@@ -1495,6 +1525,8 @@ class trajOptCollocProblem(probFun):
                     curG += useF
             if needg:
                 if self.t0ind > 0:
+                    if h <= 1e-8:
+                        pass
                     G[curG] = -(yQ + yR + yP) / h / (self.N - 1) - tfweight
                     if rec:
                         col[curG: curG+1] = self.t0ind
@@ -1676,7 +1708,7 @@ class trajOptCollocProblem(probFun):
         if path:
             start = kwargs.get('start', 0)
             end = kwargs.get('end', self.N)
-            if end < 0:
+            if end <= 0:
                 end = self.N + end
             self.pathConstr.append(pntConstr)
             self.pathConstrIndexPairs.append((start, end))

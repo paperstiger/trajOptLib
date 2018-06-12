@@ -12,10 +12,26 @@ Subpackages
 Submodules
 ----------
 
+trajOptLib.classBuilder module
+------------------------------
+
+.. automodule:: trajOptLib.classBuilder
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 trajOptLib.ipoptWrapper module
 ------------------------------
 
 .. automodule:: trajOptLib.ipoptWrapper
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+trajOptLib.oopInterface module
+------------------------------
+
+.. automodule:: trajOptLib.oopInterface
     :members:
     :undoc-members:
     :show-inheritance:

@@ -409,7 +409,7 @@ public:
                 else if(xupp[i] == 1e20)
                     x[i] = xlow[i];
                 else{
-                    x[i] = (xlow[i] + xupp[i]) / 2.0;
+                    x[i] = (xlow[i] + xupp[i]) / 2.0 + static_cast<double>(rand())/RAND_MAX * 1e-6;
                 }
             }
         }
