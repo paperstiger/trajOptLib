@@ -116,9 +116,9 @@ class ProblemFun : public funBase{
                 for(int i = 0; i < nx; i++){
                     if(x[i] < xlow[i] || x[i] > xupp[i]){
                         if(xlow[i] == -1e20)
-                            x[i] = xupp[i] - 1e-3*rand()/RAND_MAX;
+                            x[i] = xupp[i] - 1e-3*static_cast<double>(rand())/RAND_MAX;
                         else if(xupp[i] == 1e20)
-                            x[i] = xlow[i] + 1e-3*rand()/RAND_MAX;
+                            x[i] = xlow[i] + 1e-3*static_cast<double>(rand())/RAND_MAX;
                         else{
                             x[i] = (xlow[i] + xupp[i]) / 2.0;
                         }
@@ -141,6 +141,7 @@ public:
     std::vector<floatOption> floatOptions;
     std::vector<stringOption> stringOptions;
     int printlevel = 0;
+    int minorprintlevel = 0;
     int verifylevel = 0;
     int majoriterlimit = 0;
     int minoriterlimit = 0;
@@ -321,7 +322,7 @@ public:
             ToyProb.setRealParameter("Major optimality tolerance", snpcfg->optTol);
             ToyProb.setRealParameter("Major feasibility tolerance", snpcfg->feaTol);
             ToyProb.setIntParameter( "Major print level", snpcfg->printlevel);
-            ToyProb.setIntParameter( "Minor print level", 0 );
+            ToyProb.setIntParameter( "Minor print level", snpcfg->minorprintlevel);
             ToyProb.setIntParameter( "Verify level", snpcfg->verifylevel);
             if(snpcfg->printFile.size() > 0){
                 setPrintFile(snpcfg->printFile);
@@ -355,7 +356,7 @@ public:
         for (int i = 0; i < n; ++i)
             x[i] = xin[i];
     }
-    
+
     void copyX(double *xout) const{
         for (int i = 0; i < n; ++i)
             xout[i] = x[i];

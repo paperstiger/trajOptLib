@@ -66,7 +66,7 @@ def parseX(x, N, dimx, dimu, dimp, uset0, usetf, setfinal=True):
     return {'t': tgrid, 'x': state, 'u': ctrl, 'p': param}
 
 
-def showSol(solDict, xsplit=None, usplit=None, psplit=None):
+def showSol(solDict, xsplit=None, usplit=None, psplit=None, show=True):
     """Plot the parsed solution.
 
     :param solDict: dict, returned from solParse; or a list of such dict. Then they are compared
@@ -114,7 +114,8 @@ def showSol(solDict, xsplit=None, usplit=None, psplit=None):
     cmpSplit(plott, plotu, usplit)
     if plotp is not None:
         cmpSplit(plott, plotp, psplit)
-    plt.show()
+    if show:
+        plt.show()
 
 
 def randomGenInBound(bds, n=None):

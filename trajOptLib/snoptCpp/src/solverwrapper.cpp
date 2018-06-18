@@ -35,6 +35,7 @@ PYBIND11_MODULE(libsnopt, m){
         .def_readwrite("name", &snoptConfig::name)
         .def_readwrite("printFile", &snoptConfig::printFile)
         .def_readwrite("printLevel", &snoptConfig::printlevel)
+        .def_readwrite("minorPrintLevel", &snoptConfig::minorprintlevel)
         .def_readwrite("verifyLevel", &snoptConfig::verifylevel)
         .def_readwrite("majorIterLimit", &snoptConfig::majoriterlimit)
         .def_readwrite("minorIterLimit", &snoptConfig::minoriterlimit)
