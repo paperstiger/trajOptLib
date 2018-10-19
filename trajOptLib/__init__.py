@@ -31,6 +31,7 @@ from .trajOptBase import linearPointConstr as LinearPointConstr, linearConstr as
 from .utility import parseX, showSol, getInf
 # import from other directories
 from .libsnopt import snoptConfig as SnOption, solver as SnSolver
+from .snoptWrapper import directSolve, inDirectSolve, gradSolve, inGradSolve, spGradSolve, inSpGradSolve
 # the ipopt solver
 from .ipoptWrapper import ipOption as IpOption, ipSolver as IpSolver
 # the collocation version

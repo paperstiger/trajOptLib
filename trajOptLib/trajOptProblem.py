@@ -198,7 +198,7 @@ class trajOptProblem(probFun):
             row_[addn + i] = numF + i
         # concat them
         catA = np.concatenate((A[nnzind], A_))
-        catArow = np.concatenate((np.zeros(len(nnzind)), row_))
+        catArow = np.concatenate((np.zeros(len(nnzind), dtype=int), row_))
         catAcol = np.concatenate((nnzind, col_))
         spA = coo_matrix((catA, (catArow, catAcol)))
         return spA, addn
