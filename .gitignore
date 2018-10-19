@@ -1,0 +1,11 @@
+*~
+*.pyc
+build/
+docs/source/*
+docs/*
+!docs/source/conf.py
+*.so
+*.out
+bin/
+*.egg-info/
+*.swp
