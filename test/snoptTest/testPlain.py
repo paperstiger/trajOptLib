@@ -54,9 +54,12 @@ def testPlain():
 
 
 def testGrad():
-    x0 = np.random.random(2)
-    xlb = np.array([0.6, 0.2])
-    xub = np.array([1.6, 1.2])
+    x0 = np.random.random(4)
+    xlb = np.array([0.6, 0.2, 0, 0])
+    xub = np.array([1.6, 1.2, 1, 1])
+    # x0 = np.random.random(2)
+    # xlb = np.array([0.6, 0.2])
+    # xub = np.array([1.6, 1.2])
     clb = np.array([0, 1.0])
     cub = np.array([0, 1.0])
     # test grad fun
@@ -72,9 +75,9 @@ def testGrad():
 
 
 def testSparse():
-    x0 = np.random.random(2)
-    xlb = np.array([0.6, 0.2])
-    xub = np.array([1.6, 1.2])
+    x0 = np.random.random(4)
+    xlb = np.array([0.6, 0.2, 0, 0])
+    xub = np.array([1.6, 1.2, 1, 1])
     clb = np.array([0, 1.0])
     cub = np.array([0, 1.0])
     # test grad fun
@@ -104,11 +107,12 @@ def inPlainFun(x, f):
 def gradFun(x):
     """The naive example with grad"""
     y = x[0] **2 + x[1] ** 2
-    c = x[0] + x[1]
+    c = x[0] + 2 * x[1]
     y = np.array([y, c])
-    J = np.zeros((2, 2))
-    J[0] = 2 * x
-    J[1] = 1.0
+    J = np.zeros((2, x.shape[0]))
+    J[0, :2] = 2 * x[:2]
+    J[1, 0] = 1.0
+    J[1, 1] = 2.0
     return y, J
 
 
@@ -116,8 +120,8 @@ def inGradFun(x, f, J):
     """A naive example with inplace fun"""
     f[0] = x[0] **2 + x[1] ** 2
     f[1] = x[0] + x[1]
-    J[0] = 2 * x
-    J[1] = 1.0
+    J[0, :2] = 2 * x[:2]
+    J[1, :2] = 1.0
 
 
 def spGradFun(x):
@@ -126,8 +130,8 @@ def spGradFun(x):
     c = x[0] + x[1]
     y = np.array([y, c])
     J = np.zeros((2, 2))
-    J[0] = 2 * x
-    J[1] = 1.0
+    J[0:2] = 2 * x[:2]
+    J[1, :2] = 1.0
     spJ = csc_matrix(J)
     return y, spJ
 
@@ -136,7 +140,7 @@ def inSpGradFun(x, y, G, row, col, rec):
     """The naive example with sparse grad"""
     y[0] = x[0] **2 + x[1] ** 2
     y[1] = x[0] + x[1]
-    G[:2] = 2 * x
+    G[:2] = 2 * x[:2]
     G[2:] = 1.0
     if rec:
         row[:] = [0, 0, 1, 1]

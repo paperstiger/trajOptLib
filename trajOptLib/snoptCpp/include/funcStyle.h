@@ -140,8 +140,8 @@ public:
 
     void assignG(RefVi row, RefVi col, int rowadd, int nGadd){
         int nG = nGadd;
-        for(int i = 0; i < nx; i++){
-            for(int j = 0; j < nf; j++){
+        for(int j = 0; j < nf; j++){
+            for(int i = 0; i < nx; i++){
                 row(nG) = rowadd + j;
                 col(nG) = i;
                 nG++;
