@@ -127,6 +127,30 @@ class ProblemFun : public funBase{
             }
             return mX;
         }
+
+        // use this function to detect the value of nG if the user has implemented __callg__ function
+        // maxnG is an integer which should be larger than actual nG + 1 to store enough space
+        void detectNg(int maxnG){
+            VX x = randomGenX();
+            VX F(nf);
+            VX G(maxnG);
+            VXi row = -1 * VXi::Ones(maxnG);
+            VXi col = -1 * VXi::Ones(maxnG);
+            operator()(x, F, G, row, col, true, true);
+            int i = 0;
+            bool found = false;
+            for(; i < maxnG; i++){
+                if(row(i) == -1 && col(i) == -1){
+                    found = true;
+                    break;
+                }
+            }
+            if(found)
+                nG = i;
+            else
+                nG = maxnG;  // this is the only possibility
+            grad = true;
+        }
 };
 
 

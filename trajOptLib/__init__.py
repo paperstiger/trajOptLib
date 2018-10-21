@@ -30,7 +30,7 @@ from .trajOptBase import nonLinearPointConstr as NonLinearPointConstr, nonLinear
 from .trajOptBase import linearPointConstr as LinearPointConstr, linearConstr as LinearConstr
 from .utility import parseX, showSol, getInf
 # import from other directories
-from .libsnopt import snoptConfig as SnOption, solver as SnSolver
+from .libsnopt import snoptConfig as SnOption, solver as SnSolver, probFun as ProbFun
 from .snoptWrapper import directSolve, inDirectSolve, gradSolve, inGradSolve, spGradSolve, inSpGradSolve
 # the ipopt solver
 from .ipoptWrapper import ipOption as IpOption, ipSolver as IpSolver
