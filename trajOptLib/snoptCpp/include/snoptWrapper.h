@@ -9,6 +9,7 @@
 #include <fstream>
 #include <cstdio>
 #include <vector>
+#include <tuple>
 #include <string>
 #include "TigerTools/TigerEigen.h"
 #include "toyfunction.hh"
@@ -80,12 +81,6 @@ class ProblemFun : public funBase{
         }
 
         void setA(cRefV val, cRefVi row, cRefVi col){
-            /*
-            int nnz = val.size();
-            Aval.resize(nnz);
-            Arow.resize(nnz);
-            Acol.resize(nnz);
-            */
             Aval = val;
             Arow = row;
             Acol = col;
@@ -140,6 +135,41 @@ class ProblemFun : public funBase{
             return mX;
         }
 
+        // use this function to automatically detect problem size, if they are not specified before.
+        void detect_prob_size(int nF, int nG){
+            VX F(nF);
+            VX rand_x = randomGenX();
+            if(nG > 0){
+                int nF = operator()(rand_x, F);
+                nf = nF;
+                grad = false;
+                nG = 0;
+            }
+            else{
+                VX G(nG);
+                VXi row(nG), col(nG);
+                auto rst = operator()(rand_x, F, G, row, col, false, true);  // we needg, but not recording.
+                nf = rst.first;
+                nG = rst.second;
+                grad = true;
+            }
+        }
+
+        // use this function to evaluate the problem function once, call __callf__
+        VX eval_f(cRefV x){
+            VX F(nf);
+            operator()(x, F);
+            return F;
+        }
+
+        // use this function to evaluate the problem function once, call __callf__
+        std::tuple<VX, VX, VXi, VXi> eval_g(cRefV x){
+            VX F(nf), G(nG);
+            VXi row(nG), col(nG);
+            operator()(x, F, G, row, col, true, true);
+            return std::make_tuple(F, G, row, col);
+        }
+
         // use this function to detect the value of nG if the user has implemented __callg__ function
         // maxnG is an integer which should be larger than actual nG + 1 to store enough space
         void detectNg(int maxnG){
@@ -162,6 +192,34 @@ class ProblemFun : public funBase{
             else
                 nG = maxnG;  // this is the only possibility
             grad = true;
+        }
+
+        RefV get_lb(){
+            return RefV(lb);
+        }
+
+        RefV get_ub(){
+            return RefV(ub);
+        }
+
+        RefV get_xlb(){
+            return RefV(xlb);
+        }
+
+        RefV get_xub(){
+            return RefV(xub);
+        }
+
+        RefV get_aval(){
+            return RefV(Aval);
+        }
+
+        RefVi get_arow(){
+            return RefVi(Arow);
+        }
+
+        RefVi get_acol(){
+            return RefVi(Acol);
         }
 };
 

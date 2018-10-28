@@ -134,7 +134,13 @@ PYBIND11_MODULE(libsnopt, m){
         .def_readwrite("stringOptions", &snoptConfig::stringOptions);
 
     py::class_<funBase, pyFunBase>(m, "FunBase", R"pbdoc(
-        A class sub-classed by users to define a custom optimization problem.
+        A class sub-classed by users to define a custom optimization problem
+
+        .. automethod:: __callf__.
+        .. automethod:: __callg__.
+
+        This function evaluates :math:`y=f(x)` where :math:`x` is optimization variables 
+        and :math:`y` is the constraint where the first entry is cost function.
 
         Attributes:
             nx (int): number of variables to be optimized.
@@ -162,7 +168,7 @@ PYBIND11_MODULE(libsnopt, m){
         .def(py::init<>())
         .def(py::init<int, int>())
         .def(py::init<int, int, int>())
-        .def("__callf__", (void (funBase::*)(cRefV, RefV)) &pyFunBase::operator(), R"pbdoc(
+        .def("__callf__", (int (funBase::*)(cRefV, RefV)) &pyFunBase::operator(), R"pbdoc(
             The function to be implemented by the user that evaluate constraints without Jacobian.
 
             The first argument is the candidate solution, it is 1d non-writable float ndarray of size (nx,)
@@ -171,44 +177,209 @@ PYBIND11_MODULE(libsnopt, m){
 
             Args:
                 x (ndarray): a 1d ndarray of the candidate solution.
-                f (ndarray): a 1d writable ndarray recording function evaluation.
+                f (ndarray): a 1d writable ndarray recording constraint function values.
 
             Returns:
-                This function has no returns.
+                int: 0 or the length of f. This is necessary only if you want to let solver automatically detect length of f.
         )pbdoc")
-        .def("__callg__", (void (funBase::*)(cRefV, RefV, RefV, RefVi, RefVi, bool, bool)) &pyFunBase::operator())
+        .def("__callg__", (std::pair<int, int> (funBase::*)(cRefV, RefV, RefV, RefVi, RefVi, bool, bool)) &pyFunBase::operator(), R"pbdoc(
+            The function to be implemented by the user that evaluate constraints and Jacobian.
+
+            This function has to be implemented if analytic gradient is used. This function is designed such that it does not 
+            allocate any unnecessary memory so written to variables are done in place.
+            The Jacobian is calculated using the triplet convention and the value, row, column are passed in as 1d ndarray with
+            datatype of float, int, and int. The user can directly write to them.
+            Furthermore, two flags controls written to the triplet. If needg is False, do not alter G.
+            If rec is False, do not alter row and col. All indexes are 0 based.
+            This function returns a tuple of two integers to indicate size of constraint and Jacobian.
+            This is necessary is the user wants to automatically detect sizes of them, otherwise (0, 0) is acceptable.
+
+            Args:
+                x (ndarray): a 1d ndarray of the candidate solution.
+                y (ndarray): a 1d writable ndarray recording constraint function values.
+                G (ndarray): a 1d ndarray recording Jacobian matrix values.
+                row (ndarray): an integer 1d ndarray recording rows of nnz of Jacobian.
+                col (ndarray): an integer 1d ndarray recording columns of nnz of Jacobian.
+                rec (bool): if True, row and col have to be modified; otherwise do not alter them.
+                needg (bool): if True, modify G to record gradients; otherwise do not alter it.
+            Retruns:
+                tuple: a tuple of two integers, recording lengths of y and G. Can be (0, 0)
+        )pbdoc")
         .def_readwrite("nx", &funBase::nx)
         .def_readwrite("nf", &funBase::nf)
         .def_readwrite("nG", &funBase::nG)
         .def_readwrite("grad", &funBase::grad);
 
-    py::class_<ProblemFun, pyProbFun>(m, "probFun")
+    py::class_<ProblemFun, pyProbFun>(m, "SnoptProblem", R"pbdoc(
+        A class sub-classed by users to define a custom optimization problem.
+
+        :currentmodule:
+        .. automethod:: __callf__.
+        .. automethod:: __callg__.
+
+        This class defines an optimization problem to optimize :math:`y(0)` where :math:`y=f(x)+Ax`
+        subject to constraints :math:`lb \le y \le ub` and :math:`xlb \le x \le xub`.
+
+        Attributes:
+            nx (int): number of variables to be optimized. The same with :class:`.FunBase`.
+            nf (int): number of constraints. The same with :class:`.FunBase`.
+            nG (int=0): nnz of the Jacobian matrix. The same with :class:`.FunBase`.
+            grad (bool=False): if the function __callg__ has been implemented so we enable gradient.
+            The same with :class:`.FunBase`.
+            lb (ndarray): lower bound for f. It is readonly, use get_lb() to get a reference.
+            ub (ndarray): upper bound for f. It is readonly, use get_ub() to get a reference.
+            xlb (ndarray): lower bound for x. It is readonly, use get_xlb() to get a reference.
+            xub (ndarray): upper bound for x. It is readonly, use get_xub() to get a reference.
+            Aval (ndarray): the value ndarray for triplet A, use get_aval() to get a reference.
+            Arow (ndarray): integer ndarray of rows for triplet A, use get_arow() to get a reference.
+            Acol (ndarray): integer ndarray of columns for triplet A, use get_acol() to get a reference.
+
+        Note:
+            This class has 2 constructors. Refer to :class:`.FunBase` for details.
+            The first entry of lb and ub should be -np.inf and np.inf, respectively.
+            For linear function part, you have to set function return 0.
+    )pbdoc")
         .def(py::init<>())
         .def(py::init<int, int>())
         .def(py::init<int, int, int>())
+        .def("set_a_by_matrix", (void (ProblemFun::*)(crRefM)) &pyProbFun::setA, R"pbdoc(
+            Set triplet matrix A by a dense row major matrix, i.e. 2d ndarray of size (m, n).
+
+            Args:
+                mat (ndarray): the 2d float A matrix in row major.
+        )pbdoc")
+        .def("set_a_by_triplet", (void (ProblemFun::*)(cRefV, cRefVi, cRefVi)) &pyProbFun::setA, R"pbdoc(
+            Set triplet matrix A by the value, row, column triplet pairs.
+
+            Args:
+                val (ndarray): the value ndarray
+                row (ndarray): the integer row ndarray
+                col (ndarray): thet integer column ndarray
+        )pbdoc")
+        .def("detect_prob_size", &pyProbFun::detect_prob_size, 
+                R"pbdoc(
+            Automatically detect nf and nG.
+
+            This function requires __callf__ or __callg__ return non-trivial values.
+
+            Args:
+                nf (int): an estimated size for :math:`y`, it has to be larger.
+                nG (int): an estimated size for Jacobian, it has to be larger. If set to 0, __callf__ is used and
+                has to be defined. Otherwise __callg__ has to be defined.
+                )pbdoc")
+        .def("get_lb", &pyProbFun::get_lb)
+        .def("get_ub", &pyProbFun::get_ub)
+        .def("get_xlb", &pyProbFun::get_xlb)
+        .def("get_xub", &pyProbFun::get_xub)
+        .def("get_aval", &pyProbFun::get_aval)
+        .def("get_arow", &pyProbFun::get_arow)
+        .def("get_acol", &pyProbFun::get_acol)
+        .def("batch_set_lb", &pyProbFun::batchSetLb, R"pydoc(
+            Set lb in batch mode by specifying an ndarray and starting index.
+
+            This value is not necessary since you can get a reference by get_lb and directly operate on that.
+            We keep it here for backward compatibility.
+            Other similar functions are not documented. Please refer to this.
+
+            Args:
+                lb (ndarray): a segment of lower bound to be set
+                ind0 (int): the starting index for this segment.
+        )pydoc")
+        .def("batch_set_ub", &pyProbFun::batchSetUb)
+        .def("batch_set_xlb", &pyProbFun::batchSetXlb)
+        .def("batch_set_xub", &pyProbFun::batchSetXub)
+        .def("random_gen_x", &pyProbFun::randomGenX, R"pydoc(
+            Randomly generate an initial guess of x within lb and ub bounds.
+
+            Returns:
+                ndarray: the generated initial guess.
+        )pydoc")
+        .def("eval_f", &pyProbFun::eval_f, R"pydoc(
+            Evaluate __callf__ once.
+
+            This serves for debugging purpose.
+
+            Args:
+                x (ndarray): a candidate solution
+            Returns:
+                y (ndarray): the evaluated function.
+        )pydoc")
+        .def("eval_g", &pyProbFun::eval_g, R"pydoc(
+            Evaluate __callf__ once.
+
+            This serves for debugging purpose.
+
+            Args:
+                x (ndarray): a candidate solution
+            Returns:
+                y (ndarray): the evaluated function.
+                G (ndarray): the value part of the returned Jacobian triplet.
+                row (ndarray): the row part of the returned Jacobian triplet.
+                col (ndarray): the column part of the returned Jacobian triplet.
+        )pydoc")
         .def("batchSetLb", &pyProbFun::batchSetLb)
         .def("batchSetUb", &pyProbFun::batchSetUb)
         .def("batchSetXlb", &pyProbFun::batchSetXlb)
         .def("batchSetXub", &pyProbFun::batchSetXub)
         .def("randomGenX", &pyProbFun::randomGenX)
         .def("detectNg", &pyProbFun::detectNg)
-        .def("__callf__", (void (ProblemFun::*)(cRefV, RefV)) &pyProbFun::operator())
-        .def("__callg__", (void (ProblemFun::*)(cRefV, RefV, RefV, RefVi, RefVi, bool, bool)) &pyProbFun::operator())
+        .def("__callf__", (int (ProblemFun::*)(cRefV, RefV)) &pyProbFun::operator())
+        .def("__callg__", (std::pair<int, int> (ProblemFun::*)(cRefV, RefV, RefV, RefVi, RefVi, bool, bool)) &pyProbFun::operator())
         .def_readwrite("nx", &pyProbFun::nx)
         .def_readwrite("nf", &pyProbFun::nf)
         .def_readwrite("nG", &pyProbFun::nG)
         .def_readwrite("grad", &pyProbFun::grad)
-        .def_readwrite("Aval", &pyProbFun::Aval)
-        .def_readwrite("Arow", &pyProbFun::Arow)
-        .def_readwrite("Acol", &pyProbFun::Acol)
-        .def_readwrite("lb", &pyProbFun::lb)
-        .def_readwrite("ub", &pyProbFun::ub)
-        .def_readwrite("xlb", &pyProbFun::xlb)
-        .def_readwrite("xub", &pyProbFun::xub);
+        .def_readonly("Aval", &pyProbFun::Aval)
+        .def_readonly("Arow", &pyProbFun::Arow)
+        .def_readonly("Acol", &pyProbFun::Acol)
+        .def_readonly("lb", &pyProbFun::lb)
+        .def_readonly("ub", &pyProbFun::ub)
+        .def_readonly("xlb", &pyProbFun::xlb)
+        .def_readonly("xub", &pyProbFun::xub);
 
         //.def("init", (void (pyServer::*)(const config &cfgin)) &pyServer::init, "init by config object")
-    py::class_<pySnoptWrapper>(m, "solver")
+    py::class_<pySnoptWrapper>(m, "SnoptSolver", R"pbdoc(
+        The snopt solver class that is constructed by a SnoptProblem object and a SnoptConfig object.
+
+        Args:
+            prob (SnoptProblem): the problem object.
+            cfg (SnoptConfig): the configuration.
+        )pbdoc")
         .def(py::init<ProblemFun&, snoptConfig&>())
+        .def("solve_rand", (optResult (pySnoptWrapper::*)()) &pySnoptWrapper::solve, R"pbdoc(
+            Solve the problem using a random guess generated by the solver itself.
+
+            Returns:
+                SnoptResult: a SnoptResult object.
+        )pbdoc")
+        .def("solve_guess", (optResult (pySnoptWrapper::*)(RefV x)) &pySnoptWrapper::solve, R"pbdoc(
+            Solve the problem using a user-specified guess.
+
+            Args:
+                x (ndarray): an initial guess.
+
+            Returns:
+                SnoptResult: a SnoptResult object.
+        )pbdoc")
+        .def("get_info", &pySnoptWrapper::getInfo, R"pbdoc(
+            Get the inform variable from the solver. It indicates solving status.
+
+            Returns:
+                int: the info.
+        )pbdoc")
+        .def("set_int_workspace", &pySnoptWrapper::setIntWorkspace, R"pbdoc(
+            Set the integer workspace size, this is necessary sometimes.
+
+            Args:
+                size (int): the desired integer workspace size.
+        )pbdoc")
+        .def("set_real_workspace", &pySnoptWrapper::setRealWorkspace, R"pbdoc(
+            Set the real workspace size, this is necessary sometimes.
+
+            Args:
+                size (int): the desired real workspace size.
+        )pbdoc")
+        .def("fEval", &pySnoptWrapper::fEval)
         .def("setOptTol", &pySnoptWrapper::setOptTol)
         .def("setFeaTol", &pySnoptWrapper::setFeaTol)
         .def("setIntOption", &pySnoptWrapper::setIntOption)
@@ -221,7 +392,6 @@ PYBIND11_MODULE(libsnopt, m){
         .def("solveGuess", (optResult (pySnoptWrapper::*)(RefV x)) &pySnoptWrapper::solve)
         .def("getInfo", &pySnoptWrapper::getInfo)
         .def("fEval", &pySnoptWrapper::fEval);
-
 
     m.def("directSolve", &directSolve);
     m.def("inDirectSolve", &directInSolve);

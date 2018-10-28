@@ -12,6 +12,7 @@
 #include "snoptWrapper.h"
 #include "functionBase.h"
 #include "pybind11/functional.h"
+#include "pybind11/pybind11.h"
 
 
 class pyProbFun: public ProblemFun{
@@ -28,9 +29,9 @@ class pyProbFun: public ProblemFun{
                     );
         }
 
-        std::pair<int, int> operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) override {
+        pint operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) override {
             PYBIND11_OVERLOAD_PURE_NAME(
-                    std::pair<int, int>,
+                    pint,
                     ProblemFun,
                     "__callg__",
                     operator(),
@@ -86,9 +87,9 @@ class pyFunBase: public funBase{
     public:
         using funBase::funBase;
 
-        void operator()(cRefV x, RefV F) override{
+        int operator()(cRefV x, RefV F) override{
             PYBIND11_OVERLOAD_PURE_NAME(
-                    void,
+                    int,
                     funBase,
                     "__callf__",
                     operator(),
@@ -96,9 +97,9 @@ class pyFunBase: public funBase{
                     );
         }
 
-        void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) override {
+        pint operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) override {
             PYBIND11_OVERLOAD_PURE_NAME(
-                    void,
+                    pint,
                     funBase,
                     "__callg__",
                     operator(),

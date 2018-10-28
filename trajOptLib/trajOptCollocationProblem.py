@@ -21,7 +21,7 @@ from .trajOptBase import nonLinearPointConstr, nonLinearConstr
 from .trajOptBase import lqrObj, quadPenalty
 from .trajOptBase import addX
 from .trajOptBase import daeSystem
-from . import snoptConfig, probFun, solver
+from . import SnoptConfig, probFun, solver
 from .utility import randomGenInBound, checkInBounds, interp
 from scipy.sparse import spmatrix, coo_matrix, csr_matrix
 

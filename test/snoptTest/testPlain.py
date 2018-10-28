@@ -21,10 +21,6 @@ from scipy.sparse import csc_matrix
 from pyLib.io import getOnOffArgs
 
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-
 def main():
     args = getOnOffArgs('plain', 'grad', 'sparse', 'all')
     if args.plain or args.all:
@@ -102,6 +98,7 @@ def inPlainFun(x, f):
     """A naive example with inplace fun"""
     f[0] = x[0] **2 + x[1] ** 2
     f[1] = x[0] + x[1]
+    return 0
 
 
 def gradFun(x):
@@ -122,6 +119,7 @@ def inGradFun(x, f, J):
     f[1] = x[0] + x[1]
     J[0, :2] = 2 * x[:2]
     J[1, :2] = 1.0
+    return 0
 
 
 def spGradFun(x):
@@ -145,6 +143,7 @@ def inSpGradFun(x, y, G, row, col, rec):
     if rec:
         row[:] = [0, 0, 1, 1]
         col[:] = [0, 1, 0, 1]
+    return (0, 0)
 
 
 if __name__ == '__main__':

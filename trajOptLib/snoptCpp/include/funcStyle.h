@@ -16,9 +16,9 @@
 typedef std::function<VX(cRefV)> plainFun;  //function of type y=f(x)
 typedef std::function<std::tuple<VX, rMX>(cRefV)> gradFun;  //function of type y, J = f(x)
 typedef std::function<std::tuple<VX, SpMX>(cRefV)> spGradFun;  //function of type y, sJ = f(x)
-typedef std::function<void(cRefV, RefV)> inPlainFun;  //function of type f(x, y). User have to specify size
-typedef std::function<void(cRefV, RefV, rRefM)> inGradFun;  //function of type f(x, y, J). User have to specify size
-typedef std::function<void(cRefV, RefV, RefV, RefVi, RefVi, bool)> inSpGradFun;  //function of type f(x, y, J). User have to specify size
+typedef std::function<int(cRefV, RefV)> inPlainFun;  //function of type f(x, y). User have to specify size
+typedef std::function<int(cRefV, RefV, rRefM)> inGradFun;  //function of type f(x, y, J). User have to specify size
+typedef std::function<pint(cRefV, RefV, RefV, RefVi, RefVi, bool)> inSpGradFun;  //function of type f(x, y, J). User have to specify size
 
 
 enum FunType {PLAIN, GRAD, SPGRAD, INPLAIN, INGRAD, INSPGRAD};
@@ -90,16 +90,17 @@ public:
         mode = INSPGRAD;
     }
 
-    void operator()(cRefV x, RefV F){
+    int operator()(cRefV x, RefV F){
         if(mode == PLAIN){
             F = plainfun(x);
         }
         else if(mode == INPLAIN){
             inplainfun(x, F);
         }
+        return 0;
     }
 
-    void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg){
+    std::pair<int, int> operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg){
         int nGadd = 0, rowadd = 0;
         if(mode == GRAD){
             if(rec){
@@ -136,6 +137,7 @@ public:
         else if(mode == INSPGRAD){
             inspgradfun(x, F, G, row, col, rec);
         }
+        return {0, 0};
     }
 
     void assignG(RefVi row, RefVi col, int rowadd, int nGadd){

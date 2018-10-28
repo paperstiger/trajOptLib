@@ -17,7 +17,7 @@ For a constraint \phi(q)=0, by order we know up to which we should differentiate
 from __future__ import division
 import numpy as np
 from .trajOptCollocationProblem import trajOptCollocProblem
-from .libsnopt import probFun
+from . import probFun
 from scipy.sparse import csr_matrix, coo_matrix
 from .utility import randomGenInBound, checkInBounds, interp
 

@@ -19,10 +19,6 @@ import logging
 from . import libsnopt
 
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-
 def parseResult(rst):
     """Parse the results returned by snopt and convert to a dict."""
     return {'flag': rst.flag, 'obj': rst.obj, 'x': rst.sol, 'f': rst.fval}
@@ -38,7 +34,7 @@ def directSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=No
     :param xub: np.ndarray (nx,) upper bound on decision variable x
     :param clb: np.ndarray (nc,) lower bound on return function c
     :param cub: np.ndarray (nc,) upper bound on return function c
-    :param cfg: libsnopt.snoptConfig, configuration of snopt solver
+    :param cfg: libsnopt.SnoptConfig, configuration of snopt solver
     :returns: a dictionary containing the solution
 
     """
@@ -57,7 +53,7 @@ def directSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=No
         clb = np.empty(0)
         cub = np.empty(0)
     if cfg is None:
-        cfg = libsnopt.snoptConfig()
+        cfg = libsnopt.SnoptConfig()
     rst = libsnopt.directSolve(fun, x0, nx, nf, xlb, xub, clb, cub, cfg)
     return parseResult(rst)
 
@@ -72,7 +68,7 @@ def inDirectSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=
     :param xub: np.ndarray (nx,) upper bound on decision variable x
     :param clb: np.ndarray (nc,) lower bound on return function c
     :param cub: np.ndarray (nc,) upper bound on return function c
-    :param cfg: libsnopt.snoptConfig, configuration of snopt solver
+    :param cfg: libsnopt.SnoptConfig, configuration of snopt solver
     :returns: a dictionary containing the solution
 
     """
@@ -89,7 +85,7 @@ def inDirectSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=
         clb = np.empty(0)
         cub = np.empty(0)
     if cfg is None:
-        cfg = libsnopt.snoptConfig()
+        cfg = libsnopt.SnoptConfig()
     rst = libsnopt.inDirectSolve(fun, x0, nx, nf, xlb, xub, clb, cub, cfg)
     return parseResult(rst)
 
@@ -104,7 +100,7 @@ def gradSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=None
     :param xub: np.ndarray (nx,) upper bound on decision variable x
     :param clb: np.ndarray (nc,) lower bound on return function c
     :param cub: np.ndarray (nc,) upper bound on return function c
-    :param cfg: libsnopt.snoptConfig, configuration of snopt solver
+    :param cfg: libsnopt.SnoptConfig, configuration of snopt solver
     :returns: a dictionary containing the solution
 
     """
@@ -123,7 +119,7 @@ def gradSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=None
         clb = np.empty(0)
         cub = np.empty(0)
     if cfg is None:
-        cfg = libsnopt.snoptConfig()
+        cfg = libsnopt.SnoptConfig()
     rst = libsnopt.gradSolve(fun, x0, nx, nf, xlb, xub, clb, cub, cfg)
     return parseResult(rst)
 
@@ -138,7 +134,7 @@ def inGradSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=No
     :param xub: np.ndarray (nx,) upper bound on decision variable x
     :param clb: np.ndarray (nc,) lower bound on return function c
     :param cub: np.ndarray (nc,) upper bound on return function c
-    :param cfg: libsnopt.snoptConfig, configuration of snopt solver
+    :param cfg: libsnopt.SnoptConfig, configuration of snopt solver
     :returns: a dictionary containing the solution
 
     """
@@ -155,7 +151,7 @@ def inGradSolve(fun, x0, nf=None, xlb=None, xub=None, clb=None, cub=None, cfg=No
         clb = np.empty(0)
         cub = np.empty(0)
     if cfg is None:
-        cfg = libsnopt.snoptConfig()
+        cfg = libsnopt.SnoptConfig()
     rst = libsnopt.inGradSolve(fun, x0, nx, nf, xlb, xub, clb, cub, cfg)
     return parseResult(rst)
 
@@ -171,7 +167,7 @@ def spGradSolve(fun, x0, nf=None, nG=None, xlb=None, xub=None, clb=None, cub=Non
     :param xub: np.ndarray (nx,) upper bound on decision variable x
     :param clb: np.ndarray (nc,) lower bound on return function c
     :param cub: np.ndarray (nc,) upper bound on return function c
-    :param cfg: libsnopt.snoptConfig, configuration of snopt solver
+    :param cfg: libsnopt.SnoptConfig, configuration of snopt solver
     :returns: a dictionary containing the solution
 
     """
@@ -196,7 +192,7 @@ def spGradSolve(fun, x0, nf=None, nG=None, xlb=None, xub=None, clb=None, cub=Non
         clb = np.empty(0)
         cub = np.empty(0)
     if cfg is None:
-        cfg = libsnopt.snoptConfig()
+        cfg = libsnopt.SnoptConfig()
     rst = libsnopt.spGradSolve(fun, x0, nx, nf, nG, xlb, xub, clb, cub, cfg)
     return parseResult(rst)
 
@@ -212,7 +208,7 @@ def inSpGradSolve(fun, x0, nf=None, nG=None, xlb=None, xub=None, clb=None, cub=N
     :param xub: np.ndarray (nx,) upper bound on decision variable x
     :param clb: np.ndarray (nc,) lower bound on return function c
     :param cub: np.ndarray (nc,) upper bound on return function c
-    :param cfg: libsnopt.snoptConfig, configuration of snopt solver
+    :param cfg: libsnopt.SnoptConfig, configuration of snopt solver
     :returns: a dictionary containing the solution
 
     """
@@ -230,6 +226,6 @@ def inSpGradSolve(fun, x0, nf=None, nG=None, xlb=None, xub=None, clb=None, cub=N
         clb = np.empty(0)
         cub = np.empty(0)
     if cfg is None:
-        cfg = libsnopt.snoptConfig()
+        cfg = libsnopt.SnoptConfig()
     rst = libsnopt.inSpGradSolve(fun, x0, nx, nf, nG, xlb, xub, clb, cub, cfg)
     return parseResult(rst)

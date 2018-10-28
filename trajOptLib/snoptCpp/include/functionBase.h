@@ -10,6 +10,8 @@
 
 #include "TigerTools/TigerEigen.h"
 
+typedef std::pair<int, int> pint;
+
 class funBase{
     public:
         int nx, nf;
