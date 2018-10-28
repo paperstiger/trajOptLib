@@ -19,7 +19,7 @@ sys.path.append('../')
 from trajOptLib.io import getOnOffArgs
 from trajOptLib.trajOptBase import system, nonLinearPointObj, lqrObj
 from trajOptLib.trajOptProblem import trajOptProblem
-from trajOptLib.libsnopt import snoptConfig, probFun, solver
+from trajOptLib import snoptConfig, probFun, solver
 from trajOptLib.utility import showSol
 from trajOptLib import ipSolver
 from scipy.sparse import coo_matrix

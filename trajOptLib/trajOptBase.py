@@ -13,7 +13,7 @@ Classes ready to be used for trajectory optimization.
 """
 import numpy as np
 from scipy.sparse import spmatrix, csr_matrix, csc_matrix, coo_matrix
-from .libsnopt import funBase, snoptConfig, result, probFun, solver
+from .libsnopt import FunBase as funBase, SnoptConfig as snoptConfig, SnoptResult as result, probFun, solver
 
 
 class system(object):

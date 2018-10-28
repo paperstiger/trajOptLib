@@ -26,6 +26,18 @@ class optResult{
         VX c;
         VX lmd;
         optResult(){}
+
+        RefV get_sol(){
+            return RefV(sol);
+        }
+
+        RefV get_fval(){
+            return RefV(c);
+        }
+
+        RefV get_lambda(){
+            return RefV(lmd);
+        }
 };
 
 

@@ -19,7 +19,7 @@ try:
 except:
     print("pyipopt not detected, do not use ipopt")
 from . import trajOptProblem
-from .libsnopt import result
+from . import result
 
 class ipOption(object):
     """A class containing settings for ipopt solver."""

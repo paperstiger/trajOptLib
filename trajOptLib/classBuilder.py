@@ -18,7 +18,7 @@ import autograd.numpy as np
 from autograd import jacobian, grad
 from .trajOptBase import system, daeSystem, baseFun, addX
 from .trajOptBase import nonLinearPointConstr
-from .libsnopt import snoptConfig, solver, probFun, result
+from . import snoptConfig, solver, probFun, result
 
 
 def blockIndex(i, j, rows, cols, order='C'):

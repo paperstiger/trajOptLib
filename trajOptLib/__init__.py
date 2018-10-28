@@ -5,8 +5,9 @@ from .trajOptBase import nonLinearPointConstr, nonLinearConstr
 from .trajOptBase import linearPointConstr, linearConstr
 from .utility import parseX, showSol, getInf
 # import from other directories
-from .libsnopt import snoptConfig, solver, probFun, result
-from .libsnopt import snoptConfig as snOption, solver as snSolver
+from .libsnopt import SnoptConfig, SnoptResult
+from .libsnopt import SnoptConfig as snoptConfig, solver, probFun, SnoptResult as result
+from .libsnopt import SnoptConfig as snOption, solver as snSolver
 # the ipopt solver
 from .ipoptWrapper import ipOption, ipSolver
 # the collocation version
@@ -30,7 +31,7 @@ from .trajOptBase import nonLinearPointConstr as NonLinearPointConstr, nonLinear
 from .trajOptBase import linearPointConstr as LinearPointConstr, linearConstr as LinearConstr
 from .utility import parseX, showSol, getInf
 # import from other directories
-from .libsnopt import snoptConfig as SnOption, solver as SnSolver, probFun as ProbFun
+from .libsnopt import SnoptConfig as SnOption, solver as SnSolver, probFun as ProbFun
 from .snoptWrapper import directSolve, inDirectSolve, gradSolve, inGradSolve, spGradSolve, inSpGradSolve
 # the ipopt solver
 from .ipoptWrapper import ipOption as IpOption, ipSolver as IpSolver

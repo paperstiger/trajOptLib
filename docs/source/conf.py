@@ -4,7 +4,7 @@
 #
 # This file does only contain a selection of the most common options. For a
 # full list see the documentation:
-# http://www.sphinx-doc.org/en/stable/config
+# http://www.sphinx-doc.org/en/master/config
 
 # -- Path setup --------------------------------------------------------------
 
@@ -12,14 +12,14 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os
+# import os
 import sys
-sys.path.insert(0, os.path.abspath('../..'))
+# sys.path.insert(0, os.path.abspath('../../trajOptLib'))
 
 
 # -- Project information -----------------------------------------------------
 
-project = u'trajOptLib'
+project = u'trajoptlib'
 copyright = u'2018, Gao Tang'
 author = u'Gao Tang'
 
@@ -40,7 +40,7 @@ release = u''
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.mathjax',
+    'sphinx.ext.viewcode',
     'sphinx.ext.napoleon'
 ]
 
@@ -65,11 +65,11 @@ language = None
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-# This pattern also affects html_static_path and html_extra_path .
+# This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'sphinx'
+pygments_style = None
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -77,7 +77,7 @@ pygments_style = 'sphinx'
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'classic'
+html_theme = 'alabaster'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -104,7 +104,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'trajOptLibdoc'
+htmlhelp_basename = 'trajoptlibdoc'
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -131,7 +131,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'trajOptLib.tex', u'trajOptLib Documentation',
+    (master_doc, 'trajoptlib.tex', u'trajoptlib Documentation',
      u'Gao Tang', 'manual'),
 ]
 
@@ -141,7 +141,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'trajoptlib', u'trajOptLib Documentation',
+    (master_doc, 'trajoptlib', u'trajoptlib Documentation',
      [author], 1)
 ]
 
@@ -152,23 +152,28 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'trajOptLib', u'trajOptLib Documentation',
-     author, 'trajOptLib', 'One line description of project.',
+    (master_doc, 'trajoptlib', u'trajoptlib Documentation',
+     author, 'trajoptlib', 'One line description of project.',
      'Miscellaneous'),
 ]
 
-# I do not want to sort member functions by alphabet
-autodoc_member_order = 'bysource'
+
+# -- Options for Epub output -------------------------------------------------
+
+# Bibliographic Dublin Core info.
+epub_title = project
+
+# The unique identifier of the text. This can be a ISBN number
+# or the project homepage.
+#
+# epub_identifier = ''
+
+# A unique identification for the text.
+#
+# epub_uid = ''
+
+# A list of files that should not be packed into the epub file.
+epub_exclude_files = ['search.html']
+
 
 # -- Extension configuration -------------------------------------------------
-def skip(app, what, name, obj, skip, options):
-    if name == "__init__":
-        return False
-    elif name == "__callg__":
-        return False
-    elif name == "__callf__":
-        return False
-    return skip
-
-def setup(app):
-    app.connect("autodoc-skip-member", skip)

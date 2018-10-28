@@ -8,6 +8,7 @@ Subpackages
 
     trajOptLib.io
     trajOptLib.plot
+    trajOptLib.libsnopt
 
 Submodules
 ----------
