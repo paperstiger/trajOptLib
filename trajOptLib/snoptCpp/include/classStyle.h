@@ -18,9 +18,9 @@ class pyProbFun: public ProblemFun{
     public:
         using ProblemFun::ProblemFun;
 
-        void operator()(cRefV x, RefV F) override{
+        int operator()(cRefV x, RefV F) override{
             PYBIND11_OVERLOAD_PURE_NAME(
-                    void,
+                    int,
                     ProblemFun,
                     "__callf__",
                     operator(),
@@ -28,9 +28,9 @@ class pyProbFun: public ProblemFun{
                     );
         }
 
-        void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) override {
+        std::pair<int, int> operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) override {
             PYBIND11_OVERLOAD_PURE_NAME(
-                    void,
+                    std::pair<int, int>,
                     ProblemFun,
                     "__callg__",
                     operator(),

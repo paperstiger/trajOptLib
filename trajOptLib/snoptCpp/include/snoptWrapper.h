@@ -50,9 +50,9 @@ class ProblemFun : public funBase{
         VXi Arow, Acol;
         using funBase::funBase;
 
-        virtual void operator()(cRefV x, RefV F) = 0;  // A function to be overwritten by subclass, this is called to evaluate
+        virtual int operator()(cRefV x, RefV F) = 0;  // A function to be overwritten by subclass, this is called to evaluate
 
-        virtual void operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) = 0;  // A function to be overwritten by subclass, this is called for both assigning structure.
+        virtual std::pair<int, int> operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) = 0;  // A function to be overwritten by subclass, this is called for both assigning structure.
 
         void setA(crRefM A){
             int nrow = A.rows(), ncol = A.cols();
