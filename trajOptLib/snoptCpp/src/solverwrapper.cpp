@@ -329,13 +329,13 @@ PYBIND11_MODULE(libsnopt, m){
         .def_readwrite("nf", &pyProbFun::nf)
         .def_readwrite("nG", &pyProbFun::nG)
         .def_readwrite("grad", &pyProbFun::grad)
-        .def_readonly("Aval", &pyProbFun::Aval)
-        .def_readonly("Arow", &pyProbFun::Arow)
-        .def_readonly("Acol", &pyProbFun::Acol)
-        .def_readonly("lb", &pyProbFun::lb)
-        .def_readonly("ub", &pyProbFun::ub)
-        .def_readonly("xlb", &pyProbFun::xlb)
-        .def_readonly("xub", &pyProbFun::xub);
+        .def_readwrite("Aval", &pyProbFun::Aval)
+        .def_readwrite("Arow", &pyProbFun::Arow)
+        .def_readwrite("Acol", &pyProbFun::Acol)
+        .def_readwrite("lb", &pyProbFun::lb)
+        .def_readwrite("ub", &pyProbFun::ub)
+        .def_readwrite("xlb", &pyProbFun::xlb)
+        .def_readwrite("xub", &pyProbFun::xub);
 
         //.def("init", (void (pyServer::*)(const config &cfgin)) &pyServer::init, "init by config object")
     py::class_<pySnoptWrapper>(m, "SnoptSolver", R"pbdoc(

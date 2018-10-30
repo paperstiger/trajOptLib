@@ -37,3 +37,6 @@ from .ipoptWrapper import ipOption as IpOption, ipSolver as IpSolver
 from .trajOptCollocationProblem import trajOptCollocProblem as TrajOptCollocProblem
 # the multi-phase version
 from .trajOptManifoldCollocationProblem import manifoldConstr as ManifoldConstr, trajOptManifoldCollocProblem as TrajOptManifoldCollocProblem
+
+# for backward compatibility
+from .libsnopt import SnoptConfig as snOption
