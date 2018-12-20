@@ -21,6 +21,7 @@ except:
 from . import trajOptProblem
 from . import result
 
+
 class ipOption(object):
     """A class containing settings for ipopt solver."""
     def __init__(self):
@@ -50,6 +51,7 @@ class ipOption(object):
             self.addFloatOption(key, value)
         elif isinstance(value, str):
             self.addStrOption(key, value)
+
 
 class ipSolver(object):
     """A solver class for ipopt. It accepts my conventional problem type."""

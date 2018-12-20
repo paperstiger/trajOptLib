@@ -607,6 +607,7 @@ class trajOptProblem(probFun):
         curRow = self.__dynconstrModeF__(curRow, h, useT, useX, useU, useP, y)
         # evaluate other constraints
         curRow = self.__constrModeF__(curRow, h, useT, useX, useU, useP, x, y)
+        return curRow
 
     def __objModeF__(self, curRow, h, useT, useX, useU, useP, x, y):
         """Calculate objective function. F mode
@@ -665,7 +666,7 @@ class trajOptProblem(probFun):
             for i in range(self.N):
                 tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
                 constr.__evalf__(tmpx, y[curRow: curRow + constr.nf])
-                curRow += constr.nf
+            self.numFcurRow += constr.nf
         for constr in self.nonLinConstr:
             constr.__evalf__(x, y[curRow: curRow + constr.nf])
             curRow += constr.nf
@@ -705,6 +706,7 @@ class trajOptProblem(probFun):
         curRow, curNg = self.__dynconstrModeG(curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
         curRow, curNg = self.__constrModeG(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
         curRow, curNg = self.__objModeG(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
+        return curRow, curNg
 
     def __dynconstrModeG(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg):
         """Evaluate the constraints imposed by system dynamics"""
@@ -797,7 +799,7 @@ class trajOptProblem(probFun):
             curRow += dimx
         return curRow, curNg
 
-    def __objModeG(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
+    def __objModeG(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg, first_row=False):
         """Calculate objective function. It just evaluates them and assign to correct position in y.
 
         See __constr_mode_g__ for arguments and output.
@@ -924,9 +926,7 @@ class trajOptProblem(probFun):
         y = np.zeros(1)
         h, useT = self.__getTimeGrid(x)
         useX, useU, useP = self.__parseX__(x)
-        G = np.zeros(1)
-        row = np.zeros(1, dtype=int)
-        self.__objModeG__(0, 0, h, useT, useX, useU, useP, x, y, G, row, row, False, False)
+        self.__objModeF__(0, h, useT, useX, useU, useP, x, y)
         return y[0]
 
     def ipEvalGradF(self, x):
@@ -936,19 +936,20 @@ class trajOptProblem(probFun):
         :return grad: gradient of objective function w.r.t x
 
         """
-        h, useT = self.__getTimeGrid(x)
-        useX, useU, useP = self.__parseX__(x)
-        y = np.zeros(1)
-        if not self.objSparseMode:
-            tmpG = self.__objDenseGradient__(h, useT, useX, useU, useP, x, y, True)
-        else:
-            tmpG = np.zeros(self.numSol)
-            spG = np.zeros(self.numObjG)
-            spRow = np.zeros(self.numObjG, dtype=int)
-            spCol = np.zeros(self.numObjG, dtype=int)
-            self.__objModeGKnown__(0, 0, h, useT, useX, useU, useP, x, y, spG, spRow, spCol, True, True)
-            tmpG[spCol] = spG
+        tmpG = np.zeros(self.numSol)
+        mask = self.Arow == 0
+        tmpG[self.Acol[mask]] = self.Aval[mask]
         return tmpG
+        # h, useT = self.__getTimeGrid(x)
+        # useX, useU, useP = self.__parseX__(x)
+        # y = np.zeros(self.numF)
+        # tmpG = np.zeros(self.numSol)
+        # spG = np.zeros(self.numObjG)
+        # spRow = np.zeros(self.numObjG, dtype=int)
+        # spCol = np.zeros(self.numObjG, dtype=int)
+        # self.__objModeG(0, 0, h, useT, useX, useU, useP, x, y, spG, spRow, spCol, True, True)
+        # tmpG[spCol] = spG
+        # return tmpG
 
     def ipEvalG(self, x):
         """Evaluation of the constraint function.

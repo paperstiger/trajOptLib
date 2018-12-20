@@ -68,6 +68,7 @@ class pySnoptWrapper: public snoptWrapper{
 
         void copyToResult(optResult &rst){
             rst.c.resize(neF);
+            rst.constr_vio.resize(neF - 1);
             rst.lmd.resize(neF);
             rst.sol.resize(n);
             // evaluate and final call
@@ -75,6 +76,17 @@ class pySnoptWrapper: public snoptWrapper{
             snoptWrapper::copyF(rst.c.data());
             snoptWrapper::copyLmd(rst.lmd.data());
             rst.val = snoptWrapper::getObj();
+            // write constraint violation
+            for(int i = 1; i < neF; i++){
+                double diff1 = rst.c(i) - prob->lb(i);
+                double diff2 = rst.c(i) - prob->ub(i);
+                if(diff1 < 0)
+                    rst.constr_vio(i - 1) = diff1;
+                else if(diff2 > 0)
+                    rst.constr_vio(i - 1) = diff2;
+                else
+                    rst.constr_vio(i - 1) = 0;
+            }
         }
 
         VX fEval(RefV x){

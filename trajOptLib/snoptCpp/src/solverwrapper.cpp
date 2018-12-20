@@ -38,8 +38,9 @@ PYBIND11_MODULE(libsnopt, m){
             flag (int): the return flag by SNOPT.solve()
             obj (float): the cost function
             sol (ndarray): a copy of the solution
-            sol (fval): a copy of F
-            lmd (fval): a copy of Lagrangian multipliers
+            sol (ndarray): a copy of F
+            lmd (ndarray): a copy of Lagrangian multipliers
+            vio (ndarray): violation of constraints at the solution
     )pbdoc")
         .def(py::init<>(), R"pbdoc(
             Constructor for SnoptResult.
@@ -55,11 +56,15 @@ PYBIND11_MODULE(libsnopt, m){
         .def("get_lambda", &optResult::get_lambda, R"pbdoc(
             Return a reference to the Lagrangian multiplier without copying.
         )pbdoc")
-        .def_readonly("flag", &optResult::flag)
-        .def_readonly("obj", &optResult::val)
-        .def_readonly("sol", &optResult::sol)
-        .def_readonly("fval", &optResult::c)
-        .def_readonly("lmd", &optResult::lmd);
+        .def("get_constr_vio", &optResult::get_constr_vio, R"pbdoc(
+            Return a reference to the constraint violation array without copying.
+        )pbdoc")
+        .def_readwrite("flag", &optResult::flag)  // for ip solver, I have to add 1
+        .def_readwrite("obj", &optResult::val)
+        .def_readwrite("sol", &optResult::sol)
+        .def_readwrite("fval", &optResult::c)
+        .def_readwrite("lmd", &optResult::lmd)
+        .def_readwrite("vio", &optResult::constr_vio);
 
     // this class was called snoptConfig previously, consider changing __init__.py
     py::class_<snoptConfig>(m, "SnoptConfig", R"pbdoc(

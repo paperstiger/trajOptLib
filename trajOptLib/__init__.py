@@ -39,4 +39,4 @@ from .trajOptCollocationProblem import trajOptCollocProblem as TrajOptCollocProb
 from .trajOptManifoldCollocationProblem import manifoldConstr as ManifoldConstr, trajOptManifoldCollocProblem as TrajOptManifoldCollocProblem
 
 # for backward compatibility
-from .libsnopt import SnoptConfig as snOption
+from .libsnopt import SnoptConfig as snOption, SnoptConfig as SnOption, SnoptSolver as SnSolver, SnoptProblem as ProbFun
