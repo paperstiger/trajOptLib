@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 from .trajOptCollocationProblem import trajOptCollocProblem
 from .trajOptBase import lqrObj
 from . import solver, snoptConfig
-from .ipoptWrapper import ipSolver, ipOption
+from . import ipSolver, ipOption
 from .trajOptBase import nonLinearPointConstr
 from .utility import showSol, getInf
 

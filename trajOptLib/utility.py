@@ -11,10 +11,8 @@ utility.py
 
 Collection of utility functions such as solution parsing and showing.
 """
-import sys, os, time
 import numpy as np
 import matplotlib.pyplot as plt
-import logging
 from scipy.interpolate import interp1d, CubicSpline
 from . import plot as pld
 
@@ -243,6 +241,49 @@ def getInf(n=None):
         return 1e20
     else:
         return 1e20*np.ones(n)
+
+
+class InfBuilder(object):
+    """A class to help us return infinity"""
+    def __init__(self, n=20):
+        self.n = n
+        self.inf = np.ones(n) * 1e20
+        self.ninf = -self.inf
+        self.inf.flags.writeable = False
+        self.ninf.flags.writeable = False
+
+    def __getitem__(self, n):
+        if n > 0 and n < self.n:
+            return self.inf[:n]
+        if n < 0 and n > -self.n:
+            return self.ninf[:-n]
+        return np.ones(n) * 1e20 * np.sign(n)
+
+
+class OneBuilder(object):
+    """A class to return array of 1"""
+    def __init__(self, n=20):
+        self.n = n
+        self.ones = np.ones(n)
+        self.ones.flags.writeable = False
+
+    def __getitem__(self, n):
+        if n > 0 and n < self.n:
+            return self.ones[:n]
+        return np.ones(n)
+
+
+class ZeroBuilder(object):
+    """A class to return array of 1"""
+    def __init__(self, n=20):
+        self.n = n
+        self.zeros = np.zeros(n)
+        self.zeros.flags.writeable = False
+
+    def __getitem__(self, n):
+        if n > 0 and n < self.n:
+            return self.zeros[:n]
+        return np.zeros(n)
 
 
 if __name__ == '__main__':

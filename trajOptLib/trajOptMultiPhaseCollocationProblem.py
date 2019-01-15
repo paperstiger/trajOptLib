@@ -169,7 +169,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         assert isinstance(probs, list)
         for prob in probs:
             assert isinstance(prob, trajOptCollocProblem)
-            prob.preProcess(**process_args)
+            prob.pre_process(**process_args)
         self.__parseAddX(addx)
         self.phases = probs
         self.num_phase = len(probs)
@@ -347,6 +347,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             curRow, curNg = self.__calc_nonlinear_obj(curRow, curNg, x, y, G, row, col, rec, needg)
         else:
             y[0] = 0  # just to make sure
+        return curRow, curNg
 
     # interface functions for ipopt
     def ipEvalF(self, x):
@@ -409,7 +410,6 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             G[self.nG:] = self.spA_coo.data
             return G
 
-
     def parse_sol(self, sol):
         """Given a solution, we parse and return readable data structure.
 
@@ -435,7 +435,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         phases = []  # this is a list of parsed solution
         for phase_num, phase in enumerate(self.phases):
             soli = self.__get_phase_sol_piece(x, phase_num)
-            rsti = phase.parseSol(soli)
+            rsti = phase.parse_sol(soli)
             phases.append(rsti)
             traj['t'].append(rsti['t'])
             traj['x'].append(rsti['x'])

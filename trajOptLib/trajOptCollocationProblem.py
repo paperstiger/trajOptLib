@@ -123,7 +123,7 @@ class trajOptCollocProblem(probFun):
         self.t0ind, self.tfind = self.__getTimeIndices()
         self.colloc_constr_is_on = False
 
-    def preProcess(self, colloc_constr_is_on=False, defect_u=True, defect_p=True):
+    def pre_process(self, colloc_constr_is_on=False, defect_u=True, defect_p=True):
         """Initialize the instances of probFun now we are ready.
 
         Call this function after the objectives and constraints have been set appropriately.
@@ -397,9 +397,12 @@ class trajOptCollocProblem(probFun):
             row_[addn + i] = numF + i
         # concat them
         catA = np.concatenate((A[nnzind], A_))
-        catArow = np.concatenate((np.zeros(len(nnzind)), row_))
+        catArow = np.concatenate((np.zeros(len(nnzind), dtype=int), row_))
         catAcol = np.concatenate((nnzind, col_))
-        spA = coo_matrix((catA, (catArow, catAcol)))
+        if catA.shape[0] == 0:
+            spA = coo_matrix(([], ([], [])), shape=(addn + numF, numSol))
+        else:
+            spA = coo_matrix((catA, (catArow, catAcol)))
         return spA, addn
 
     def __setAPattern__(self, ndyncon, nnonlincon, spA):
@@ -432,9 +435,10 @@ class trajOptCollocProblem(probFun):
         lstCArow.append(row)
         lstCAcol.append(spA.col)
         lstCAcol.append(col)
-        self.Aval = np.concatenate(lstCA)
-        self.Arow = np.concatenate(lstCArow)
-        self.Acol = np.concatenate(lstCAcol)
+        Aval = np.concatenate(lstCA)
+        Arow = np.concatenate(lstCArow)
+        Acol = np.concatenate(lstCAcol)
+        self.set_a_by_triplet(Aval, Arow, Acol)
         self.spA = csr_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.nf, self.nx))
         self.spA_coo = self.spA.tocoo()
 
@@ -786,8 +790,8 @@ class trajOptCollocProblem(probFun):
         xub[-self.objaddn:] = 1e20
 
         # assign to where it should belong to
-        self.xlb = xlb
-        self.xub = xub
+        self.set_xlb(xlb)
+        self.set_xub(xub)
 
     def __setFbound__(self):
         """Set bound on F"""
@@ -1067,7 +1071,7 @@ class trajOptCollocProblem(probFun):
         curRow += self.numLinCon
         # loop over all the objective functions, I haven't checked if order is correct since some linear constraints are followed
         curRow, curNg = self.__obj_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
-        pass
+        return curRow, curNg
 
     def __dynconstr_mode_g__(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg):
         """Evaluate the constraints imposed by system dynamics"""
@@ -1421,7 +1425,7 @@ class trajOptCollocProblem(probFun):
         col = col[col > 0]  # get rid of those with time
         return col - 1 + self.getStateIndexByIndex(index) + col_offset
 
-    def parseSol(self, sol):
+    def parse_sol(self, sol):
         """Call parseX function from utility and return a dict of solution."""
         X, U, P = self.__parseX__(sol)
         if self.dimp == 0:

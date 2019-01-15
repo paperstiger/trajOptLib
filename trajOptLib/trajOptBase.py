@@ -13,7 +13,6 @@ Classes ready to be used for trajectory optimization.
 """
 import numpy as np
 from scipy.sparse import spmatrix, csr_matrix, csc_matrix, coo_matrix
-from . import FunBase as funBase, SnoptConfig as snoptConfig, SnoptResult as result, probFun, solver
 
 
 class system(object):
@@ -137,7 +136,7 @@ class daeSystem(object):
             self.autonomous = True
 
 
-class baseFun(funBase):
+class baseFun(object):
     """Base class for functions, including both objective and constraint.
 
     This function should be inherited to define your own functions.
@@ -154,10 +153,13 @@ class baseFun(funBase):
         :param ng: int, used only when gradmode == 'user', means number of nnz gradients
 
         """
+        self.nx = nx
+        self.nf = nf
         if gradmode == 'user':
-            funBase.__init__(self, nx, nf, ng)
+            self.nG = ng
+            self.grad = True
         elif gradmode == 'no':
-            funBase.__init__(self, nx, nf)
+            self.grad = False
         else:
             raise NotImplementedError
         self.gradmode = gradmode
