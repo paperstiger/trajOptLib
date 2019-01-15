@@ -38,8 +38,9 @@ PYBIND11_MODULE(libsnopt, m){
             flag (int): the return flag by SNOPT.solve()
             obj (float): the cost function
             sol (ndarray): a copy of the solution
-            sol (fval): a copy of F
-            lmd (fval): a copy of Lagrangian multipliers
+            sol (ndarray): a copy of F
+            lmd (ndarray): a copy of Lagrangian multipliers
+            vio (ndarray): violation of constraints at the solution
     )pbdoc")
         .def(py::init<>(), R"pbdoc(
             Constructor for SnoptResult.
@@ -55,11 +56,15 @@ PYBIND11_MODULE(libsnopt, m){
         .def("get_lambda", &optResult::get_lambda, R"pbdoc(
             Return a reference to the Lagrangian multiplier without copying.
         )pbdoc")
-        .def_readonly("flag", &optResult::flag)
-        .def_readonly("obj", &optResult::val)
-        .def_readonly("sol", &optResult::sol)
-        .def_readonly("fval", &optResult::c)
-        .def_readonly("lmd", &optResult::lmd);
+        .def("get_constr_vio", &optResult::get_constr_vio, R"pbdoc(
+            Return a reference to the constraint violation array without copying.
+        )pbdoc")
+        .def_readwrite("flag", &optResult::flag)  // for ip solver, I have to add 1
+        .def_readwrite("obj", &optResult::val)
+        .def_readwrite("sol", &optResult::sol)
+        .def_readwrite("fval", &optResult::c)
+        .def_readwrite("lmd", &optResult::lmd)
+        .def_readwrite("vio", &optResult::constr_vio);
 
     // this class was called snoptConfig previously, consider changing __init__.py
     py::class_<snoptConfig>(m, "SnoptConfig", R"pbdoc(
@@ -329,13 +334,13 @@ PYBIND11_MODULE(libsnopt, m){
         .def_readwrite("nf", &pyProbFun::nf)
         .def_readwrite("nG", &pyProbFun::nG)
         .def_readwrite("grad", &pyProbFun::grad)
-        .def_readonly("Aval", &pyProbFun::Aval)
-        .def_readonly("Arow", &pyProbFun::Arow)
-        .def_readonly("Acol", &pyProbFun::Acol)
-        .def_readonly("lb", &pyProbFun::lb)
-        .def_readonly("ub", &pyProbFun::ub)
-        .def_readonly("xlb", &pyProbFun::xlb)
-        .def_readonly("xub", &pyProbFun::xub);
+        .def_readwrite("Aval", &pyProbFun::Aval)
+        .def_readwrite("Arow", &pyProbFun::Arow)
+        .def_readwrite("Acol", &pyProbFun::Acol)
+        .def_readwrite("lb", &pyProbFun::lb)
+        .def_readwrite("ub", &pyProbFun::ub)
+        .def_readwrite("xlb", &pyProbFun::xlb)
+        .def_readwrite("xub", &pyProbFun::xub);
 
         //.def("init", (void (pyServer::*)(const config &cfgin)) &pyServer::init, "init by config object")
     py::class_<pySnoptWrapper>(m, "SnoptSolver", R"pbdoc(

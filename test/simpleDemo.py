@@ -82,6 +82,7 @@ class quadCost(nonLinearPointObj):
             if rec:
                 row[0] = 0
                 col[0] = 3
+        return (0, 0)
 
 
 def main():

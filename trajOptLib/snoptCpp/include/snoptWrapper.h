@@ -26,6 +26,7 @@ class optResult{
         VX sol;
         VX c;
         VX lmd;
+        VX constr_vio;
         optResult(){}
 
         RefV get_sol(){
@@ -38,6 +39,10 @@ class optResult{
 
         RefV get_lambda(){
             return RefV(lmd);
+        }
+
+        RefV get_constr_vio(){
+            return RefV(constr_vio);
         }
 };
 

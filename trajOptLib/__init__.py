@@ -36,7 +36,6 @@ from .trajOptCollocationProblem import trajOptCollocProblem as TrajOptCollocProb
 # the multi-phase version
 from .trajOptManifoldCollocationProblem import manifoldConstr as ManifoldConstr, trajOptManifoldCollocProblem as TrajOptManifoldCollocProblem
 
-
 from .utility import OneBuilder, ZeroBuilder
 inf_ = InfBuilder()
 one_ = OneBuilder()
