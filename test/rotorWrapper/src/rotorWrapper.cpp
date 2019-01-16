@@ -9,7 +9,7 @@
 
 #include "pybind11/eigen.h"
 #include "pybind11/functional.h"
-#include "TigerTools/TigerEigen.h"
+#include "TigerEigen.h"
 
 
 class Rotor{

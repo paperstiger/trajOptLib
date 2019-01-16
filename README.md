@@ -11,10 +11,11 @@ Make sure you have
 
 Installation is simple. 
 
-1. In terminal navigate to current directory
-2. Create new directory called Build by "mkdir Build" and go inside "cd Build"
-3. Invoke CMake to build the library by "cmake ..", followed by "make"
-4. Install package using pip, by "pip install -e .."
+0. You have to install pyoptsolver, which is located in lib/solver_interface; see instructions there.
+1. Navigate to current directory. Make a directory for building "mkdir build & cd build"
+2. Use standard CMake install commands: "cmake .. & make & cd .."
+3. Install requirements by "pip install -r requirements.txt"
+3. Install package using pip, by "pip install -e .." or "python setup.py install"
 
 You can test a few simple examples. This is done by simply navigating to "test" folder in the main folder. And use "python simpleDemo.py -grad". You can also explore other possible arguments.
 

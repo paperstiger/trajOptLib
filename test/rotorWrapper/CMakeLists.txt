@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.0)
 project(rotorWrapper)
 
+include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(${TIGER_DIR})
-include_directories(${EIGEN_DIR})
+message("Tiger dir is ${TIGER_DIR}")
 
 set(Rotor_FILES
     src/rotorWrapper.cpp

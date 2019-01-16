@@ -1,0 +1,5 @@
+numpy>=1.15.0
+autograd
+scipy>=1.0.0
+matplotlib>=1.13.0
+pyoptsolver
