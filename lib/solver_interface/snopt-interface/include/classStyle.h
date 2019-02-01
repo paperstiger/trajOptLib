@@ -47,12 +47,12 @@ class pySnoptWrapper: public snoptWrapper{
             return rst;
         }
 
-        std::pair<optResult, VX> obj_search(RefV x, int iter, int step, int step_num, double abstol, double reltol) {
-            std::pair<int, VX> rst = snoptWrapper::obj_search(x.data(), iter, step, step_num, abstol, reltol);
+        std::tuple<optResult, VX, VX> obj_search(RefV x, int iter, int step, int step_num, double abstol, double reltol) {
+            std::pair<VX, VX> rst = snoptWrapper::obj_search(x.data(), iter, step, step_num, abstol, reltol);
             optResult opt;
             opt.flag = getInfo();
             copyToResult(opt);
-            return std::make_pair(opt, rst.second);
+            return std::make_tuple(opt, rst.first, rst.second);
         }
 
         void copyToResult(optResult &rst){

@@ -11,6 +11,7 @@
 #include <vector>
 #include <tuple>
 #include <string>
+#include "time.h"
 #include "TigerEigen.h"
 #include "toyfunction.h"
 #include "functionBase.h"
@@ -36,6 +37,8 @@ public:
 extern ProblemFun *PROB;
 
 class snoptWrapper{
+private:
+    bool is_setup;
 protected:
     integer n, neF, neA, neG, lenA, lenG;
     integer *iAfun, *jAvar, *iGfun, *jGvar, *xstate, *Fstate;
@@ -55,10 +58,7 @@ public:
     double *getFlow() const{return Flow;}
     double *getFupp() const{return Fupp;}
     //Construction function
-    snoptWrapper(ProblemFun *pfun, snoptConfig *cfg=nullptr){
-#ifdef DEBUG
-        std::cout << "Entering construction\n";
-#endif
+    snoptWrapper(ProblemFun *pfun, snoptConfig *cfg=nullptr) : is_setup(false) {
         prob = pfun;
         snpcfg = cfg;
         PROB = pfun;
@@ -69,30 +69,18 @@ public:
         if(pfun->getGrad()){
             if(pfun->Aval.size() == 0){
                 lenA = 1;  //not sure if 0 works fine
-#ifdef DEBUG
-                std::cout << "A of size 0\n";
-#endif
             }
             else{
                 lenA = pfun->Aval.size();
                 useA = true;
-#ifdef DEBUG
-                std::cout << "length of A is " << lenA << std::endl;
-#endif
             }
         }
         else
             lenA  = n * neF;
-#ifdef DEBUG
-        std::cout << "Allocate space\n";
-#endif
         iAfun = new integer[lenA];
         jAvar = new integer[lenA];
         mA  = new doublereal[lenA];
         if(pfun->getGrad() && pfun->Aval.size() > 0){
-#ifdef DEBUG
-        std::cout << "Map A\n";
-#endif
             MapV mapA(mA, lenA);
             MapVi mapiA(iAfun, lenA);
             MapVi mapjA(jAvar, lenA);
@@ -129,25 +117,9 @@ public:
         doublereal ObjAdd = 0;
 
         /***set bound on x and f***/
-#ifdef DEBUG
-        std::cout << "set bounds\n";
-#endif
         setxbound();
         setfbound();
 
-#ifdef DEBUG
-        std::cout << "get gradient information\n";
-#endif
-        /***Gradients, depends on how we are defining the problem***/
-        if(pfun->getGrad()){
-            MapV mV(F, neF);
-            MapVi row(iGfun, lenG), col(jGvar, lenG);
-            MapV Gvalue(G, lenG);
-            ranGenX();  // randomly generate an initial guess
-            MapV mX(x, n);
-            pfun->operator()(mX, mV, Gvalue, row, col, true, true);
-        }
-        // Set the problem, what's left is the initial guess
         if(pfun->getGrad()){
             neA = lenA;
             neG = lenG;
@@ -155,31 +127,18 @@ public:
                 neA = 0;
             ToyProb.setNeA         ( neA );
             ToyProb.setNeG         ( neG );
-#ifdef DEBUG
-            std::cout << "neA, neG = " << neA << " " <<  neG << std::endl;
-#endif
         }
-#ifdef DEBUG
-        std::cout << "set properties\n";
-#endif
+
         ToyProb.setProblemSize( n, neF );
         ToyProb.setObjective  ( ObjRow, ObjAdd );
         ToyProb.setA          ( lenA, iAfun, jAvar, mA );
-        ToyProb.setG          ( lenG, iGfun, jGvar );
         ToyProb.setX          ( x, xlow, xupp, xmul, xstate );
         ToyProb.setF          ( F, Flow, Fupp, Fmul, Fstate );
         ToyProb.setXNames     ( xnames, nxnames );
         ToyProb.setFNames     ( Fnames, nFnames );
         ToyProb.setProbName   ( "Toy0" );
         ToyProb.setUserFun    ( toyusrf_ );
-        if(!pfun->getGrad()){
-            ranGenX();
-            ToyProb.computeJac();
-        }
-        if(pfun->getGrad())
-            ToyProb.setIntParameter( "Derivative option", 1 );
-        else
-            ToyProb.setIntParameter( "Derivative option", 0 );
+
         if(snpcfg == nullptr){
             ToyProb.setIntParameter( "Verify level", 0 );
             ToyProb.setIntParameter( "Major print level", 0 );
@@ -217,9 +176,26 @@ public:
                 ToyProb.setParameter(option.c_str());
             }
         }
-#ifdef DEBUG
-        std::cout << "finish construct\n";
-#endif
+    }
+
+    void problem_setup() {
+        /***Gradients, depends on how we are defining the problem***/
+        if(prob->getGrad()){
+            MapV mV(F, neF);
+            MapVi row(iGfun, lenG), col(jGvar, lenG);
+            MapV Gvalue(G, lenG);
+            MapV mX(x, n);
+            prob->operator()(mX, mV, Gvalue, row, col, true, true);
+        }
+        ToyProb.setG          ( lenG, iGfun, jGvar );
+        if(!prob->getGrad()){
+            ToyProb.computeJac();
+        }
+        if(prob->getGrad())
+            ToyProb.setIntParameter( "Derivative option", 1 );
+        else
+            ToyProb.setIntParameter( "Derivative option", 0 );
+        is_setup = true;
     }
 
     void setX(const double *xin){
@@ -250,9 +226,6 @@ public:
     void setxbound(){
         // Set the upper and lower bounds.
         if(prob->xlb.size() == 0){
-#ifdef DEBUG
-            std::cout << "xlb of size 0 , n = " << n << std::endl;
-#endif
             for (int i = 0; i < n; ++i){
                 xlow[i] = -1e20; xupp[i] = 1e20; xstate[i] = 0;
             }
@@ -266,11 +239,6 @@ public:
                 xlow[i] = prob->xlb(i); xupp[i] = prob->xub(i); xstate[i] = 0;
             }
         }
-#ifdef DEBUG
-        MapV Mxlb(xlow, n);
-        MapV Mxub(xupp, n);
-        std::cout << "lowX, uppX " << Mxlb << "\n" << Mxub << std::endl;
-#endif
     }
 
     // generate a random guess for certain problems, all variables are random
@@ -289,18 +257,11 @@ public:
                 }
             }
         }
-#ifdef DEBUG
-        MapV mXf(x, n);
-        std::cout << "Ran x " << mXf << std::endl;
-#endif
     }
 
     void setfbound(){
         //set upper and lower bound for constraint
         if(prob->lb.size() == 0){
-#ifdef DEBUG
-            std::cout << "lb of size 0 , neF = " << neF << std::endl;
-#endif
             for(int i = 0; i < neF; i++){
                 Flow[i] = 0;
                 Fupp[i] = 0;
@@ -322,16 +283,12 @@ public:
                 Fstate[i] = 0;
             }
         }
-#ifdef DEBUG
-        MapV Mflb(Flow, neF);
-        MapV Mfub(Fupp, neF);
-        std::cout << "lowF, uppF " << Mflb << "\n" << Mfub << std::endl;
-#endif
     }
 
     void setOptTol(double tol){
         ToyProb.setRealParameter("Major optimality tolerance", tol);
     }
+
     void setPrintFile(std::string &fnm){
         FILE *fp = fopen(fnm.c_str(), "wt");  // wipe out all contents
         if(!fp){
@@ -363,11 +320,14 @@ public:
         //ToyProb.reallocR(fws);
     }
 
+    void update_problem() {
+        setxbound();
+        setfbound();
+    }
+
     //Solve the problem. Modified Aug 13 2017, no need to warm start
     int solve(){
         int appendcol = 0;
-        //change constraints, here
-        setxbound();
         for (int i = 0; i < neF; ++i){
             F[i] = 0;
             Fstate[i] = 0;
@@ -377,11 +337,10 @@ public:
             xstate[i] = 0;
             xmul[i] = 0;
         }
-#ifdef DEBUG
-        std::cout << "solve from random guess\n";
-#endif
         //Generate initial guess using the method in TrajOpt.h
         ranGenX();
+        if(!is_setup)
+            problem_setup();
         ToyProb.setF          ( F, Flow, Fupp, Fmul, Fstate );
         ToyProb.setX          ( x, xlow, xupp, xmul, xstate );
         ToyProb.solve( 0 );
@@ -389,10 +348,6 @@ public:
     };
     //Solve the problem. given the solution, lmdF
     int solve(double *_x, double *_Fmul = NULL){
-#ifdef DEBUG
-        std::cout << "solve with guess\n";
-#endif
-        setxbound();//As always, do this
         for (int i = 0; i < neF; ++i){
             F[i] = 0;
             Fstate[i] = 0;
@@ -406,6 +361,8 @@ public:
             xmul[i] = 0;
             x[i] = _x[i];
         }
+        if(!is_setup)
+            problem_setup();
         ToyProb.setF          ( F, Flow, Fupp, Fmul, Fstate );
         ToyProb.setX          ( x, xlow, xupp, xmul, xstate );
         ToyProb.solve( 0 );
@@ -423,18 +380,24 @@ public:
     // search using snopt. First an initial iteration number of search is performed,
     // then increamental steps are performed and cost are checked.
     // If either abstol or reltol criteria is satisfied, we are done.
-    // Return a list of costs
-    std::pair<double, VX> obj_search(double *_x, int iter, int step, int step_num, double abstol, double reltol) {
+    // Returns final cost, list of costs at search step, list of time spent
+    std::pair<VX, VX> obj_search(double *_x, int iter, int step, int step_num, double abstol, double reltol) {
+        clock_t tic, toc;
+        std::vector<double> cost, timestamp;
+        tic = clock();
         setMajorIter(iter);
         int flag = solve(_x);
         double cur_obj = getObj();  // this might be incorrect, I guess.
-        std::vector<double> cost;
+        toc = clock();
         cost.push_back(cur_obj);
+        timestamp.push_back((double)(toc - tic) / CLOCKS_PER_SEC);
         if(flag == 32) {
             for(int i = 0; i < step_num; i++) {
                 flag = solve_more(step);
                 double new_obj = getObj();
                 cost.push_back(new_obj);
+                toc = clock();
+                timestamp.push_back((double)(toc - tic) / CLOCKS_PER_SEC);
                 if((cur_obj - new_obj < abstol) || (cur_obj - new_obj) < reltol * cur_obj)
                     break;
                 if (flag != 32)
@@ -445,7 +408,10 @@ public:
         VX costs(cost.size());
         for(int i = 0; i < cost.size(); i++)
             costs(i) = cost[i];
-        return std::make_pair(cost.back(), costs);
+        VX times(timestamp.size());
+        for(int i = 0; i < timestamp.size(); i++)
+            times(i) = timestamp[i];
+        return std::make_pair(costs, times);
     }
 
     int getInfo(){

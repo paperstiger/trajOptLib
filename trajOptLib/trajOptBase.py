@@ -11,6 +11,7 @@ trajOptBase.py
 
 Classes ready to be used for trajectory optimization.
 """
+import warnings
 import numpy as np
 from scipy.sparse import spmatrix, csr_matrix, csc_matrix, coo_matrix
 
@@ -100,7 +101,8 @@ class daeSystem(object):
         self.np = np
         self.nf = nf
         self.nG = nG
-        assert nx % nf == 0
+        if nx % nf != 0:
+            warnings.warn("nx \% nf is not zero, make sure problem is defined correctly.")
         self.order = nx // nf - 1  # this is useful for detecting size
         self.autonomous = False
         self.timeindex = None

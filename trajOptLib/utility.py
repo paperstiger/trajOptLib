@@ -240,7 +240,7 @@ def getInf(n=None):
     if n is None:
         return 1e20
     else:
-        return 1e20*np.ones(n)
+        return 1e20 * np.ones(n)
 
 
 class InfBuilder(object):
@@ -257,7 +257,7 @@ class InfBuilder(object):
             return self.inf[:n]
         if n < 0 and n > -self.n:
             return self.ninf[:-n]
-        return np.ones(n) * 1e20 * np.sign(n)
+        return np.ones(abs(n)) * 1e20 * np.sign(n)
 
 
 class OneBuilder(object):

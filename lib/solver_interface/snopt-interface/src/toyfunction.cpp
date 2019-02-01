@@ -23,10 +23,14 @@ void toyusrf_(integer    *Status, integer *n,    doublereal x[],
         bool needg = true;
         if(*needG == 0)
             needg = false;
-        PROB->operator()(Mx, c, value, row, col, rec, needg);
+        std::pair<int, int> rst = PROB->operator()(Mx, c, value, row, col, rec, needg);
+        if(rst.first < 0)
+            *Status = rst.first;
     }
     else{
-        PROB->operator()(Mx, c);
+        int nf = PROB->operator()(Mx, c);
+        if(nf < 0)
+            *Status = nf;
     }
     return;
 }

@@ -303,6 +303,7 @@ PYBIND11_MODULE(pyoptsolver, m){
         .def("__hessian__", &ProblemFun::evalHess)
         .def("ipopt_style", [](ProblemFun *self) {self->ipStyle=true;})
         .def("snopt_style", [](ProblemFun *self) {self->ipStyle=false;})
+        .def_readonly("ipstyle", &pyProbFun::ipStyle)
         .def_readwrite("nx", &pyProbFun::nx)
         .def_readwrite("nf", &pyProbFun::nf)
         .def_readwrite("nG", &pyProbFun::nG)
@@ -438,6 +439,7 @@ PYBIND11_MODULE(pyoptsolver, m){
             Returns:
                 SnoptResult: a SnoptResult object
                 costs: ndarray, recorded costs during search
+                times: ndarray, recorded used times during search
         )pbdoc")
         .def("get_info", &pySnoptWrapper::getInfo, R"pbdoc(
             Get the inform variable from the solver. It indicates solving status.

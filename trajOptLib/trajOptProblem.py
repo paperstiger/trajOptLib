@@ -11,6 +11,7 @@ trajOptProblem.py
 
 Class for describing the trajectory optimization problems.
 """
+from __future__ import print_function, division
 import numpy as np
 from .trajOptBase import linearObj, linearPointObj
 from .trajOptBase import linearPointConstr, linearConstr
@@ -19,7 +20,7 @@ from .trajOptBase import nonLinearPointConstr, nonLinearConstr
 from .trajOptBase import system, addX
 from .trajOptBase import lqrObj
 from . import SnoptConfig as snoptConfig, probFun, solver
-from .utility import parseX, randomGenInBound, checkInBounds
+from .utility import parseX, randomGenInBound, checkInBounds, interp
 from scipy import sparse
 from scipy.sparse import spmatrix, coo_matrix
 
@@ -121,7 +122,7 @@ class trajOptProblem(probFun):
         self.numSol = numSol + self.lenAddX
         self.t0ind, self.tfind = self.__getTimeIndices()
 
-    def preProcess(self):
+    def pre_process(self, *args):
         """Initialize the instances of probFun now we are ready.
 
         Call this function after the objectives and constraints have been set appropriately.
@@ -157,6 +158,92 @@ class trajOptProblem(probFun):
         if self.gradmode:  # in this case, we randomly generate a guess and use it to initialize everything
             randX = self.randomGenX()
             self.__turnOnGrad(randX)
+
+    def genGuessFromTraj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None, obj=None, interp_kind='linear'):
+        """Generate an initial guess for the problem with user specified information.
+
+        An amazing feature is the user does not have to give a solution of exactly the same time-stamped trajectory used internally.
+        Interpolation approaches are used in such scenarios.
+        The user is not required to provide them all, although we suggest they do so.
+
+        :param X: ndarray, (x, x) each row corresponds to a state snapshot (if tstamp is None, assume equidistant grid). Column size can be dimx or dimx/sys.order
+        :param U: ndarray, (x, dimu) each row corresponds to a control snapshot. Similar to X but with column size equals dimu
+        :param P: ndarray, (x, dimp) each row corresponds to a parameter snapshot. Similar to X but with column size equals dimp
+        :param t0/tf: float/array-like, initial/final time. If None, we randomly generate one
+        :param addx: list of ndarray, guess of addx, if applicable
+        :param tstamp: ndarray, (x,), None if the X/U/P are provided using equidistant grid.
+        :param obj: ndarray, (x,) the objective part
+        :param interp_kind: str, interpolation type for scipy.interpolate.interp1d, can be (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic’, ‘cubic’)
+
+        """
+        randX = 2 * np.random.random(self.numSol) - 1
+        Xtarget, Utarget, Ptarget = self.__parseX__(randX)
+        if obj is not None:
+            obj_ = self.__parseObj__(randX)
+            obj_[:] = obj
+        # generate t0 and tf, if applicable
+        if self.t0ind > 0:
+            if t0 is None:
+                randX[self.t0ind] = randomGenInBound(self.t0)
+            else:
+                randX[self.t0ind] = randomGenInBound(t0)
+            uset0 = randX[self.t0ind]
+        else:
+            uset0 = self.t0
+        if self.tfind > 0:
+            if tf is None:
+                randX[self.tfind] = randomGenInBound(self.tf)
+            else:
+                randX[self.tfind] = randomGenInBound(tf)
+            usetf = randX[self.tfind]
+        else:
+            usetf = self.tf
+        teval = np.linspace(uset0, usetf, self.N)
+
+        # interpolation for state variables
+        nPoint = self.N
+        dimx = self.dimx
+        if X is not None:
+            Xcol = X.shape[1]
+            if not (Xcol == dimx):
+                print('The column of X is not %d or %d, not use it' % (dimx))
+                X = None
+            else:  # use interpolation to do it
+                interp(tstamp, X, teval, Xtarget, interp_kind)
+        if X is None:
+            # straight path go there
+            for i in range(nPoint):
+                Xtarget[i] = randomGenInBound(self.xbd, self.dimx)
+            # randomly generate x0 and xf
+            Xtarget[0, :dimx] = randomGenInBound(self.x0bd, self.dimx)
+            Xtarget[-1, :dimx] = randomGenInBound(self.xfbd, self.dimx)
+
+        # interpolation for control variable
+        if U is not None:
+            interp(tstamp, U, teval, Utarget, interp_kind)
+        else:
+            for i in range(nPoint):
+                Utarget[i] = randomGenInBound(self.ubd, self.dimu)
+        if self.numP > 0:
+            if P is not None:
+                interp(tstamp, P, teval, Ptarget, interp_kind)
+            else:
+                for i in range(nPoint):
+                    Ptarget[i] = randomGenInBound(self.pbd, self.dimp)
+        # generate for
+        if self.lenAddX > 0:
+            if addx is None:
+                for field, addx_ in zip(self.__parseAddX__(randX), self.addX):
+                    field[:] = randomGenInBound([addx_.lb, addx_.ub], addx_.n)
+            else:
+                for guess, field, addx_ in zip(addx, self.__parseAddX__(randX), self.addX):
+                    field[:] = randomGenInBound(guess, addx_.n)
+        # I do not have to worry about objaddn since they are linear
+        return randX
+
+    def preProcess(self, *args):
+        """Alias for pre_process"""
+        self.pre_process(*args)
 
     def __analyzeObj(self, numSol, numF):
         """Analyze the objective function.
@@ -245,9 +332,9 @@ class trajOptProblem(probFun):
         self.Aval = np.concatenate(lstCA)
         self.Arow = np.concatenate(lstCArow)
         self.Acol = np.concatenate(lstCAcol)
+        self.set_a_by_triplet(self.Aval, self.Arow, self.Acol)
         curNA = len(self.Aval)  # this is just for bookkeeping
         return curRow, curNA
-
 
     def randomGenX(self):
         """A more reansonable approach to generate random guess for the problem.
@@ -344,7 +431,7 @@ class trajOptProblem(probFun):
                     Jac.data *= (-h)
                     Jac = Jac + eyemat
                 dynnnz = Jac.nnz - timennz
-                dynG = (self.N - 1) * (dynnnz + self.dimx + self.numT)
+                dynG = (self.N - 1) * (dynnnz + self.dimx + self.numT * self.dimx)
             return dynG
 
     def __getObjSparsity(self, x):
@@ -377,78 +464,95 @@ class trajOptProblem(probFun):
         """Utility function for assigning sparsity structure."""
         t0ind = -1
         tfind = -1
+        lenX = self.N * self.dimpoint
         if self.fixt0:
             if self.fixtf:
                 pass
             else:
-                tfind = self.numTraj
+                tfind = lenX
         else:
             if self.fixtf:
-                t0ind = self.numTraj
+                t0ind = lenX
             else:
-                t0ind = self.numTraj + 1
-                tfind = self.numTraj + 2
+                t0ind = lenX
+                tfind = lenX + 1
         return t0ind, tfind
 
     def __setXbound(self):
         """Set bounds on decision variables."""
         # create bound on x
-        numX = self.numX
-        numU = self.numU
-        numP = self.numP
+        dimpnt = self.dimpoint
+        dimx, dimu, dimp = self.dimx, self.dimu, self.dimp
         xlb = np.zeros(self.numSol)
         xub = np.zeros(self.numSol)
+        numDynVar = self.N * dimpnt
+        Mxlb = np.reshape(xlb[:numDynVar], (self.N, dimpnt))
+        Mxub = np.reshape(xub[:numDynVar], (self.N, dimpnt))
+        Mulb = Mxlb[:, dimx:dimx+dimu]
+        Muub = Mxub[:, dimx:dimx+dimu]
+        Mplb = Mxlb[:, dimpnt-dimp:dimpnt]
+        Mpub = Mxub[:, dimpnt-dimp:dimpnt]
+        # set bounds for q and dq, agree with previous convention
         if self.xbd[0] is not None:
-            stateLb = np.reshape(xlb[:numX], (self.N, self.dimx))
-            stateLb[:] = self.xbd[0]
-            # set lb for x0 and xf
-            if self.x0bd[0] is not None:
-                stateLb[0] = self.x0bd[0]
-            if self.xfbd[0] is not None:
-                stateLb[self.N - 1] = self.xfbd[0]
+            Mxlb[:, :dimx] = self.xbd[0]
+        else:
+            Mxlb[:, :dimx] = -1e20
+        # set lb for x0 and xf
+        if self.x0bd[0] is not None:
+            Mxlb[0, :dimx] = self.x0bd[0]
+        if self.xfbd[0] is not None:
+            Mxlb[-1, :dimx] = self.xfbd[0]
+
         if self.xbd[1] is not None:
-            stateUb = np.reshape(xub[:numX], (self.N, self.dimx))
-            stateUb[:] = self.xbd[1]
-            # set ub for x0 and xf
-            if self.x0bd[1] is not None:
-                stateUb[0] = self.x0bd[1]
-            if self.xfbd[1] is not None:
-                stateUb[self.N - 1] = self.xfbd[1]
+            Mxub[:, :dimx] = self.xbd[1]
+        else:
+            Mxub[:, :dimx] = 1e20
+        # set ub for x0 and xf
+        if self.x0bd[1] is not None:
+            Mxub[0, :dimx] = self.x0bd[1]
+        if self.xfbd[1] is not None:
+            Mxub[-1, :dimx] = self.xfbd[1]
+
+        # set bounds for control variable
         if self.ubd[0] is not None:
-            ctrlLb = np.reshape(xlb[numX:numX + numU], (self.N, self.dimu))
-            ctrlLb[:] = self.ubd[0]
+            Mulb[:] = self.ubd[0]
+        else:
+            Mulb[:] = -1e20
         if self.ubd[1] is not None:
-            ctrlUb = np.reshape(xub[numX:numX + numU], (self.N, self.dimu))
-            ctrlUb[:] = self.ubd[1]
+            Muub[:] = self.ubd[1]
+        else:
+            Muub[:] = 1e20
         if self.pbd[0] is not None and self.dimp > 0:
-            pLb = np.reshape(xlb[numX+numU:numX+numU+numP], (self.N, self.dimp))
-            pLb[:] = self.pbd[0]
+            Mplb[:] = self.pbd[0]
+        else:
+            Mplb[:] = -1e20
         if self.pbd[1] is not None and self.dimp > 0:
-            pUb = np.reshape(xub[numX+numU:numX+numU+numP], (self.N, self.dimp))
-            pUb[:] = self.pbd[1]
-        if not self.fixt0:
-            xlb[numX+numU+numP] = self.t0[0]
-            xub[numX+numU+numP] = self.t0[1]
+            Mpub[:] = self.pbd[1]
+        else:
+            Mpub[:] = 1e20
+
         # set bound on time
+        if not self.fixt0:
+            xlb[self.t0ind] = self.t0[0]
+            xub[self.t0ind] = self.t0[1]
         if not self.fixtf:
-            if not self.fixt0:
-                xlb[numX+numU+numP+1] = self.tf[0]
-                xub[numX+numU+numP+1] = self.tf[1]
-            else:
-                xlb[numX+numU+numP] = self.tf[0]
-                xub[numX+numU+numP] = self.tf[1]
+            xlb[self.tfind] = self.tf[0]
+            xub[self.tfind] = self.tf[1]
+
         # set bound on addX
         if self.lenAddX != 0:
             curN = self.numTraj
             for addx in self.addX:
                 xlb[curN: curN + addx.n] = addx.lb
                 xub[curN: curN + addx.n] = addx.ub
+
         # set bound on objaddn, this is obvious
         xlb[-self.objaddn:] = -1e20
         xub[-self.objaddn:] = 1e20
+
         # assign to where it should belong to
-        self.xlb = xlb
-        self.xub = xub
+        self.set_xlb(xlb)
+        self.set_xub(xub)
 
     def __setFbound(self):
         """Set bound on F"""
@@ -517,18 +621,17 @@ class trajOptProblem(probFun):
             usetf = self.tf
         else:
             usetf = x[self.tfind]
-        h = (usetf - uset0) / (self.N - 1)
+        h = (1.0 * (usetf - uset0)) / (self.N - 1)
         useT = np.linspace(uset0, usetf, self.N)
         return h, useT
 
     def __parseX__(self, x):
         """Parse guess/sol into X, U, P"""
-        numX = self.numX
-        numU = self.numU
-        numP = self.numP
-        useX = np.reshape(x[:numX], (self.N, self.dimx))
-        useU = np.reshape(x[numX: numX + numU], (self.N, self.dimu))
-        useP = np.reshape(x[numX + numU: numX + numU + numP], (self.N, self.dimp))
+        n_var_pnt = self.dimx + self.dimu + self.dimp
+        X = np.reshape(x[:self.N * n_var_pnt], (self.N, n_var_pnt))
+        useX = X[:, :self.dimx]
+        useU = X[:, self.dimx:self.dimpoint - self.dimp]
+        useP = X[:, self.dimpoint - self.dimp:]
         return useX, useU, useP
 
     def parseF(self, guess):
@@ -572,11 +675,11 @@ class trajOptProblem(probFun):
         else:
             pbound = None
         if self.t0ind > 0:
-            t0bound = checkInBounds([guess[self.t0ind]], self.t0)
+            t0bound = checkInBounds(guess[self.t0ind], self.t0)
         else:
             t0bound = None
         if self.tfind > 0:
-            tfbound = checkInBounds([guess[self.tfind]], self.tf)
+            tfbound = checkInBounds(guess[self.tfind], self.tf)
         else:
             tfbound = None
         if self.lenAddX > 0:
@@ -587,6 +690,41 @@ class trajOptProblem(probFun):
         return {'obj': obj, 'dyn': dynCon, 'point': pointCon, 'path': pathCon, 'nonlin': nonLinCon,
                 'Xbd': Xbound, 'Ubd': ubound, 'x0bd': x0bound, 'xfbd': xfbound, 'Pbd': pbound,
                 't0bd': t0bound, 'tfbd': tfbound, 'addXbd': addXbound}
+
+    def parse_sol(self, sol):
+        """Call parseX function from utility and return a dict of solution."""
+        X, U, P = self.__parseX__(sol)
+        if self.dimp == 0:
+            P = None
+        h, tgrid = self.__get_time_grid__(sol)
+        obj = self.__parseObj__(sol)
+        if self.lenAddX == 0:
+            return {'t': tgrid, 'x': X, 'u': U, 'p': P, 'obj': obj}
+        else:
+            return {'t': tgrid, 'x': X, 'u': U, 'p': P, 'addx': self.__parseAddX__(sol), 'obj': obj}
+
+    def __get_time_grid__(self, x):
+        """Based on initial guess x, get the time grid for discretization.
+
+        :param x: ndarray, the guess/sol.
+        :returns: h: float, grid size
+        :returns: useT: the grid being used
+
+        """
+        if self.fixt0:
+            uset0 = self.t0
+        else:
+            uset0 = x[self.t0ind]
+        if self.fixtf:
+            usetf = self.tf
+        else:
+            usetf = x[self.tfind]
+        h = (usetf - uset0) / (self.N - 1)
+        useT = np.linspace(uset0, usetf, self.N)
+        return h, useT
+
+    def __parseObj__(self, x):
+        return x[self.numSol - self.objaddn:]
 
     def __parseAddX__(self, x):
         numTraj = self.numTraj
@@ -782,16 +920,16 @@ class trajOptProblem(probFun):
                     G[curNg: curNg + dimx] = -1.0
                     if rec:
                         row[curNg: curNg + dimx] = curRow + np.arange(dimx)
-                        col[curNg: curNg + dimx] = np.arange((i+1)*dimx, (i+2)*dimx)
+                        col[curNg: curNg + dimx] = np.arange(dimx) + (i + 1) * self.dimpoint
                     curNg += dimx
                     if self.t0ind > 0:
-                        G[curNg: curNg + dimx] = -ydot/(self.N - 1) + Jac.getcol(0).toarray() * (1 - float(i)/(self.N - 1.0))
+                        G[curNg: curNg + dimx] = -ydot/(self.N - 1) + Jac.getcol(0).toarray()[:, 0] * (1 - float(i)/(self.N - 1.0))
                         if rec:
                             row[curNg: curNg + dimx] = curRow + np.arange(dimx)
                             col[curNg: curNg + dimx] = self.t0ind
                         curNg += dimx
                     if self.tfind > 0:
-                        G[curNg: curNg + dimx] = ydot/(self.N - 1) + Jac.getcol(0).toarray() * (float(i)/(self.N - 1.0))
+                        G[curNg: curNg + dimx] = ydot/(self.N - 1) + Jac.getcol(0).toarray()[:, 0] * (float(i)/(self.N - 1.0))
                         if rec:
                             row[curNg: curNg + dimx] = curRow + np.arange(dimx)
                             col[curNg: curNg + dimx] = self.tfind
@@ -929,6 +1067,10 @@ class trajOptProblem(probFun):
         self.__objModeF__(0, h, useT, useX, useU, useP, x, y)
         return y[0]
 
+    def __cost__(self, x):
+        print("Enter cost")
+        return self.ipEvalF(x)
+
     def ipEvalGradF(self, x):
         """Evaluation of the gradient of objective function.
 
@@ -940,16 +1082,12 @@ class trajOptProblem(probFun):
         mask = self.Arow == 0
         tmpG[self.Acol[mask]] = self.Aval[mask]
         return tmpG
-        # h, useT = self.__getTimeGrid(x)
-        # useX, useU, useP = self.__parseX__(x)
-        # y = np.zeros(self.numF)
-        # tmpG = np.zeros(self.numSol)
-        # spG = np.zeros(self.numObjG)
-        # spRow = np.zeros(self.numObjG, dtype=int)
-        # spCol = np.zeros(self.numObjG, dtype=int)
-        # self.__objModeG(0, 0, h, useT, useX, useU, useP, x, y, spG, spRow, spCol, True, True)
-        # tmpG[spCol] = spG
-        # return tmpG
+
+    def __gradient__(self, x, g):
+        print("Enter gradient")
+        mask = self.Arow == 0
+        g[self.Acol[mask]] = self.Aval[mask]
+        return True
 
     def ipEvalG(self, x):
         """Evaluation of the constraint function.
@@ -968,6 +1106,14 @@ class trajOptProblem(probFun):
         else:
             self.__callf__(x, y)
         return y
+
+    def __constraint__(self, x, f):
+        print("Enter constraint")
+        G = np.zeros(1)
+        row = np.zeros(1, dtype=int)
+        col = np.zeros(1, dtype=int)
+        self.__callg__(x, f, G, row, col, False, False)
+        return 0
 
     def ipEvalJacG(self, x, flag):
         """Evaluate jacobian of constraints. I simply call __callg__
@@ -989,20 +1135,18 @@ class trajOptProblem(probFun):
             self.__callg__(x, y, G, row, col, False, True)
             return G
 
-    def __patchCol__(self, index, col):
+    def __jacobian__(self, x, g, row, col, rec):
+        print("Enter Jacobian")
+        y = np.zeros(self.numF)
+        self.__callg__(x, y, g, row, col, rec, True)
+        return 1
+
+    def __patchCol__(self, index, col, col_offset=0):
         """Find which indices it belongs to the original one for a local matrix at col"""
-        dimx, dimu, dimp = self.dimx, self.dimu, self.dimp
-        newcol = col[col > 0].copy()  # TODO: check if __patchCol__ causes error when time is involved.
-        maskx = (col > 0) & (col < 1 + dimx)
-        if index == -1:
-            index = self.N - 1
-        newcol[maskx] = index * self.dimx + col[maskx] - 1
-        masku = (col >= 1 + dimx) & (col < 1 + dimx + dimu)
-        newcol[masku] = self.numX + index * self.dimu + col[masku] - 1 - dimx
-        if self.dimp > 0:
-            maskp = (col >= 1 + dimx + dimu) & (col < 1 + dimx + dimu + dimp)
-            newcol[maskp] = self.numX + self.numU + index * self.dimp + col[maskp] - 1 - dimx - dimu
-        return newcol
+        col = col[col > 0]
+        if index < 0:
+            index = index + self.N
+        return col - 1 + col_offset + index * self.dimpoint
 
     def parseSol(self, sol):
         """Call parseX function from utility and return a dict of solution."""
@@ -1031,6 +1175,8 @@ class trajOptProblem(probFun):
         else:
             tfweight = 0.0
         self.LQRnG = (self.N - 1) * (useQ + useR + useP) + useF + self.numT
+        num1 = (self.N - 1) * (useQ + useR + useP)
+        baseCol = self.dimpoint * np.arange(self.N - 1)[:, np.newaxis]  # a nPoint by 1 column matrix
 
         def __callf__(h, useX, useU, useP_):
             """Calculate the lqr cost.
@@ -1064,6 +1210,9 @@ class trajOptProblem(probFun):
             :param needg: if we need gradient information.
 
             """
+            if rec:
+                row[:] = 0
+                col_ = np.reshape(col[:num1], (self.N - 1, -1))
             if not needg:
                 y[0] = __callf__(h, useX, useU, useP_)
             else:
@@ -1073,45 +1222,40 @@ class trajOptProblem(probFun):
                 yP = 0.0
                 yTf = tfweight * (h * (self.N - 1))
                 curG = 0
+                G_ = G[:num1].reshape((self.N - 1, -1))
                 if useQ > 0:
                     yQ = np.sum(lqrobj.Q.data * np.sum((useX[:-1, Qcol] - lqrobj.xbase[Qcol]) ** 2, axis=0)) * h
-                    G[curG: curG + (self.N - 1) * useQ] = 2.0 * h * ((useX[:-1, Qcol] - lqrobj.xbase[Qcol]) * lqrobj.Q.data).flatten()
+                    G_[:, :useQ] = 2 * h * ((useX[:-1, Qcol] - lqrobj.xbase[Qcol]) * lqrobj.Q.data)
                     if rec:
-                        row[curG: curG + useQ * (self.N - 1)] = 0
-                        col[curG: curG + useQ * (self.N - 1)] = (Qcol + self.dimx*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()
+                        col_[:, :useQ] = Qcol + baseCol
                     curG += (self.N - 1) * useQ
                 if useR > 0:
                     yR = np.sum(lqrobj.R.data * np.sum((useU[:-1, Rcol] - lqrobj.ubase[Rcol]) ** 2, axis=0)) * h
-                    G[curG: curG + (self.N - 1) * useR] = 2.0 * h * ((useU[:-1, Rcol] - lqrobj.ubase[Rcol]) * lqrobj.R.data).flatten()
+                    G_[:, useQ: useQ + useR] = 2 * h * ((useU[:-1, Rcol] - lqrobj.ubase[Rcol]) * lqrobj.R.data)
                     if rec:
-                        row[curG: curG + useR * (self.N - 1)] = 0
-                        col[curG: curG + useR * (self.N - 1)] = (self.numX + Rcol + self.dimu*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()
+                        col_[:, useQ: useQ + useR] = Rcol + baseCol + self.dimx
                     curG += (self.N - 1) * useR
                 if useP > 0:
                     yP = np.sum(lqrobj.P.data * np.sum((useP_[:-1, Pcol] - lqrobj.pbase[Pcol]) ** 2, axis=0)) * h
-                    G[curG: curG + (self.N - 1) * useP] = 2.0 * h * ((useP_[:-1, Pcol] - lqrobj.pbase[Pcol]) * lqrobj.P.data).flatten()
+                    G_[:, useQ + useR: useQ + useR + useP] = 2 * h * (useP_[:-1, Pcol] - lqrobj.pbase[Pcol]) * lqrobj.P.data
                     if rec:
-                        row[curG: curG + useP * (self.N - 1)] = 0
-                        col[curG: curG + useP * (self.N - 1)] = (self.numX + self.numU + Pcol + self.dimp*(np.arange(0, self.N - 1)[:, np.newaxis])).flatten()
+                        col_[:, useQ + useR: useQ + useR + useP] = Pcol + baseCol + self.dimx + self.dimu
                     curG += (self.N - 1) * useP
                 if useF > 0:
                     yF = np.sum(lqrobj.F.data * ((useX[-1, Fcol] - lqrobj.xfbase[Fcol]) ** 2))
-                    G[curG: curG + useF] = 2.0 * lqrobj.F.data * (useX[-1, Fcol] - lqrobj.xfbase[Fcol])
+                    G[curG: curG + useF] = 2 * lqrobj.F.data * (useX[-1, Fcol] - lqrobj.xfbase[Fcol])
                     if rec:
-                        row[curG: curG + useF] = 0
                         col[curG: curG + useF] = np.arange(self.numX - self.dimx, self.numX)
                     curG += useF
                 if self.t0ind > 0:
                     G[curG] = -(yQ + yR + yP) / h / (self.N - 1) - tfweight
                     if rec:
-                        row[curG: curG+1] = 0
-                        col[curG: curG+1] = self.t0ind
+                        col[curG: curG + 1] = self.t0ind
                     curG += 1
                 if self.tfind > 0:
                     G[curG] = (yQ + yR + yP) / h / (self.N - 1) + tfweight
                     if rec:
-                        row[curG: curG+1] = 0
-                        col[curG: curG+1] = self.tfind
+                        col[curG: curG + 1] = self.tfind
                     curG += 1
                 y[0] = yF + yQ + yR + yP + yTf
 

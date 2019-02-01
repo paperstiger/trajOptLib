@@ -64,13 +64,16 @@ public:
 
         cMapV Mx(x0_, n);
 
+        std::cout << "Enter constructor\n";
+
         if(prob.ipStyle) {
+            std::cout << "call evalJac function on first entry\n";
             prob.evalJac(Mx, G, rows, cols, true);
             // std::cout << "rows = " << rows << std::endl;
             // std::cout << "cols = " << cols << std::endl;
         }
         else{
-            prob(Mx, F, G, rows, cols, true, true);
+            prob.operator()(Mx, F, G, rows, cols, true, true);
             for(int i = 0; i < prob.nG; i++)
                 if(rows(i) == 0)
                     g_obj_index.push_back(cols(i));
@@ -240,6 +243,7 @@ private:
         }
         else {
             if(prob.ipStyle){
+                std::cout << "call evalJac function\n";
                 cMapV Mx(x, n);
                 MapV G(values, prob.nG);
                 VXi row(0), col(0);

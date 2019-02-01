@@ -1,4 +1,5 @@
 # import from other directories
+import pyoptsolver
 from pyoptsolver import SnoptConfig, SnoptSolver, OptProblem as SnoptProblem
 from pyoptsolver import SnoptConfig as snoptConfig, SnoptSolver as solver, OptProblem as probFun, OptResult as result
 from pyoptsolver import IpoptSolver as ipSolver, IpoptConfig as ipOption
@@ -19,6 +20,7 @@ from .trajOptMultiPhaseCollocationProblem import TrajOptMultiPhaseCollocProblem
 from .trajOptManifoldCollocationProblem import manifoldConstr, trajOptManifoldCollocProblem
 
 from .classBuilder import systemWrapper, daeSystemWrapper, nonLinearPointConstrWrapper, blockIndex
+from .systemBuilder import GeometricRobot, GeometricRobotSystem
 
 from .oopInterface import AbstractSolver
 

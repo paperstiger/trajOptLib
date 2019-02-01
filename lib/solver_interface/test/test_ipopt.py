@@ -10,7 +10,7 @@
 Test ipopt solver here.
 """
 import numpy as np
-from libpyipopt import IpoptProblem, solve_problem, IpoptConfig, IpoptSolver
+from pyoptsolver import OptProblem as IpoptProblem, solve_problem, IpoptConfig, IpoptSolver
 
 
 class BasicQP(IpoptProblem):
@@ -44,23 +44,23 @@ class IpQP(IpoptProblem):
         self.set_xub(2*np.ones(2))
         self.set_lb([1.0, 1.0])
         self.set_ub([3.0, 5.0])
-        self.ipstyle()
+        self.ipopt_style()
 
-    def eval_cost(self, x):
+    def __cost__(self, x):
         num = np.sum(x ** 2)
         return float(num)
 
-    def eval_gradient(self, x, g):
+    def __gradient__(self, x, g):
         g[:] = 2 * x
         return True
 
-    def eval_constr(self, x, g):
+    def __constraint__(self, x, g):
         x1, x2 = x
         g[0] = x1 * x2
         g[1] = x1 + x2
         return 2
 
-    def eval_jacobian(self, x, g, row, col, rec):
+    def __jacobian__(self, x, g, row, col, rec):
         x1, x2 = x
         if rec:
             row[:] = [0, 0, 1, 1]
