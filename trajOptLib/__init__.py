@@ -2,8 +2,12 @@
 import pyoptsolver
 from pyoptsolver import SnoptConfig, SnoptSolver, OptProblem as SnoptProblem
 from pyoptsolver import SnoptConfig as snoptConfig, SnoptSolver as solver, OptProblem as probFun, OptResult as result
-from pyoptsolver import IpoptSolver as ipSolver, IpoptConfig as ipOption
-from pyoptsolver import IpoptSolver as IpSolver, IpoptConfig as IpOption
+try:
+    from pyoptsolver import IpoptSolver as ipSolver, IpoptConfig as ipOption
+    from pyoptsolver import IpoptSolver as IpSolver, IpoptConfig as IpOption
+except:
+    from pyoptsolver import SnoptSolver as ipSolver, SnoptConfig as ipOption
+    from pyoptsolver import SnoptSolver as IpSolver, SnoptConfig as IpOption
 
 from .trajOptProblem import trajOptProblem
 from .trajOptBase import system, daeSystem, baseFun, addX
