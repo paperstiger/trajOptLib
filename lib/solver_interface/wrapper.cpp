@@ -37,7 +37,7 @@ class pyProbFun: public ProblemFun{
                     );
         }
 
-        pint operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg) override {
+        pint operator()(cRefV x, RefV F, RefV G, RefVl row, RefVl col, bool rec, bool needg) override {
             PYBIND11_OVERLOAD_NAME(
                     pint,
                     ProblemFun,
@@ -47,6 +47,7 @@ class pyProbFun: public ProblemFun{
                     );
         }
 
+#ifdef ENABLEIP
         double evalF(cRefV x) override{
             PYBIND11_OVERLOAD_NAME(
                     double,
@@ -96,6 +97,7 @@ class pyProbFun: public ProblemFun{
                     x, sigma, lmd, g, row, col, rec
                     );
         }
+#endif
 };
 
 
@@ -284,6 +286,9 @@ PYBIND11_MODULE(pyoptsolver, m){
                 row (ndarray): the row part of the returned Jacobian triplet.
                 col (ndarray): the column part of the returned Jacobian triplet.
         )pydoc")
+        .def("__callf__", (int (ProblemFun::*)(cRefV, RefV)) &pyProbFun::operator())
+        .def("__callg__", (std::pair<int, int> (ProblemFun::*)(cRefV, RefV, RefV, RefVl, RefVl, bool, bool)) &pyProbFun::operator())
+#ifdef ENABLEIP
         .def("eval_cost", [](ProblemFun* self, cRefV x) {return self->evalF(x);})
         .def("eval_gradient", [](ProblemFun* self, cRefV x) {VX grad(self->nf); self->evalGrad(x, grad); return grad;})
         .def("eval_constr", [](ProblemFun* self, cRefV x) {VX grad(self->nf); self->evalGrad(x, grad); return grad;})
@@ -294,13 +299,12 @@ PYBIND11_MODULE(pyoptsolver, m){
               self->evalJac(x, g, row, col, true);
               return std::make_tuple(g, row, col);
             })
-        .def("__callf__", (int (ProblemFun::*)(cRefV, RefV)) &pyProbFun::operator())
-        .def("__callg__", (std::pair<int, int> (ProblemFun::*)(cRefV, RefV, RefV, RefVi, RefVi, bool, bool)) &pyProbFun::operator())
         .def("__cost__", &ProblemFun::evalF)
         .def("__constraint__", &ProblemFun::evalG)
         .def("__gradient__", &ProblemFun::evalGrad)
         .def("__jacobian__", &ProblemFun::evalJac)
         .def("__hessian__", &ProblemFun::evalHess)
+#endif
         .def("ipopt_style", [](ProblemFun *self) {self->ipStyle=true;})
         .def("snopt_style", [](ProblemFun *self) {self->ipStyle=false;})
         .def_readonly("ipstyle", &pyProbFun::ipStyle)
@@ -544,6 +548,8 @@ PYBIND11_MODULE(pyoptsolver, m){
         ;
 
     m.def("solve_problem", &solve_problem);
+
+    m.def("set_verbosity", [](bool verbose) {VERBOSE = verbose;});
 #endif
 
 #ifdef VERSION_INFO

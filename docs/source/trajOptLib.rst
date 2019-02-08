@@ -20,26 +20,10 @@ trajOptLib.classBuilder module
     :undoc-members:
     :show-inheritance:
 
-trajOptLib.ipoptWrapper module
-------------------------------
-
-.. automodule:: trajOptLib.ipoptWrapper
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 trajOptLib.oopInterface module
 ------------------------------
 
 .. automodule:: trajOptLib.oopInterface
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-trajOptLib.snoptWrapper module
-------------------------------
-
-.. automodule:: trajOptLib.snoptWrapper
     :members:
     :undoc-members:
     :show-inheritance:

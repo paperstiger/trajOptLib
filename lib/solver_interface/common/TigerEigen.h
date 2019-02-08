@@ -6,6 +6,7 @@ typedef Eigen::VectorXd VX;
 typedef Eigen::RowVectorXd rVX;
 typedef Eigen::MatrixXd MX;
 typedef Eigen::VectorXi VXi;
+typedef Eigen::Matrix<long, -1, 1> VXl;
 typedef Eigen::Map<VX> MapV;
 typedef Eigen::Map<MX> MapM;
 typedef Eigen::Map<VXi> MapVi;
@@ -17,6 +18,7 @@ typedef const Eigen::Ref<const VXi> cRefVi;
 typedef Eigen::Ref<VX> RefV;
 typedef Eigen::Ref<MX> RefM;
 typedef Eigen::Ref<VXi> RefVi;
+typedef Eigen::Ref<VXl> RefVl;
 //For row matrices
 typedef Eigen::Matrix<double, -1, -1, Eigen::RowMajor> rMX;
 typedef Eigen::Map<rVX> rMapV;

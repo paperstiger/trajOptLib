@@ -10,7 +10,7 @@
 Test ipopt solver here.
 """
 import numpy as np
-from pyoptsolver import OptProblem as IpoptProblem, solve_problem, IpoptConfig, IpoptSolver
+from pyoptsolver import OptProblem as IpoptProblem, solve_problem, IpoptConfig, IpoptSolver, set_verbosity
 
 
 class BasicQP(IpoptProblem):
@@ -75,8 +75,8 @@ class Demo(IpoptProblem):
     def __init__(self, ip=False):
         self.ip = ip
         if ip:
-            self.ipstyle()
             IpoptProblem.__init__(self, 4, 2, 8)
+            self.ipopt_style()
             self.set_lb([25, 40.])
             self.set_ub([2e19, 40.0])
         else:
@@ -161,19 +161,19 @@ class Demo(IpoptProblem):
 
 
 def main():
-    # prob = Demo(True)
-    prob = Demo(False)
+    use_ip = False
+    prob = Demo(use_ip)
     x0 = np.array([1.0, 5.0, 5.0, 1.0])
     config = IpoptConfig()
-    config.hessian_approximation = 'exact'
+    # config.hessian_approximation = 'exact'
     solver = IpoptSolver(prob, config)
     result = solver.solve_guess(x0)
     print(result.sol)
 
 
 def main2():
-    # prob = BasicQP()
-    prob = IpQP()
+    prob = BasicQP()
+    # prob = IpQP()
     x0 = np.ones(2)
     config = IpoptConfig()
     config.print_level = 5
@@ -185,4 +185,4 @@ def main2():
 
 
 if __name__ == '__main__':
-    main()
+    main2()

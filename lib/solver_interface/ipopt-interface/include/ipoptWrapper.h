@@ -64,36 +64,34 @@ public:
 
         cMapV Mx(x0_, n);
 
-        std::cout << "Enter constructor\n";
-
         if(prob.ipStyle) {
             std::cout << "call evalJac function on first entry\n";
+#ifdef ENABLEIP
             prob.evalJac(Mx, G, rows, cols, true);
+#endif
             // std::cout << "rows = " << rows << std::endl;
             // std::cout << "cols = " << cols << std::endl;
         }
         else{
             prob.operator()(Mx, F, G, rows, cols, true, true);
+            std::cout << "nG = " << prob.nG << std::endl;
             for(int i = 0; i < prob.nG; i++)
                 if(rows(i) == 0)
-                    g_obj_index.push_back(cols(i));
+                    g_obj_index.push_back(i);
+            std::cout << "nA = " << prob.Aval.size() << std::endl;
             for(int i = 0; i < prob.Aval.size(); i++)
                 if(prob.Arow(i) == 0)
-                    a_obj_index.push_back(prob.Acol(i));
+                    a_obj_index.push_back(i);
+            std::cout << "g obs size " << g_obj_index.size();
+            std::cout << "a obs size " << a_obj_index.size();
         }
     }
 
     VX sol, lmd, mu, c;
     double cost;
-private:
-    ProblemFun &prob;  // this stores the vector
-    const double *x0;  // store the pointer to initial guess
-    VX F, G;
-    std::vector<int> a_obj_index, g_obj_index;  // record which entries are in first row
-    VXi rows, cols;
-    bool last_has_grad = false;
 
-    bool get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
+
+    virtual bool get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
             Index& nnz_h_lag, IndexStyleEnum& index_style) {
         n = prob.nx;
         m = prob.nf;
@@ -101,12 +99,12 @@ private:
         if(prob.hess_nnz > 0)
             nnz_h_lag = prob.hess_nnz;
         else
-            nnz_h_lag = n * n;
+            nnz_h_lag = n * (n + 1) / 2;
         index_style = C_STYLE;
         return true;
     }
 
-    bool get_bounds_info(Index n, double* x_lower, double* x_upper,
+    virtual bool get_bounds_info(Index n, double* x_lower, double* x_upper,
             Index m, double* g_l, double* g_u)
     {
         for (uint c=0; c < prob.nx; ++c) {
@@ -123,11 +121,10 @@ private:
         print_array("xup", x_upper, prob.nx);
         print_array("cl", g_l, prob.nf);
         print_array("cu", g_u, prob.nf);
-
         return true;
     }
 
-    bool get_starting_point(Index n, bool init_x, double* x,
+    virtual bool get_starting_point(Index n, bool init_x, double* x,
             bool init_z, double* z_L, double* z_U,
             Index m, bool init_lambda,
             double* lambda)
@@ -144,9 +141,9 @@ private:
         return true;
     }
 
-    void receive_new_x(const double *x, bool needg) {
+    virtual void receive_new_x(const double *x, bool needg) {
         cMapV Mx(x, prob.nx);
-        VXi row(1), col(1);
+        VXl row(1), col(1);
         F.array() = 0;
         prob(Mx, F, G, row, col, false, needg);
         last_has_grad = needg;
@@ -156,13 +153,15 @@ private:
         }
     }
 
-    bool eval_f(Index n, const double* x, bool new_x, double& obj_value)
+    virtual bool eval_f(Index n, const double* x, bool new_x, double& obj_value)
     {
         if(prob.ipStyle){
+#ifdef ENABLEIP
             cMapV Mx(x, n);
             double value = prob.evalF(Mx);
             // printf("obj = %f\n", value);
             obj_value = value;
+#endif
             return true;
         }
         else{
@@ -175,15 +174,17 @@ private:
         }
     }
 
-    bool eval_grad_f(Index n, const double* x, bool new_x, double* grad_f)
+    virtual bool eval_grad_f(Index n, const double* x, bool new_x, double* grad_f)
     {
         if(prob.ipStyle) {
+#ifdef ENABLEIP
             cMapV Mx(x, n);
             MapV grad(grad_f, n);
             bool ret = prob.evalGrad(Mx, grad);
             print_array("grad=", grad_f, n);
-            // append linear term inside, using previous style
             return ret;
+#endif
+            return true;
         }
         else{
             if(new_x)
@@ -200,9 +201,10 @@ private:
         }
     }
 
-    bool eval_g(Index n, const double* x, bool new_x, Index m, double* g)
+    virtual bool eval_g(Index n, const double* x, bool new_x, Index m, double* g)
     {
         if(prob.ipStyle) {
+#ifdef ENABLEIP
             cMapV Mx(x, n);
             MapV gfun(g, m);
             gfun.array() = 0;
@@ -210,18 +212,19 @@ private:
             for(int i = 0; i < prob.Aval.size(); i++)
                 gfun(prob.Arow(i)) += prob.Aval(i) * x[prob.Acol(i)];
             print_array("g=", g, m);
+#endif
             return true;
         }
         else{
             if(new_x || !last_has_grad)
                 receive_new_x(x, true);
-            MapV(g,m) = F;
+            MapV(g, m) = F;
             print_array("g=", g, m);
             return true;
         }
     }
 
-    bool eval_jac_g(Index n, const double* x, bool new_x,
+    virtual bool eval_jac_g(Index n, const double* x, bool new_x,
             Index m, Index nele_jac, Index* iRow, Index *jCol,
             double* values)
     {
@@ -243,6 +246,7 @@ private:
         }
         else {
             if(prob.ipStyle){
+#ifdef ENABLEIP
                 std::cout << "call evalJac function\n";
                 cMapV Mx(x, n);
                 MapV G(values, prob.nG);
@@ -250,6 +254,7 @@ private:
                 int ret = prob.evalJac(Mx, G, row, col, false);
                 MapV(values + prob.nG, prob.Aval.size()) = prob.Aval;
                 print_array("jac=", values, prob.nG + prob.Aval.size());
+#endif
             }
             else{
                 // only gets used if "jacobian_approximation finite-difference-values" is not set
@@ -261,31 +266,33 @@ private:
                 print_array("jac=", values, prob.nG + prob.Aval.size());
             }
         }
-
         return true;
     }
 
-    bool eval_h(Index n, const Number* x, bool new_x,
+    virtual bool eval_h(Index n, const Number* x, bool new_x,
                 Number obj_factor, Index m, const Number *lambda,
                 bool new_lambda, Index nele_hess, Index* iRow,
                 Index* jCol, Number* values) {
+        std::cout << "Entering hessian evaluation\n";
         cMapV Mx(x, n);
         cMapV lmd(lambda, m);
         MapV G(values, nele_hess);
         MapVi row(iRow, nele_hess);
         MapVi col(jCol, nele_hess);
+#ifdef ENABLEIP
         if (values == NULL) {
             prob.evalHess(Mx, obj_factor, lmd, G, row, col, true);
         }
         else {
             prob.evalHess(Mx, obj_factor, lmd, G, row, col, false);
         }
+#endif
         return true;
     }
 
     /** This method is called when the algorithm is complete so the TNLP can
     * store/write the solution */
-    void finalize_solution(SolverReturn status,
+    virtual void finalize_solution(SolverReturn status,
                                  Index n, const double* x, const double* z_L, const double* z_U,
                                  Index m, const double* g, const double* lambda,
                                  double obj_value,
@@ -298,6 +305,14 @@ private:
         c = cMapV(g, m);
     }
 
+private:
+    ProblemFun &prob;  // this stores the vector
+    const double *x0;  // store the pointer to initial guess
+    VX F, G;
+    std::vector<int> a_obj_index, g_obj_index;  // record which entries are in first row
+    VXl rows, cols;
+    bool last_has_grad = false;
+
 };
 
 };
@@ -308,7 +323,7 @@ public:
     int print_level = 5;
     int print_frequency_iter = 10;
     int max_iter = 1000;
-    string linear_solver = "mumps";
+    string linear_solver = "ma27";
     string hessian_approximation = "limited-memory";
     string jacobian_approximation = "exact";
     string derivative_test = "none";

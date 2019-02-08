@@ -1,7 +1,6 @@
-trajOptLib
-==========
+docs
+====
 
 .. toctree::
    :maxdepth: 4
 
-   trajOptLib

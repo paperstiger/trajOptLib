@@ -18,7 +18,7 @@ void toyusrf_(integer    *Status, integer *n,    doublereal x[],
     MapV Mx(x, *n);
     if(PROB->getGrad()){
         MapV value(G, *neG);
-        VXi row(1), col(1);
+        VXl row(1), col(1);
         bool rec = false;
         bool needg = true;
         if(*needG == 0)

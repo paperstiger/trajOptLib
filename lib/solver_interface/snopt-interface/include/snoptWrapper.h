@@ -14,7 +14,6 @@
 #include "time.h"
 #include "TigerEigen.h"
 #include "toyfunction.h"
-#include "functionBase.h"
 #include "snoptProblem.hh"
 #include "utils.h"
 
@@ -185,7 +184,11 @@ public:
             MapVi row(iGfun, lenG), col(jGvar, lenG);
             MapV Gvalue(G, lenG);
             MapV mX(x, n);
-            prob->operator()(mX, mV, Gvalue, row, col, true, true);
+            VXl lrow = row.cast<long>();
+            VXl lcol = col.cast<long>();
+            prob->operator()(mX, mV, Gvalue, lrow, lcol, true, true);
+            row = lrow.cast<int>();
+            col = lcol.cast<int>();
         }
         ToyProb.setG          ( lenG, iGfun, jGvar );
         if(!prob->getGrad()){
@@ -425,7 +428,7 @@ public:
         MapV Mx(_x, n);
         if(prob->getGrad()){
             MapM g(G, 1, lenG);
-            VXi row(1), col(1);
+            VXl row(1), col(1);
             prob->operator()(Mx, c, value, row, col, false, false);
         }
         else{

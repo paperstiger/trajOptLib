@@ -15,21 +15,15 @@ import sys, os, time
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
-sys.path.append('../')
 from trajOptLib.io import getOnOffArgs
 from trajOptLib.trajOptBase import system, nonLinearPointObj, lqrObj
 from trajOptLib.trajOptProblem import trajOptProblem
 from trajOptLib import snoptConfig, probFun, solver
 from trajOptLib.utility import showSol
-from trajOptLib import ipSolver
+from trajOptLib import ipSolver, ipOption
 from scipy.sparse import coo_matrix
 
 
-if False:
-    import pydevd
-    pydevd.settrace('10.197.84.153', port=10000, stdoutToServer=True, stderrToServer=True)
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class oneDcase(system):
@@ -169,8 +163,8 @@ def ipMode(lqr):
     prob = trajOptProblem(sys, N, t0, tf, gradmode=True)
     prob.xbd = [np.array([-1e20, -1e20]), np.array([1e20, 1e20])]
     prob.ubd = [np.array([-1e20]), np.array([1e20])]
-    prob.x0bd = [np.array([0, 0]), np.array([0, 0])]
-    prob.xfbd = [np.array([1, 0]), np.array([1, 0])]
+    prob.x0bd = [np.array([0., 0]), np.array([0., 0])]
+    prob.xfbd = [np.array([1., 0]), np.array([1., 0])]
     if not lqr:
         prob.addNonLinearPointObj(cost, True)  # add a path cost
     else:
@@ -178,8 +172,9 @@ def ipMode(lqr):
         prob.addLQRObj(lqr)
     prob.preProcess()  # construct the problem
     # construct a solver for the problem
-    slv = ipSolver(prob)
-    rst = slv.solveRand()
+    config = ipOption()
+    slv = ipSolver(prob, config)
+    rst = slv.solve_rand()
     print(rst.flag, rst.sol)
     if rst.flag == 1:
         # parse the solution

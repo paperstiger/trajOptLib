@@ -11,8 +11,15 @@
 #include <vector>
 #include <tuple>
 #include <string>
+#include <exception>
 #include "TigerEigen.h"
 #include "functionBase.h"
+
+
+class NotImplementedError : public std::logic_error{
+public:
+    NotImplementedError() : std::logic_error("Not implemented error") {};
+};
 
 
 class optResult{
@@ -64,15 +71,23 @@ public:
         _allocate_space();
     }
 
-    virtual int operator()(cRefV x, RefV F){return 0;};  // A function to be overwritten by subclass, this is called to evaluate
+    virtual int operator()(cRefV x, RefV F){
+        throw NotImplementedError();
+        return 0;
+    };  // A function to be overwritten by subclass, this is called to evaluate
 
-    virtual std::pair<int, int> operator()(cRefV x, RefV F, RefV G, RefVi row, RefVi col, bool rec, bool needg){return std::make_pair(0, 0);};  // A function to be overwritten by subclass, this is called for both assigning structure.
+    virtual std::pair<int, int> operator()(cRefV x, RefV F, RefV G, RefVl row, RefVl col, bool rec, bool needg){
+        throw NotImplementedError();
+        return std::make_pair(0, 0);
+    };  // A function to be overwritten by subclass, this is called for both assigning structure.
 
+#ifdef ENABLEIP
     virtual double evalF(cRefV x) {return 0;};
     virtual bool evalGrad(cRefV x, RefV grad) {return true;};
     virtual int evalG(cRefV x, RefV g) {return 0;};
     virtual int evalJac(cRefV x, RefV G, RefVi row, RefVi col, bool rec) {return 0;};
     virtual int evalHess(cRefV x, double sigma, cRefV lmd, RefV G, RefVi row, RefVi col, bool rec) {return 0;}
+#endif
 
     void _allocate_space() {
         if(lb.size() < nf){
@@ -228,7 +243,7 @@ public:
         }
         else{
             VX G(nG);
-            VXi row(nG), col(nG);
+            VXl row(nG), col(nG);
             auto rst = operator()(x, F, G, row, col, false, true);  // we needg, but not recording.
             nf = rst.first;
             ProblemFun::nG = rst.second;
@@ -246,9 +261,9 @@ public:
     }
 
     // use this function to evaluate the problem function once, call __callf__
-    std::tuple<VX, VX, VXi, VXi> eval_g(cRefV x){
+    std::tuple<VX, VX, VXl, VXl> eval_g(cRefV x){
         VX F(nf), G(nG);
-        VXi row(nG), col(nG);
+        VXl row(nG), col(nG);
         operator()(x, F, G, row, col, true, true);
         _add_linear_part(F, x);
         return std::make_tuple(F, G, row, col);
@@ -266,8 +281,8 @@ public:
         VX x = randomGenX();
         VX F(nf);
         VX G(maxnG);
-        VXi row = -1 * VXi::Ones(maxnG);
-        VXi col = -1 * VXi::Ones(maxnG);
+        VXl row = -1 * VXl::Ones(maxnG);
+        VXl col = -1 * VXl::Ones(maxnG);
         operator()(x, F, G, row, col, true, true);
         int i = 0;
         bool found = false;

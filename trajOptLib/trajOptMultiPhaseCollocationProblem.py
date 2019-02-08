@@ -114,7 +114,7 @@ class NonLinearConnectConstr(object):
 class LinearConnectConstr(object):
     """Class for defining linear constraint functions."""
     def __init__(self, phase1, phase2, a1, a2, lb=None, ub=None, index1=-1, index2=0, adda=None, addx_index=None):
-        """Constructor for nonlinear point constraint. Also serve as path constraint.
+        """Constructor for linear point constraint. Also serve as path constraint.
 
         :param phase1/phase2: int, phase number that constraint is imposed. We read data from them
         :param a1/a2: ndarray, the constraint, :math: `l \le A_1 x_1 + A_2 x_2 \le u`
@@ -759,7 +759,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         self.ub = ub
 
     def __set_A_pattern(self, est_num_F, est_num_sol):
-        """Set the pattern of A. 
+        """Set the pattern of A.
 
         We do three things:
         - analyze the linear constraints, generate a list of sparse-like matrix
@@ -929,7 +929,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         return nG
 
     def __calc_nonlinear_obj(self, x, y, G, row, col, curRow, curNg, rec, needg):
-        """Calculate the nonlinear functions. 
+        """Calculate the nonlinear functions.
 
         See :func:`trajOptMultiPhaseCollocationProblem.trajOptMultiPhaseCollocProblem.__calc_nonlinear_constr`
 
@@ -941,7 +941,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         for obj in self.addx_nonlinear_obj:
             idx = obj.index
             i0 = self.__get_addx_leading_column(idx)
-            addx = x[i0: i0 + self.addX[idx].n] 
+            addx = x[i0: i0 + self.addX[idx].n]
             Gpiece = G[curNg: curNg + obj.nG]
             rowpiece = row[curNg: curNg + obj.nG]
             colpiece = col[curNg: curNg + obj.nG]
@@ -959,7 +959,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
                 row[curNg: curNg + obj.nG] = curRow
             curRow += 1
             curNg += obj.nG
-        return curRow, curNg  # TODO: add support for 
+        return curRow, curNg  # TODO: add support for
 
     def __calc_nonlinear_constr(self, curRow, curNg, x, y, G, row, col, rec, needg):
         """Calculation of nonlinear constraints.
@@ -994,7 +994,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
                             col[curNg: curNg + G1.nnz] = phase1.__patchCol__(index1, G1.col, offset1)
                         curNg += G1.nnz
                     else:
-                        curNg = phase1.__copy_into_g__(index1, G, row, col, curRow, curNg, G1.nnz, constr.timeindex[0], 
+                        curNg = phase1.__copy_into_g__(index1, G, row, col, curRow, curNg, G1.nnz, constr.timeindex[0],
                                 False, rec, G1.data, G1.row, G1.col, offset1)
                     # for phase 2
                     if constr.autonomous[1]:  # we are happy
@@ -1059,7 +1059,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             curRow += constr.nf
             curNg += constr.nG
         for constr in self.nonlinear_constr:
-            constr.__callg__(x, y[curRow: curRow + constr.nf], G[curNg: curNg + constr.nG], 
+            constr.__callg__(x, y[curRow: curRow + constr.nf], G[curNg: curNg + constr.nG],
                     row[curNg: curNg + constr.nG], col[curNg: curNg + constr.nG], rec, needg)
             if rec:
                 row[curNg: curNg + constr.nG] += curRow
