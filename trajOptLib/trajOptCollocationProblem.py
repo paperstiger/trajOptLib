@@ -175,6 +175,18 @@ class trajOptCollocProblem(probFun):
         randX = self.randomGenX()
         self.__turnOnGrad__(randX)
 
+    def plot_jacobian(self, savefnm=None):
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        if self.Acol.size > 0:
+            ax.scatter(self.Acol, -self.Arow)
+        randX = self.randomGenX()
+        f, g, row, col = self.eval_g(randX)
+        ax.scatter(col, -row)
+        plt.show()
+        if savefnm is not None:
+            np.savez(savefnm, row=row, col=col, val=g, arow=self.Arow, acol=self.Acol, aval=self.Aval)
+
     def _handleTime(self, t0, tf):
         """Deal with time settings.
 
@@ -1116,8 +1128,8 @@ class trajOptCollocProblem(probFun):
                         G[curNg + 2*dimdyn: curNg + 3*dimdyn] = -1.5 / h
                         G[curNg + 3*dimdyn: curNg + 4*dimdyn] = 1.5 / h
                         if rec:
-                            row[curNg:curNg + dimdyn] = curRow + bscIndex 
-                            row[curNg + dimdyn:curNg + 2*dimdyn] = curRow + bscIndex 
+                            row[curNg:curNg + dimdyn] = curRow + bscIndex
+                            row[curNg + dimdyn:curNg + 2*dimdyn] = curRow + bscIndex
                             col[curNg:curNg + dimdyn] = lefti * dimpoint + j * dimdyn + dimdyn + bscIndex
                             col[curNg + dimdyn:curNg + 2*dimdyn] = righti * dimpoint + j * dimdyn + dimdyn + bscIndex
                             row[curNg + 2*dimdyn:curNg + 3*dimdyn] = curRow + bscIndex + dimdyn
@@ -1624,7 +1636,7 @@ class trajOptCollocProblem(probFun):
         else:
             useweight = []
         index = []
-        for idx in ctrlindex:
+        for idx in index:
             i0 = self.getParamIndexByIndex(idx)
             if mask is None:
                 index.append(np.arange(i0, i0 + self.dimp))

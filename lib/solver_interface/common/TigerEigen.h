@@ -15,6 +15,7 @@ typedef Eigen::Map<const VX> cMapV;
 typedef const Eigen::Ref<const VX> cRefV;
 typedef const Eigen::Ref<const MX> cRefM;
 typedef const Eigen::Ref<const VXi> cRefVi;
+typedef const Eigen::Ref<const VXl> cRefVl;
 typedef Eigen::Ref<VX> RefV;
 typedef Eigen::Ref<MX> RefM;
 typedef Eigen::Ref<VXi> RefVi;

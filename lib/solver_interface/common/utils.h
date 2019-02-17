@@ -9,6 +9,7 @@
 #include <fstream>
 #include <cstdio>
 #include <vector>
+#include <set>
 #include <tuple>
 #include <string>
 #include <exception>
@@ -85,8 +86,8 @@ public:
     virtual double evalF(cRefV x) {return 0;};
     virtual bool evalGrad(cRefV x, RefV grad) {return true;};
     virtual int evalG(cRefV x, RefV g) {return 0;};
-    virtual int evalJac(cRefV x, RefV G, RefVi row, RefVi col, bool rec) {return 0;};
-    virtual int evalHess(cRefV x, double sigma, cRefV lmd, RefV G, RefVi row, RefVi col, bool rec) {return 0;}
+    virtual int evalJac(cRefV x, RefV G, RefVl row, RefVl col, bool rec) {return 0;};
+    virtual int evalHess(cRefV x, double sigma, cRefV lmd, RefV G, RefVl row, RefVl col, bool rec) {return 0;}
 #endif
 
     void _allocate_space() {
@@ -138,6 +139,12 @@ public:
         Aval = val;
         Arow = row;
         Acol = col;
+    }
+
+    void setA(cRefV val, cRefVl row, cRefVl col){
+        Aval = val;
+        Arow = row.cast<int>();
+        Acol = col.cast<int>();
     }
 
     void set_lb(cRefV lb_) {
@@ -297,6 +304,61 @@ public:
         else
             nG = maxnG;  // this is the only possibility
         grad = true;
+    }
+
+    // check if any A or G overlaps, this could be dangerous if it indeed occurs
+    // I have to use vector and set for this
+    // I shall still work in integer space, not long yet
+    // The user has to guarantee ng is already set, like by detect_ng
+    void overlap_check() {
+        assert(nG >= 0);
+        VX x = randomGenX();
+        VX F(nf);
+        VXl row = VXl::Zero(nG), col = row;
+        VX val = VX::Zero(nG);
+        operator()(x, F, val, row, col, true, true);
+        // in most cases, we start from nonlinear and then check linear
+        int A_nnz = Arow.size();
+        if(true) {
+            std::vector<std::set<int> > pool(nf);
+            // loop over nonlinear entry
+            for(int i = 0; i < nG; i++) {
+                auto &seti = pool[col(i)];
+                if(seti.count(row(i)) != 0)
+                    printf("Nonlin row %d col %d overlaps\n", (int)row(i), (int)col(i));
+                else
+                    seti.insert(row(i));
+            }
+            // loop over linear entry
+            for(int i = 0; i < A_nnz; i++) {
+                auto &seti = pool[Acol(i)];
+                if(seti.count(Arow(i)) != 0)
+                    printf("Lin row %d col %d overlaps\n", (int)Arow(i), (int)Acol(i));
+                else
+                    seti.insert(Arow(i));
+            }
+        }
+        /*
+        else{
+            std::vector<std::set<int> > pool(nx);
+            // loop over nonlinear entry
+            for(int i = 0; i < nG; i++) {
+                auto &seti = pool[row(i)];
+                if(seti.count(col(i)) != 0)
+                    printf("Nonlin row %d col %d overlaps\n", (int)row(i), (int)col(i));
+                else
+                    seti.insert(col(i));
+            }
+            // loop over linear entry
+            for(int i = 0; i < A_nnz; i++) {
+                auto &seti = pool[Arow(i)];
+                if(seti.count(Acol(i)) != 0)
+                    printf("Lin row %d col %d overlaps\n", (int)Arow(i), (int)Acol(i));
+                else
+                    seti.insert(Acol(i));
+            }
+        }
+        */
     }
 
     RefV get_lb(){

@@ -159,6 +159,19 @@ class trajOptProblem(probFun):
             randX = self.randomGenX()
             self.__turnOnGrad(randX)
 
+    def plot_jacobian(self, savefnm=None):
+        """Plot the jacobian pattern of this problem."""
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        if self.Acol.size > 0:
+            ax.scatter(self.Acol, -self.Arow)
+        randX = self.randomGenX()
+        f, g, row, col = self.eval_g(randX)
+        ax.scatter(col, -row)
+        plt.show()
+        if savefnm is not None:
+            np.savez(savefnm, row=row, col=col, val=g, arow=self.Arow, acol=self.Acol, aval=self.Aval)
+
     def genGuessFromTraj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None, obj=None, interp_kind='linear'):
         """Generate an initial guess for the problem with user specified information.
 

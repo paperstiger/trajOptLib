@@ -209,6 +209,17 @@ PYBIND11_MODULE(pyoptsolver, m){
                 row (ndarray): the integer row ndarray
                 col (ndarray): thet integer column ndarray
         )pbdoc")
+        .def("set_a_by_triplet", (void (ProblemFun::*)(cRefV, cRefVl, cRefVl)) &pyProbFun::setA, R"pbdoc(
+            Set triplet matrix A by the value, row, column triplet pairs.
+
+            Args:
+                val (ndarray): the value ndarray
+                row (ndarray): the integer row ndarray
+                col (ndarray): thet integer column ndarray
+        )pbdoc")
+        .def("check_overlap", &pyProbFun::overlap_check, R"pbdoc(
+            Check if user provided linear and nonlinear Jacobian has overlap.
+        )pbdoc")
         .def("detect_prob_size", (void (ProblemFun::*)(int, int)) &pyProbFun::detect_prob_size,
                 R"pbdoc(
             Automatically detect nf and nG.
