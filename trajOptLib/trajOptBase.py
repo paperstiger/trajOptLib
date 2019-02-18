@@ -265,7 +265,7 @@ class linearObj(object):
 class linearPointObj(_objectWithMatrix):
     """Class for directly add linear objective function over the entire decision variable.
 
-    It serves for objective function of the form :math:`y=Ax` where :math:`x` is the concatenated vector of state, 
+    It serves for objective function of the form :math:`y=Ax` where :math:`x` is the concatenated vector of state,
     control and parameter at a selected index.
 
     """
@@ -455,16 +455,23 @@ class nonLinearConstr(baseFun):
 
 class linearPointConstr(_objectWithMatrix):
     """Class for linear constraint at selected points."""
-    def __init__(self, index, A, lb=None, ub=None):
+    def __init__(self, index, A, lb=None, ub=None, offset=0):
         self.lb = lb
         self.ub = ub
         self.index = index
         self.A = coo_matrix(A)
+        if offset:
+            row, col = self.A.shape
+            self.A = coo_matrix((self.A.data, (self.A.row, self.A.col + offset)),
+                                shape=(row, col + offset))
 
 
 class linearConstr(object):
     """Class for linear constraints based on the whole x length."""
-    def __init__(self, A, lb=None, ub=None):
+    def __init__(self, A, lb=None, ub=None, offset=0):
         self.A = coo_matrix(A)
+        if offset:
+            row, col = self.A.shape
+            self.A = coo_matrix((self.A.data, (self.A.row, self.A.col + offset)), shape=(row, col + offset))
         self.lb = lb
         self.ub = ub
