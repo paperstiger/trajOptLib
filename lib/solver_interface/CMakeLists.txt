@@ -8,10 +8,6 @@ find_package(pybind11 REQUIRED)
 option(BUILD_SNOPT "Build with SNOPT" ON)
 option(BUILD_IPOPT "Build with IPOPT" ON)
 
-add_executable(ip ipopt-interface/src/ipoptTest.cpp)
-target_link_libraries(ip PRIVATE ipopt)
-
-
 set(SRC wrapper.cpp)
 set(LINKLIB )
 

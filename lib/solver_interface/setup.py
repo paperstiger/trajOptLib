@@ -72,7 +72,8 @@ add_args = []
 for arg in sys.argv:
     if arg.startswith('-D'):
         add_args.append(arg)
-        sys.argv.remove(arg)
+sys.argv = filter(lambda x: not x.startswith('-D'), sys.argv)
+print('Arguments passed to CMake:', add_args)
 
 setup(
     name='pyoptsolver',
