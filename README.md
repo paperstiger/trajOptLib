@@ -11,16 +11,14 @@ Make sure you have
 
 Installation is simple. 
 
-0. You have to install pyoptsolver, which is located in lib/solver_interface; see instructions there.
-1. Navigate to current directory. Make a directory for building "mkdir build & cd build"
-2. Use standard CMake install commands: "cmake .. & make & cd .."
+0. You have to install pyoptsolver, which is located in lib/solver_interface; It is a separate tool for
+   defining and solving optimization problems in Python using state-of-the-art nonlinear solvers. Please see instructions there.
+1. (Optional) Navigate to current directory. Make a directory for building "mkdir build & cd build"
+2. (Optional) Use standard CMake install commands: "cmake .. & make & cd .."
 3. Install requirements by "pip install -r requirements.txt"
 3. Install package using pip, by "pip install -e .." or "python setup.py install"
 
 You can test a few simple examples. This is done by simply navigating to "test" folder in the main folder. And use "python simpleDemo.py -grad". You can also explore other possible arguments.
+If you did not perform step 1 and 2 in the installation guide, you won't be able to run the rotor example.
 
 Check <https://paperstiger.github.io/trajOptLibDoc/index.html> for documentations.
-
-Optionally, you can use Ipopt as the solver for solving problems. 
-
-Check <https://github.com/xuy/pyipopt> for Python binding of the solver <https://projects.coin-or.org/Ipopt>
