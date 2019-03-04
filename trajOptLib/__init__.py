@@ -1,11 +1,17 @@
 # import from other directories
 import pyoptsolver
-from pyoptsolver import SnoptConfig, SnoptSolver, OptProblem as SnoptProblem
-from pyoptsolver import SnoptConfig as snoptConfig, SnoptSolver as solver, OptProblem as probFun, OptResult as result
-try:
+from pyoptsolver import OptProblem as probFun, OptResult as result
+from pyoptsolver import OptProblem as SnoptProblem
+if pyoptsolver.__with_snopt__:
+    from pyoptsolver import SnoptConfig, SnoptSolver
+    from pyoptsolver import SnoptConfig as snoptConfig, SnoptSolver as solver
+else:
+    from pyoptsolver import IpoptSolver as SnoptSolver
+    from pyoptsolver import IpoptConfig as IpoptSolver
+if pyoptsolver.__with_ipopt__:
     from pyoptsolver import IpoptSolver as ipSolver, IpoptConfig as ipOption
     from pyoptsolver import IpoptSolver as IpSolver, IpoptConfig as IpOption
-except:
+else:
     from pyoptsolver import SnoptSolver as ipSolver, SnoptConfig as ipOption
     from pyoptsolver import SnoptSolver as IpSolver, SnoptConfig as IpOption
 

@@ -12,6 +12,7 @@
 #include <set>
 #include <tuple>
 #include <string>
+#include <chrono>
 #include <exception>
 #include "TigerEigen.h"
 #include "functionBase.h"
@@ -51,6 +52,12 @@ class optResult{
 };
 
 
+typedef std::chrono::high_resolution_clock high_res_clock;
+typedef high_res_clock::time_point time_point;
+typedef std::chrono::milliseconds milliseconds;
+typedef std::chrono::duration<double> dsec;
+
+
 // a functor which defines problems
 class ProblemFun : public funBase{
 public:
@@ -60,16 +67,120 @@ public:
     VXi Arow, Acol;
     bool ipStyle = false;
     int hess_nnz;
+    std::vector<std::tuple<double, double, double> > time_cost_constr_pair;
+    VX tmp_y;
+    std::vector<int> linear_obj_indices;
+    time_point _start;
+    bool is_record_time = false;
+    bool first_call = true;
+    bool DEBUG_VERBOSE = false;
 
-    ProblemFun():funBase(){}
+    ProblemFun():funBase(){
+        _start = high_res_clock::now();
+    }
 
-    ProblemFun(int nx_):funBase(){nx = nx_;}
+    ProblemFun(int nx_):funBase(){
+        nx = nx_;
+    }
 
     ProblemFun(int nx_, int nf_): funBase(nx_, nf_){
         _allocate_space();
     }
     ProblemFun(int nx_, int nf_, int ng_): funBase(nx_, nf_, ng_){
         _allocate_space();
+    }
+
+    void enable_time_record(){
+        is_record_time = true;
+        tmp_y.resize(nf);
+        // scan linear cost and find if there is anything belonging there
+        for(int i = 0; i < Aval.size(); i++) 
+            if(Arow(i) == 0)
+                linear_obj_indices.push_back(i);
+    }
+
+    // return the history of time-objective pairs.
+    std::tuple<VX, VX, VX> get_time_obj_history() {
+        int sz = time_cost_constr_pair.size();
+        VX time(sz), cost(sz), constr(sz);
+        for(int i = 0; i < sz; i++) {
+            auto &pairs = time_cost_constr_pair[i];
+            time(i) = std::get<0>(pairs);
+            cost(i) = std::get<1>(pairs);
+            constr(i) = std::get<2>(pairs);
+        }
+        return std::make_tuple(time, cost, constr);
+    }
+
+    double get_linear_cost(cRefV x) {
+        double y = 0;
+        for(int i = 0; i < linear_obj_indices.size(); i++)
+            y += x(Acol(linear_obj_indices[i])) * Aval(linear_obj_indices[i]);
+        return y;
+    }
+
+    void set_debug_verbose(bool verbose) {
+        DEBUG_VERBOSE = verbose;
+    }
+
+    double get_constr_vio(cRefV x, cRefV F) {
+        // evaluate violation of constraints
+        tmp_y.setZero();
+        tmp_y = F;  // first copy, then add linear term
+        _add_linear_part(tmp_y, x);
+        double vio_sqr = 0;
+        for(int i = 0; i < nf; i++) {
+            if(tmp_y(i) > ub(i)){
+                vio_sqr += pow(tmp_y(i) - ub(i), 2.0);
+            }
+            else if(tmp_y(i) < lb(i)){
+                vio_sqr += pow(lb(i) - tmp_y(i), 2.0);
+            }
+        }
+        return sqrt(vio_sqr);
+    }
+
+    int callf(cRefV x, RefV F) {
+        if(is_record_time) {
+            if(first_call) {
+                _start = high_res_clock::now();
+                first_call = false;
+            }
+            int flag = operator()(x, F);
+            dsec fs = (high_res_clock::now() - _start);
+            double cost = F[0] + get_linear_cost(x);
+            double constr_vio = get_constr_vio(x, F);
+            if(flag < 0 && time_cost_constr_pair.size() > 0){
+                cost = std::get<1>(time_cost_constr_pair.back());
+                constr_vio = std::get<2>(time_cost_constr_pair.back());
+            }
+            time_cost_constr_pair.push_back(std::make_tuple(fs.count(), cost, constr_vio));
+            return flag;
+        }
+        else
+            return operator()(x, F);
+    }
+
+    std::pair<int, int> callg(cRefV x, RefV F, RefV G, RefVl row, RefVl col, bool rec, bool needg){
+        if(is_record_time) {
+            if(first_call) {
+                _start = high_res_clock::now();
+                first_call = false;
+            }
+            auto ret = operator()(x, F, G, row, col, rec, needg);
+            dsec fs = (high_res_clock::now() - _start);
+            double cost = F[0] + get_linear_cost(x);
+            double constr_vio = get_constr_vio(x, F);
+            if(ret.first < 0 && time_cost_constr_pair.size() > 0){
+                cost = std::get<1>(time_cost_constr_pair.back());
+                constr_vio = std::get<2>(time_cost_constr_pair.back());
+            }
+            time_cost_constr_pair.push_back(std::make_tuple(fs.count(), cost, constr_vio));
+            return ret;
+        }
+        else
+            return operator()(x, F, G, row, col, rec, needg);
+
     }
 
     virtual int operator()(cRefV x, RefV F){
@@ -278,7 +389,7 @@ public:
 
     void _add_linear_part(RefV F, cRefV x){
         for(int i = 0; i < Aval.size(); i++) {
-            F[Arow[i]] += Aval[i] * x[Acol[i]];
+            F(Arow(i)) += Aval(i) * x(Acol(i));
         }
     }
 

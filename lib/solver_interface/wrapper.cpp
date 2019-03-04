@@ -243,6 +243,15 @@ PYBIND11_MODULE(pyoptsolver, m){
                 nG (int): an estimated size for Jacobian, it has to be larger. If set to 0, __callf__ is used and
                 has to be defined. Otherwise __callg__ has to be defined.
                 )pbdoc")
+        .def("enable_timer", &pyProbFun::enable_time_record, R"pbdoc(
+            Turn on internal timer. By doing so, user is able to call get_timer function.
+        )pbdoc")
+        .def("set_debug_verbose", &pyProbFun::set_debug_verbose, R"pbdoc(
+            Turn on or off verbosity.
+        )pbdoc")
+        .def("get_timer", &pyProbFun::get_time_obj_history, R"pbdoc(
+            Return a tuple of time, cost, constr
+        )pbdoc")
         .def("get_lb", &pyProbFun::get_lb)
         .def("get_ub", &pyProbFun::get_ub)
         .def("get_xlb", &pyProbFun::get_xlb)
@@ -494,7 +503,9 @@ PYBIND11_MODULE(pyoptsolver, m){
     m.def("inGradSolve", &inGradFunSolve);
     m.def("spGradSolve", &spGradFunSolve);
     m.def("inSpGradSolve", &inSpGradFunSolve);
-
+    m.attr("__with_snopt__") = true;
+#else
+    m.attr("__with_snopt__") = false;
 #endif
 
 #ifdef IPOPT
@@ -561,6 +572,9 @@ PYBIND11_MODULE(pyoptsolver, m){
     m.def("solve_problem", &solve_problem);
 
     m.def("set_verbosity", [](bool verbose) {VERBOSE = verbose;});
+    m.attr("__with_ipopt__") = true;
+#else
+    m.attr("__with_ipopt__") = false;
 #endif
 
 #ifdef VERSION_INFO

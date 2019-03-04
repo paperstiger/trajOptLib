@@ -82,8 +82,8 @@ public:
             for(int i = 0; i < prob.Aval.size(); i++)
                 if(prob.Arow(i) == 0)
                     a_obj_index.push_back(i);
-            std::cout << "g obs size " << g_obj_index.size();
-            std::cout << "a obs size " << a_obj_index.size();
+            std::cout << "g obs size " << g_obj_index.size() << "  ";
+            std::cout << "a obs size " << a_obj_index.size() << "\n";
         }
     }
 
@@ -145,7 +145,8 @@ public:
         cMapV Mx(x, prob.nx);
         VXl row(1), col(1);
         F.array() = 0;
-        prob(Mx, F, G, row, col, false, needg);
+        // prob(Mx, F, G, row, col, false, needg);
+        prob.callg(Mx, F, G, row, col, false, needg);
         last_has_grad = needg;
         // plus the array
         for(int i = 0; i < prob.Aval.size(); i++) {
@@ -301,7 +302,7 @@ public:
         sol = cMapV(x, n);
         lmd = cMapV(lambda, m);
         cost = obj_value;
-        mu = cMapV(z_U, m) - cMapV(z_L, m);
+        mu = cMapV(z_U, n) - cMapV(z_L, n);
         c = cMapV(g, m);
     }
 

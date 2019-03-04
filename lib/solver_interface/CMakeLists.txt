@@ -30,6 +30,10 @@ if(BUILD_IPOPT)
     set(SRC ${SRC} ${IPOPTWRAPPERSRC})
 endif(BUILD_IPOPT)
 
+if(NOT (BUILD_SNOPT OR BUILD_IPOPT))
+    message(FATAL_ERROR "You have to build at least one of SNOPT and IPOPT")
+endif()
+
 set(COMMON_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/common)
 include_directories(${EIGEN3_INCLUDE_DIR} ${COMMON_HEADER})
 include_directories(snopt-interface/include ipopt-interface/include)
