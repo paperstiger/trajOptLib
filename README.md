@@ -16,7 +16,7 @@ Installation is simple.
 1. (Optional) Navigate to current directory. Make a directory for building "mkdir build & cd build"
 2. (Optional) Use standard CMake install commands: "cmake .. & make & cd .."
 3. Install requirements by "pip install -r requirements.txt"
-3. Install package using pip, by "pip install -e .." or "python setup.py install"
+3. Install package using pip, by "pip install -e ." or "python setup.py install"
 
 You can test a few simple examples. This is done by simply navigating to "test" folder in the main folder. And use "python simpleDemo.py -grad". You can also explore other possible arguments.
 If you did not perform step 1 and 2 in the installation guide, you won't be able to run the rotor example.
