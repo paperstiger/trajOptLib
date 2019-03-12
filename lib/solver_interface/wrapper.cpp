@@ -78,7 +78,7 @@ class pyProbFun: public ProblemFun{
                     );
         }
 
-        int evalJac(cRefV x, RefV g, RefVi row, RefVi col, bool rec) override{
+        int evalJac(cRefV x, RefV g, RefVl row, RefVl col, bool rec) override{
             PYBIND11_OVERLOAD_NAME(
                     int,
                     ProblemFun,
@@ -88,7 +88,7 @@ class pyProbFun: public ProblemFun{
                     );
         }
 
-        int evalHess(cRefV x, double sigma, cRefV lmd, RefV g, RefVi row, RefVi col, bool rec) override{
+        int evalHess(cRefV x, double sigma, cRefV lmd, RefV g, RefVl row, RefVl col, bool rec) override{
             PYBIND11_OVERLOAD_NAME(
                     int,
                     ProblemFun,
@@ -102,7 +102,7 @@ class pyProbFun: public ProblemFun{
 
 
 namespace py = pybind11;
-PYBIND11_MODULE(pyoptsolver, m){
+PYBIND11_MODULE(pyoptsolvercpp, m){
     m.doc() = R"pbdoc(
         A Python interface for large scale optimization solver SNOPT and Ipopt
     )pbdoc";
@@ -315,7 +315,7 @@ PYBIND11_MODULE(pyoptsolver, m){
         .def("eval_jacobian", [](ProblemFun *self, cRefV x) {
               int nG = self->nG;
               VX g(nG);
-              VXi row(nG), col(nG);
+              VXl row(nG), col(nG);
               self->evalJac(x, g, row, col, true);
               return std::make_tuple(g, row, col);
             })
@@ -385,6 +385,48 @@ PYBIND11_MODULE(pyoptsolver, m){
             Args:
                 option (str): the option to configure
         )pbdoc")
+        .def("set_major_iter", &snoptConfig::setMajorIter, R"pbdoc(
+            Set up the major iteration limit.
+
+            Args:
+                iter (int): limit for major iteration 
+        )pbdoc")
+        .def("set_minor_iter", &snoptConfig::setMinorIter, R"pbdoc(
+            Set up the minor iteration limit.
+
+            Args:
+                iter (int): limit for minor iteration 
+        )pbdoc")
+        .def("set_iter_limit", &snoptConfig::setIterLimit, R"pbdoc(
+            Set up the total iteration limit.
+
+            Args:
+                iter (int): limit for total iteration 
+        )pbdoc")
+        .def("set_opt_tol", &snoptConfig::setOptTol, R"pbdoc(
+            Set up the optimization tolerance.
+
+            Args:
+                tol (float): the tolerance
+        )pbdoc")
+        .def("set_fea_tol", &snoptConfig::setFeaTol, R"pbdoc(
+            Set up the feasibility tolerance.
+
+            Args:
+                tol (float): the tolerance
+        )pbdoc")
+        .def("set_print_level", &snoptConfig::setPrintLevel, R"pbdoc(
+            Set up the print level.
+
+            Args:
+                level (int): the print level
+        )pbdoc")
+        .def("enable_deriv_check", &snoptConfig::enableDerivCheck, py::arg("lvl")=3, R"pbdoc(
+            Set up the derivative check param.
+
+            Args:
+                level (int): the derivative check level
+        )pbdoc")
         .def("addIntOption", &snoptConfig::addIntOption)
         .def("addFloatOption", &snoptConfig::addFloatOption)
         .def("addStringOption", &snoptConfig::addStringOption)
@@ -430,7 +472,7 @@ PYBIND11_MODULE(pyoptsolver, m){
             Returns:
                 SnoptResult: a SnoptResult object.
         )pbdoc")
-        .def("solve_guess", (optResult (pySnoptWrapper::*)(RefV x)) &pySnoptWrapper::solve, R"pbdoc(
+        .def("solve_guess", (optResult (pySnoptWrapper::*)(cRefV x)) &pySnoptWrapper::solve, R"pbdoc(
             Solve the problem using a user-specified guess.
 
             Args:
@@ -493,7 +535,7 @@ PYBIND11_MODULE(pyoptsolver, m){
         .def("setMajorIter", &pySnoptWrapper::setMajorIter)
         .def("setPrintFile", &pySnoptWrapper::setPrintFile)
         .def("solveRand", (optResult (pySnoptWrapper::*)()) &pySnoptWrapper::solve)
-        .def("solveGuess", (optResult (pySnoptWrapper::*)(RefV x)) &pySnoptWrapper::solve)
+        .def("solveGuess", (optResult (pySnoptWrapper::*)(cRefV x)) &pySnoptWrapper::solve)
         .def("getInfo", &pySnoptWrapper::getInfo)
         .def("fEval", &pySnoptWrapper::fEval);
 
@@ -549,6 +591,55 @@ PYBIND11_MODULE(pyoptsolver, m){
                 option (str): the option to configure
                 value (str): the string value for configuration
         )pbdoc")
+        .def("set_major_iter", &IpoptConfig::setMajorIter, R"pbdoc(
+            Set up the major iteration limit.
+
+            Args:
+                iter (int): limit for major iteration 
+        )pbdoc")
+        .def("set_opt_tol", &IpoptConfig::setOptTol, R"pbdoc(
+            Set up the optimization tolerance.
+
+            Args:
+                tol (float): the tolerance
+        )pbdoc")
+        .def("set_fea_tol", &IpoptConfig::setFeaTol, R"pbdoc(
+            Set up the feasibility tolerance.
+
+            Args:
+                tol (float): the tolerance
+        )pbdoc")
+        .def("set_print_level", &IpoptConfig::setPrintLevel, R"pbdoc(
+            Set up the print level.
+
+            Args:
+                level (int): the print level
+        )pbdoc")
+        .def("enable_deriv_check", &IpoptConfig::enableDerivCheck, py::arg("lvl")=0, R"pbdoc(
+            Set up the derivative check param.
+
+            Args:
+                level (int): the derivative check level
+        )pbdoc")
+        .def("set_print_freq", &IpoptConfig::setPrintFreq, R"pbdoc(
+            Set up the print frequency.
+
+            Args:
+                freq (int): the print frequency 
+        )pbdoc")
+        .def("set_linear_solver", &IpoptConfig::setLinearSolver, R"pbdoc(
+            Set the linear solver.
+
+            Args:
+                solver (str): the selected linear solver.
+        )pbdoc")
+        .def("enable_exact_hessian", &IpoptConfig::enableExactHessian, R"pbdoc(
+            Enable usage of exact Hessian.
+        )pbdoc")
+        .def("enable_fd_jacobian", &IpoptConfig::enableFDJacobian, R"pbdoc(
+            Enable usage of finite-difference approximation of Jacobian.
+        )pbdoc")
+
         .def_readwrite("print_level", &IpoptConfig::print_level)
         .def_readwrite("print_frequency_iter", &IpoptConfig::print_frequency_iter)
         .def_readwrite("max_iter", &IpoptConfig::max_iter)

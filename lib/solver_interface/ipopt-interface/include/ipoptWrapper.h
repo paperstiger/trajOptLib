@@ -69,8 +69,6 @@ public:
 #ifdef ENABLEIP
             prob.evalJac(Mx, G, rows, cols, true);
 #endif
-            // std::cout << "rows = " << rows << std::endl;
-            // std::cout << "cols = " << cols << std::endl;
         }
         else{
             prob.operator()(Mx, F, G, rows, cols, true, true);
@@ -251,7 +249,7 @@ public:
                 std::cout << "call evalJac function\n";
                 cMapV Mx(x, n);
                 MapV G(values, prob.nG);
-                VXi row(0), col(0);
+                VXl row(0), col(0);
                 int ret = prob.evalJac(Mx, G, row, col, false);
                 MapV(values + prob.nG, prob.Aval.size()) = prob.Aval;
                 print_array("jac=", values, prob.nG + prob.Aval.size());
@@ -282,10 +280,14 @@ public:
         MapVi col(jCol, nele_hess);
 #ifdef ENABLEIP
         if (values == NULL) {
-            prob.evalHess(Mx, obj_factor, lmd, G, row, col, true);
+            VXl hrows(nele_hess), hcols(nele_hess);
+            prob.evalHess(Mx, obj_factor, lmd, G, hrows, hcols, true);
+            row = hrows.cast<int>();
+            col = hcols.cast<int>();
         }
         else {
-            prob.evalHess(Mx, obj_factor, lmd, G, row, col, false);
+            VXl hrows(0), hcols(0);
+            prob.evalHess(Mx, obj_factor, lmd, G, hrows, hcols, false);
         }
 #endif
         return true;
@@ -324,9 +326,10 @@ public:
     int print_level = 5;
     int print_frequency_iter = 10;
     int max_iter = 1000;
-    string linear_solver = "ma27";
+    string linear_solver = "mumps";
     string hessian_approximation = "limited-memory";
     string jacobian_approximation = "exact";
+    bool deriv_check_enabled = false;
     string derivative_test = "none";
     double tol = 1e-6;
     double constr_viol_tol = 1e-6;
@@ -340,7 +343,10 @@ public:
         opt->SetStringValue("linear_solver", linear_solver.c_str());
         opt->SetStringValue("hessian_approximation", hessian_approximation.c_str());
         opt->SetStringValue("jacobian_approximation", jacobian_approximation.c_str());
-        opt->SetStringValue("derivative_test", derivative_test.c_str());
+        if(deriv_check_enabled)
+            opt->SetStringValue("derivative_test", "first-order");  //derivative_test.c_str());
+        else
+            opt->SetStringValue("derivative_test", "none");
         opt->SetStringValue("print_timing_statistics", "no");
         opt->SetStringValue("print_user_options", "no");
         opt->SetNumericValue("tol", tol);
@@ -355,6 +361,38 @@ public:
         for(auto &scfg : pairStringOptions){
             opt->SetStringValue(std::get<0>(scfg).c_str(), std::get<1>(scfg).c_str());
         }
+    }
+
+    virtual void setMajorIter(int iter) {
+        max_iter = iter;
+    }
+    virtual void setOptTol(double tol) {
+        this->tol = tol;
+    }
+    virtual void setFeaTol(double tol) {
+        constr_viol_tol = tol;
+    }
+    virtual int setPrintLevel(int lvl) {
+        print_level = lvl;
+    }
+    virtual void enableDerivCheck(int lvl=3) {
+        deriv_check_enabled = true;
+    }
+
+    void setPrintFreq(int freq) {
+        print_frequency_iter = freq;
+    }
+
+    void setLinearSolver(std::string &stri) {
+        linear_solver = stri;
+    }
+
+    void enableExactHessian() {
+        hessian_approximation = "exact";
+    }
+
+    void enableFDJacobian() {
+        jacobian_approximation = "finite-difference-values";
     }
 
 };

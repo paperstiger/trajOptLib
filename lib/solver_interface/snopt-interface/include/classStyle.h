@@ -22,7 +22,7 @@ class pySnoptWrapper: public snoptWrapper{
 #endif
         };
 
-        optResult solve(RefV x){
+        optResult solve(cRefV x){
             int flag = snoptWrapper::solve(x.data());
             optResult rst;
             rst.flag = flag;

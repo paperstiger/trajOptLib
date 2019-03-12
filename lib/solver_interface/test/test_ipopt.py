@@ -10,7 +10,7 @@
 Test ipopt solver here.
 """
 import numpy as np
-from pyoptsolver import OptProblem as IpoptProblem, solve_problem, IpoptConfig, IpoptSolver, set_verbosity
+from pyoptsolver import OptProblem as IpoptProblem, IpoptConfig, IpoptSolver
 
 
 class BasicQP(IpoptProblem):
@@ -77,14 +77,14 @@ class Demo(IpoptProblem):
         if ip:
             IpoptProblem.__init__(self, 4, 2, 8)
             self.ipopt_style()
-            self.set_lb([25, 40.])
+            self.set_lb([25., 40.])
             self.set_ub([2e19, 40.0])
         else:
             IpoptProblem.__init__(self, 4, 3, 12)
             self.set_lb([-2e19, 25, 40.])
             self.set_ub([2e19, 2e19, 40.0])
         self.set_xlb(np.ones(4))
-        self.set_xub(5*np.ones(4))
+        self.set_xub(5 * np.ones(4))
 
     def __callg__(self, x, f, g, row, col, rec, needg):
         f[0] = self.eval_f(x)
@@ -95,6 +95,18 @@ class Demo(IpoptProblem):
             if rec:
                 row[:], col[:] = np.unravel_index(np.arange(12), (3, 4))
         return 3, 12
+
+    def __cost__(self, x):
+        return self.eval_f(x)
+
+    def __gradient__(self, x, g):
+        return self.eval_gradient(x, g)
+
+    def __constraint__(self, x, g):
+        return self.eval_constr(x, g)
+
+    def __jacobian__(self, x, v, row, col, rec):
+        return self.eval_jacobian(x, v, row, col, rec)
 
     def eval_f(self, x):
         return x[0] * x[3] * (x[0] + x[1] + x[2]) + x[2]

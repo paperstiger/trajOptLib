@@ -13,6 +13,7 @@
 #include <tuple>
 #include <string>
 #include <chrono>
+#include <system_error>
 #include <exception>
 #include "TigerEigen.h"
 #include "functionBase.h"
@@ -194,11 +195,31 @@ public:
     };  // A function to be overwritten by subclass, this is called for both assigning structure.
 
 #ifdef ENABLEIP
-    virtual double evalF(cRefV x) {return 0;};
-    virtual bool evalGrad(cRefV x, RefV grad) {return true;};
-    virtual int evalG(cRefV x, RefV g) {return 0;};
-    virtual int evalJac(cRefV x, RefV G, RefVl row, RefVl col, bool rec) {return 0;};
-    virtual int evalHess(cRefV x, double sigma, cRefV lmd, RefV G, RefVl row, RefVl col, bool rec) {return 0;}
+    virtual double evalF(cRefV x) {throw NotImplementedError(); return 0;};
+    virtual bool evalGrad(cRefV x, RefV grad) {throw NotImplementedError(); return true;};
+    virtual int evalG(cRefV x, RefV g) {throw NotImplementedError(); return 0;};
+    virtual int evalJac(cRefV x, RefV G, RefVl row, RefVl col, bool rec) {throw NotImplementedError(); return 0;};
+    virtual int evalHess(cRefV x, double sigma, cRefV lmd, RefV G, RefVl row, RefVl col, bool rec) {throw NotImplementedError(); return 0;}
+    // easy function calls for debugging purposes
+    double ipEvalF(cRefV x) {
+        return evalF(x);
+    }
+    VX ipEvalGrad(cRefV x) {
+        VX grad(nx);
+        evalGrad(x, grad);
+        return grad;
+    }
+    VX ipEvalG(cRefV x) { // evaluate constraint function values only
+        VX g(nf);
+        evalG(x, g);
+        return g;
+    }
+    std::tuple<VX, VXl, VXl> ipEvalJac(cRefV x) {  // evaluate Jacobian and return triplet
+        VX g(nG);
+        VXl row(nG), col(nG);
+        evalJac(x, g, row, col, true);
+        return std::make_tuple(g, row, col);
+    }
 #endif
 
     void _allocate_space() {
@@ -354,17 +375,31 @@ public:
     void _detect_size(cRefV x, int nF, int nG){
         VX F(nF);
         if(nG == 0){
-            int nF = operator()(x, F);
-            nf = nF;
+#ifdef ENABLEIP
+            if(ipStyle)
+                nf = evalGrad(x, F);
+            else
+#endif
+                nf = operator()(x, F);
             grad = false;
-            nG = 0;
+            this->nG = 0;
         }
         else{
             VX G(nG);
             VXl row(nG), col(nG);
+#ifdef ENABLEIP
+            if(ipStyle){
+                nf = evalGrad(x, F);
+                this->nG = evalJac(x, F, row, col, false);
+            }
+            else{
+#endif
             auto rst = operator()(x, F, G, row, col, false, true);  // we needg, but not recording.
             nf = rst.first;
             ProblemFun::nG = rst.second;
+#ifdef ENABLEIP
+            }
+#endif
             grad = true;
         }
         _allocate_space();
@@ -401,7 +436,16 @@ public:
         VX G(maxnG);
         VXl row = -1 * VXl::Ones(maxnG);
         VXl col = -1 * VXl::Ones(maxnG);
+#ifdef ENABLEIP
+        if(ipStyle) {
+            evalJac(x, G, row, col, false);
+        }
+        else{
+#endif
         operator()(x, F, G, row, col, true, true);
+#ifdef ENABLEIP
+        }
+#endif
         int i = 0;
         bool found = false;
         for(; i < maxnG; i++){
@@ -472,6 +516,7 @@ public:
         */
     }
 
+    // return a list of variable reference so painless modifying is possible
     RefV get_lb(){
         return RefV(lb);
     }
@@ -524,8 +569,22 @@ public:
     void addStringOption(const std::string &nm){
         stringOptions.push_back(nm);
     }
+    virtual void setMajorIter(int iter) {
+        throw NotImplementedError();
+    }
+    virtual void setOptTol(double tol) {
+        throw NotImplementedError();
+    }
+    virtual void setFeaTol(double tol) {
+        throw NotImplementedError();
+    }
+    virtual int setPrintLevel(int lvl) {
+        throw NotImplementedError();
+    }
+    virtual void enableDerivCheck(int lvl=3) {
+        throw NotImplementedError();
+    }
 };
 
 
 #endif
-

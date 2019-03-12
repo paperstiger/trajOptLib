@@ -40,20 +40,20 @@ include_directories(snopt-interface/include ipopt-interface/include)
 
 set(TARGET_LIB_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-pybind11_add_module(pyoptsolver MODULE ${SRC})
+pybind11_add_module(pyoptsolvercpp MODULE ${SRC})
 if(BUILD_SNOPT)
-    target_compile_definitions(pyoptsolver PRIVATE SNOPT)
+    target_compile_definitions(pyoptsolvercpp PRIVATE SNOPT)
 endif()
 if(BUILD_IPOPT)
-    target_compile_definitions(pyoptsolver PRIVATE IPOPT)
-    target_compile_definitions(pyoptsolver PRIVATE HAVE_CSTDDEF)
+    target_compile_definitions(pyoptsolvercpp PRIVATE IPOPT ENABLEIP)
+    target_compile_definitions(pyoptsolvercpp PRIVATE HAVE_CSTDDEF)
 endif()
 
 if(CMAKE_BUILD_TYPE EQUAL Debug)
-    target_compile_definitions(pyoptsolver PRIVATE -DDEBUG)
+    target_compile_definitions(pyoptsolvercpp PRIVATE -DDEBUG)
 endif()
 
-target_link_libraries(pyoptsolver PRIVATE ${LINKLIB})
-set_target_properties(pyoptsolver PROPERTIES
+target_link_libraries(pyoptsolvercpp PRIVATE ${LINKLIB})
+set_target_properties(pyoptsolvercpp PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY  "${TARGET_LIB_DIRECTORY}"
     )

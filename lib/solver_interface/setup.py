@@ -82,7 +82,7 @@ setup(
     author_email='gao.tang@duke.edu',
     license='LICENSE.txt',
     description='A unified wrapper for many optimization problems',
-    ext_modules=[CMakeExtension('pyoptsolver')],
+    ext_modules=[CMakeExtension('pyoptsolvercpp')],
     # add custom build_ext command
     cmdclass=dict(build_ext=CMakeBuild),
     zip_safe=False,

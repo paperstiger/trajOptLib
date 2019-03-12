@@ -38,7 +38,7 @@ class funBase{
         virtual double evalF(cRefV x) = 0;
         virtual bool evalGrad(cRefV x, RefV grad) = 0;
         virtual int evalG(cRefV x, RefV g) = 0;
-        virtual int evalJac(cRefV x, RefV G, RefVi row, RefVi col, bool rec) = 0;
+        virtual int evalJac(cRefV x, RefV G, RefVl row, RefVl col, bool rec) = 0;
 #endif
 
         virtual int operator()(cRefV x, RefV F) = 0;  // A function to be overwritten by subclass, this is called to evaluate

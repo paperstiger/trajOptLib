@@ -22,7 +22,7 @@ class snoptConfig : public SolverConfig{
 public:
     std::string name = std::string("Toy");
     std::string printFile;
-    int printlevel = 0;
+    int printlevel = 1;
     int minorprintlevel = 0;
     int verifylevel = 0;
     int majoriterlimit = 0;
@@ -30,6 +30,27 @@ public:
     int iterationslimit = 0;
     double optTol = 1e-6;
     double feaTol = 1e-6;
+    void setIterLimit(int iter) {
+        iterationslimit = iter;
+    }
+    void setMinorIter(int iter) {
+        minoriterlimit = iter;
+    }
+    virtual void setMajorIter(int iter) {
+        majoriterlimit = iter;
+    }
+    virtual void setOptTol(double tol) {
+        optTol = tol;
+    }
+    virtual void setFeaTol(double tol) {
+        feaTol = tol;
+    }
+    virtual int setPrintLevel(int lvl) {
+        printlevel = lvl;
+    }
+    virtual void enableDerivCheck(int lvl=3) {
+        verifylevel = lvl;
+    }
 };
 
 
@@ -350,7 +371,7 @@ public:
         return ToyProb.getInfo();
     };
     //Solve the problem. given the solution, lmdF
-    int solve(double *_x, double *_Fmul = NULL){
+    int solve(const double *_x, double *_Fmul = NULL){
         for (int i = 0; i < neF; ++i){
             F[i] = 0;
             Fstate[i] = 0;
