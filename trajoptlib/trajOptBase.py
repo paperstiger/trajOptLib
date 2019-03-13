@@ -16,12 +16,12 @@ import numpy as np
 from scipy.sparse import spmatrix, csr_matrix, csc_matrix, coo_matrix
 
 
-class system(object):
+class System(object):
     """Description of the dynamical system.
 
     To define a dynamical system, we need to specify dimension of state, control, and parameter.
     Optionally, integration approach can be selected.
-    This function should be inherited and users are supposed to override dyn/Jdyn functions.
+    This function should be inherited and users are supposed to override dyn/jac_dyn functions.
 
     """
     odes = ['RK4', 'Dis', 'Euler', 'BackEuler']
@@ -37,16 +37,16 @@ class system(object):
         self.nx = nx
         self.nu = nu
         self.np = np
-        assert ode in system.odes
+        assert ode in System.odes
         self.ode = ode
 
-    def setOde(self, method):
+    def set_ode(self, method):
         """Set ode approach.
 
         :param method: str, name of ode approach.
 
         """
-        assert method in system.odes
+        assert method in System.odes
         self.ode = method
 
     def dyn(self, t, x, u, p=None, h=None):
@@ -64,7 +64,7 @@ class system(object):
         """
         raise NotImplementedError
 
-    def Jdyn(self, t, x, u, p=None, h=None):
+    def jac_dyn(self, t, x, u, p=None, h=None):
         """Dynamics function with Jacobian return.
 
         It has to be overriden.
@@ -77,10 +77,10 @@ class system(object):
         raise NotImplementedError
 
 
-class daeSystem(object):
+class DaeSystem(object):
     """A DAE system."""
     def __init__(self, nx, nu, np, nf, nG):
-        """Constructor for the problem.
+        r"""Constructor for the problem.
 
         For a dae system described by :math `f(t, q, \dot{q}, \ddot{q}, u, p)=0`, nx=3dim(q), nf=dim(q).
         If it is described by :math `f(t, q, \dot{q}, u, p)=0`, nx=2dim(q), nf=dim(q).
@@ -138,7 +138,7 @@ class daeSystem(object):
             self.autonomous = True
 
 
-class baseFun(object):
+class BaseFun(object):
     """Base class for functions, including both objective and constraint.
 
     This function should be inherited to define your own functions.
@@ -203,7 +203,7 @@ class baseFun(object):
             self.autonomous = True
 
 
-class addX(object):
+class AddX(object):
     """A description of additional optimizing parameter.
 
     It is intended to be used if the optimal control has like point constraint.
@@ -243,7 +243,7 @@ class _objectWithMatrix(object):
             self.autonomous = True
 
 
-class linearObj(object):
+class LinearObj(object):
     """Class for directly add linear objective function over the entire decision variable.
 
     It serves for objective of form :math:`y=Ax` where :math:`x` is the collected long vector.
@@ -262,7 +262,7 @@ class linearObj(object):
         self.A = A
 
 
-class linearPointObj(_objectWithMatrix):
+class LinearPointObj(_objectWithMatrix):
     """Class for directly add linear objective function over the entire decision variable.
 
     It serves for objective function of the form :math:`y=Ax` where :math:`x` is the concatenated vector of state,
@@ -288,7 +288,7 @@ class linearPointObj(_objectWithMatrix):
         self.index = index
 
 
-class nonLinearObj(baseFun):
+class NonLinearObj(BaseFun):
     """Class for general nonlinear objective function over the entire decision variables.
 
     The objective function is basically calculated by calling a nonlinear function.
@@ -302,10 +302,10 @@ class nonLinearObj(baseFun):
         :param nG: int, number of nnz of Jacobian
 
         """
-        baseFun.__init__(self, nsol, 1, gradmode, nG)
+        BaseFun.__init__(self, nsol, 1, gradmode, nG)
 
 
-class nonLinearPointObj(baseFun):
+class NonLinearPointObj(BaseFun):
     """Class for defining point objective function.
 
     Similar to linear case. A function that takes the concatenated vector at a selected index is used.
@@ -321,14 +321,14 @@ class nonLinearPointObj(baseFun):
 
         """
         xdim = 1 + nx + nu + np
-        baseFun.__init__(self, xdim, 1, gradmode, nG)
+        BaseFun.__init__(self, xdim, 1, gradmode, nG)
         self.index = index
 
 
-class lqrObj(object):
+class LqrObj(object):
     """Class for LQR objective since it is so common. It is treated independently with pathObj."""
     def __init__(self, F=None, Q=None, R=None, xfbase=None, xbase=None, ubase=None, tfweight=None, P=None, pbase=None):
-        """Constructor for LQR objective function.
+        r"""Constructor for LQR objective function.
 
         :math:`c=\|x_f-x_{fbase}\|_F + \Sigma (\|x-x_{base}\|_Q + \|u-u_{base}\|_R + \|p-p_{base}\|_P) * h`
 
@@ -382,7 +382,7 @@ class lqrObj(object):
             self.P = None
 
 
-class quadPenalty(nonLinearObj):
+class QuadPenalty(NonLinearObj):
     """In many scenarios, we want to minimize the quadratic of some variables for some variables.
 
     This is generally different from LQR objective by that it is a point constraint and thus not integral one.
@@ -399,7 +399,7 @@ class quadPenalty(nonLinearObj):
         """
         self.indices = indices
         self.weights = weights
-        nonLinearObj.__init__(self, -1, 'user', nG=len(indices))
+        NonLinearObj.__init__(self, -1, 'user', nG=len(indices))
 
     def __callg__(self, x, y, G, row, col, rec, needg):
         y[0] = np.sum(self.weights * x[self.indices] ** 2)
@@ -410,13 +410,13 @@ class quadPenalty(nonLinearObj):
                 col[:] = self.indices
 
 
-class nonDiagLQRObj(object):
+class NonDiagLqrObj(object):
     """Class for LQR objective with non-diagonal entries"""
     # TODO: implement me
     pass
 
 
-class nonLinearPointConstr(baseFun):
+class NonLinearPointConstr(BaseFun):
     """Class for defining point constraint function."""
     def __init__(self, index, nc, nx, nu, np=0, lb=None, ub=None, gradmode='user', nG=None):
         """Constructor for nonlinear point constraint. Also serve as path constraint.
@@ -430,13 +430,13 @@ class nonLinearPointConstr(baseFun):
 
         """
         xdim = 1 + nx + nu + np
-        baseFun.__init__(self, xdim, nc, gradmode, nG)
+        BaseFun.__init__(self, xdim, nc, gradmode, nG)
         self.index = index
         self.lb = lb
         self.ub = ub
 
 
-class nonLinearConstr(baseFun):
+class NonLinearConstr(BaseFun):
     """Class for defining constraint function in a general form."""
     def __init__(self, nsol, nc, lb=None, ub=None, gradmode='user', nG=None):
         """Constructor for general nonlinear constraint.
@@ -448,12 +448,12 @@ class nonLinearConstr(baseFun):
         :param nG: int, number of nnz of Jacobian
 
         """
-        baseFun.__init__(self, nsol, nc, gradmode, nG)
+        BaseFun.__init__(self, nsol, nc, gradmode, nG)
         self.lb = lb
         self.ub = ub
 
 
-class linearPointConstr(_objectWithMatrix):
+class LinearPointConstr(_objectWithMatrix):
     """Class for linear constraint at selected points."""
     def __init__(self, index, A, lb=None, ub=None, offset=0):
         self.lb = lb
@@ -466,7 +466,7 @@ class linearPointConstr(_objectWithMatrix):
                                 shape=(row, col + offset))
 
 
-class linearConstr(object):
+class LinearConstr(object):
     """Class for linear constraints based on the whole x length."""
     def __init__(self, A, lb=None, ub=None, offset=0):
         self.A = coo_matrix(A)

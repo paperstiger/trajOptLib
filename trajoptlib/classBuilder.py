@@ -15,21 +15,20 @@ However, the users have to write functions that are autograd compatible.
 Most basically, import autograd.numpy instead of numpy
 """
 import autograd.numpy as np
-from autograd import jacobian, grad
-from .trajOptBase import system, daeSystem, baseFun, addX
-from .trajOptBase import nonLinearPointConstr
-from . import snoptConfig, solver, probFun, result
+from autograd import jacobian
+from .trajOptBase import System, DaeSystem
+from .trajOptBase import NonLinearPointConstr
 
 
 def blockIndex(i, j, rows, cols, order='C'):
     """For a matrix block, we return the index of row and columns.
 
-    For a matrix we choose a block using the upper left corner positioned 
-    at (i, j) and size (row, col). Each element of the block has row and 
+    For a matrix we choose a block using the upper left corner positioned
+    at (i, j) and size (row, col). Each element of the block has row and
     col index, they are returned in two arrays. The order controls we use
     row or column major order
 
-    For example, blockIndex(1, 3, 2, 3, 'C') returns 
+    For example, blockIndex(1, 3, 2, 3, 'C') returns
     (array([1, 1, 1, 2, 2, 2]), array([3, 4, 5, 3, 4, 5]))
 
     Parameters
@@ -56,10 +55,10 @@ def blockIndex(i, j, rows, cols, order='C'):
     return row, col
 
 
-class systemWrapper(system):
+class SystemWrapper(System):
     """This class takes a function and returns a system."""
     def __init__(self, fun, nx, nu, np, *args):
-        """Constructor.
+        r"""Constructor.
 
         Parameters
         ----------
@@ -74,12 +73,12 @@ class systemWrapper(system):
         args : kwargs
             additional parameters to function
         """
-        system.__init__(self, nx, nu, np)
+        System.__init__(self, nx, nu, np)
 
         def wrapfun(X, *args):
             x = X[:nx]
-            u = X[nx:nx+nu]
-            p = X[nx+nu:nx+nu+np]
+            u = X[nx: nx + nu]
+            p = X[nx + nu: nx + nu + np]
             return fun(0, x, u, p, *args)
 
         self.grad = True
@@ -93,17 +92,17 @@ class systemWrapper(system):
         y = self.fun(xin, *self.funargs)
         return y
 
-    def Jdyn(self, t, x, u, p):
+    def jac_dyn(self, t, x, u, p):
         xin = np.concatenate((x, u, p))
         y = self.fun(xin, *self.funargs)
         G = self.gfun(xin, *self.funargs)
         return y, G
 
 
-class daeSystemWrapper(daeSystem):
+class DaeSystemWrapper(DaeSystem):
     """This class takes a function and returns a system."""
     def __init__(self, fun, nx, nu, np, nf, *args):
-        """Constructor for the problem.
+        r"""Constructor for the problem.
 
         Parameters
         ----------
@@ -121,12 +120,12 @@ class daeSystemWrapper(daeSystem):
             additional parameters
         """
         nG = nf * (nx + nu + np)
-        daeSystem.__init__(self, nx, nu, np, nf, nG)
+        DaeSystem.__init__(self, nx, nu, np, nf, nG)
 
         def wrapfun(X, *args):
             x = X[:nx]
-            u = X[nx: nx+nu]
-            p = X[nx+nu:nx+nu+np]
+            u = X[nx: nx + nu]
+            p = X[nx + nu: nx + nu + np]
             return fun(0, x, u, p, *args)
 
         self.fun = wrapfun
@@ -145,16 +144,16 @@ class daeSystemWrapper(daeSystem):
                 row[:], col[:] = blockIndex(0, 1, self.nf, self.nx + self.nu + self.np)
 
 
-class nonLinearPointConstrWrapper(nonLinearPointConstr):
+class NonLinearPointConstrWrapper(NonLinearPointConstr):
     """This class takes a function and wrap it as a point constraint."""
     def __init__(self, fun, nx, nu, np, nc, index, lb=None, ub=None, args=None):
         nG = nc * (nx + nu + np)
-        nonLinearPointConstr.__init__(self, index, nc, nx, nu, np, lb, ub, nG=nG)
+        NonLinearPointConstr.__init__(self, index, nc, nx, nu, np, lb, ub, nG=nG)
 
         def wrapfun(X, *args):
             x = X[:nx]
-            u = X[nx:nx+nu]
-            p = X[nx+nu:nx+nu+np]
+            u = X[nx: nx + nu]
+            p = X[nx + nu: nx + nu + np]
             return fun(0, x, u, p, *args)
 
         self.fun = wrapfun

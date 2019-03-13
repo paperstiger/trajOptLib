@@ -17,7 +17,7 @@ from scipy.interpolate import interp1d, CubicSpline
 from . import plot as pld
 
 
-def parseX(x, N, dimx, dimu, dimp, uset0, usetf, setfinal=True):
+def parse_X(x, N, dimx, dimu, dimp, uset0, usetf, setfinal=True):
     """Parse the solution into a dict of time, state, control, parameter.
 
     :param x: ndarray, solution found by SNOPT
@@ -64,7 +64,7 @@ def parseX(x, N, dimx, dimu, dimp, uset0, usetf, setfinal=True):
     return {'t': tgrid, 'x': state, 'u': ctrl, 'p': param}
 
 
-def showSol(solDict, xsplit=None, usplit=None, psplit=None, show=True):
+def show_sol(solDict, xsplit=None, usplit=None, psplit=None, show=True):
     """Plot the parsed solution.
 
     :param solDict: dict, returned from solParse; or a list of such dict. Then they are compared
@@ -116,7 +116,7 @@ def showSol(solDict, xsplit=None, usplit=None, psplit=None, show=True):
         plt.show()
 
 
-def randomGenInBound(bds, n=None):
+def random_gen_in_bound(bds, n=None):
     """Randomly generate a vector within bounds / [-1, 1]
 
     :param bds: list/tuple of ndarray, the bounds of variable
@@ -148,7 +148,7 @@ def randomGenInBound(bds, n=None):
     return x
 
 
-def checkInBounds(x, bds):
+def check_in_bounds(x, bds):
     """Check the position of variables in a bound.
 
     Basically, it returns the position of actual value in the bounds [-1, 1].
@@ -230,7 +230,7 @@ def interp(t, X, teval, Xeval, kind):
     return
 
 
-def getInf(n=None):
+def get_inf(n=None):
     """Return an inf array.
 
     :param n: int, size of the array to return, None means scalar
@@ -284,7 +284,3 @@ class ZeroBuilder(object):
         if n > 0 and n < self.n:
             return self.zeros[:n]
         return np.zeros(n)
-
-
-if __name__ == '__main__':
-    main()

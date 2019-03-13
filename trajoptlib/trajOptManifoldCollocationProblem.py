@@ -6,7 +6,7 @@
 #
 # Distributed under terms of the MIT license.
 
-"""
+r"""
 trajOptManifoldCollocationProblem.py
 
 Direct collocation approach with manifold constraint.
@@ -16,22 +16,24 @@ For a constraint \phi(q)=0, by order we know up to which we should differentiate
 """
 from __future__ import division
 import numpy as np
-from .trajOptCollocationProblem import trajOptCollocProblem
-from . import probFun
-from scipy.sparse import csr_matrix, coo_matrix
-from .utility import randomGenInBound, checkInBounds, interp
+from .trajOptCollocationProblem import TrajOptCollocProblem
+from pyoptsolver import OptProblem
 
 
-class manifoldConstr(object):
+class ManifoldConstr(object):
     """An object which defines state manifold constraints. We might need other ugly hacks.
 
     Update 1, remove support for constr_order, only allow holonomic constraint, i.e. q
     However, user is allowed to control to any level, position / velocity / acceleration level.
     For different daeOrder, the implementation is slightly different
 
+    :currentmodule:
+    .. automethod:: __callg__
+    .. automethod:: __calc_correction__
+
     """
     def __init__(self, nx, nc, order=2, nG=0, nnzJx=0, nnzJg=0):
-        """Constructor for the class.
+        r"""Constructor for the class.
 
         Parameters
         ----------
@@ -75,7 +77,7 @@ class manifoldConstr(object):
         raise NotImplementedError
 
     def __calc_correction__(self, x, gamma, y, Gq, rowq, colq, Gg, rowg, colg, rec, needg):
-        """Calculate the correction term
+        r"""Calculate the correction term
 
         It calculate J(qc)^T \gamma, and the sparse Jacobians associated with it
 
@@ -97,7 +99,7 @@ class manifoldConstr(object):
         raise NotImplementedError
 
 
-class trajOptManifoldCollocProblem(trajOptCollocProblem):
+class TrajOptManifoldCollocProblem(TrajOptCollocProblem):
     """A class for solving state equality constrained problem.
 
     The difference between this class with trajOptCollocProblem is
@@ -117,7 +119,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
 
     """
     def __init__(self, sys, N, t0, tf, man_constr, addx=None):
-        """Constructor for the class, the user is required to provide dynamical system, discretization size, 
+        """Constructor for the class, the user is required to provide dynamical system, discretization size,
         allowable times, state manifold constraint, and possibly auxiliary variables.
 
         Parameters
@@ -130,12 +132,12 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         addx : list of addX / one addX / None, additional optimization variables.
 
         """
-        trajOptCollocProblem.__init__(self, sys, N, t0, tf, addx)
+        TrajOptCollocProblem.__init__(self, sys, N, t0, tf, addx)
         # modify a few parameters due to introduction of man_constr
         man_constr_dim = man_constr.nc
         ext_man_constr_dim = man_constr.nf
         self.numGamma = (N - 1) * man_constr_dim
-        assert isinstance(man_constr, manifoldConstr)
+        assert isinstance(man_constr, ManifoldConstr)
         self.man_constr = man_constr
         self.man_constr_dim = man_constr_dim
         self.ext_man_constr_dim = ext_man_constr_dim
@@ -171,7 +173,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
 
         self.numLinCon = nlincon
         self.numNonLinCon = nnonlincon
-        trajOptCollocProblem.__findMaxNG__(self)
+        TrajOptCollocProblem.__findMaxNG__(self)
         self.numF = 1 + numDyn + numDefectDyn + numC
 
         # analyze all objective functions in order to detect pattern for A, and additional variables for other nonlinear objective function
@@ -179,7 +181,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         self.objaddn = addn  # this is important for multiple objective function support
         self.numSol += addn
         self.numF += addn
-        probFun.__init__(self, self.numSol, self.numF)  # not providing G means we use finite-difference
+        OptProblem.__init__(self, self.numSol, self.numF)  # not providing G means we use finite-difference
         # we are ready to write Aval, Arow, Acol for this problem. They are arranged right after dynamics
         self.__setAPattern__(numDyn, nnonlincon, spA)
         self.__setXbound__(gamma_bound)
@@ -191,7 +193,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
 
     def __getSparsity__(self, x0):
         """Detect the sparsity pattern with an initial guess."""
-        trajOptCollocProblem.__getSparsity__(self, x0)
+        TrajOptCollocProblem.__getSparsity__(self, x0)
         # add nnz Jacobian from defect constraint, i.e. J(q)^T \gamma
         self.numG += (self.N - 1) * (self.man_constr.nnzJ_gamma + self.man_constr.nnzJ_x)
         # add nnz Jacobian from manifold constraint on knot points
@@ -252,7 +254,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
             cur_row = curRow
             row_step = dimdyn
         # call ordinary dyn constr
-        curRow, curNg = trajOptCollocProblem.__dynconstr_mode_g__(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
+        curRow, curNg = TrajOptCollocProblem.__dynconstr_mode_g__(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg)
         # loop over defect constraints
         tmpy = np.zeros(dimq)
         for i in range(self.N - 1):
@@ -279,6 +281,10 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         return curRow, curNg
 
     def parseF(self, guess):
+        """Alias for :func:`trajOptLib.TrajOptManifoldCollocProblem.parse_f`"""
+        return self.parse_f(guess)
+
+    def parse_f(self, guess):
         """Give an guess, evaluate it and parse into parts.
 
         :param guess: ndarray, (numSol, ) a guess or a solution to check
@@ -287,15 +293,12 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
         """
         assert len(guess) == self.numSol
         N = self.N
-        nPoint = self.nPoint
-        dimx = self.dimx
         dimdyn = self.dimdyn
-        nc = self.man_constr.nc
         nf = self.man_constr.nf
         y = np.zeros(self.numF)
 
         # call previous function
-        rst = trajOptCollocProblem.parseF(self, guess, y)
+        rst = TrajOptCollocProblem.parseF(self, guess, y)
 
         numC, nnonlincon, nlincon = self.__sumConstrNum__()
         curN = 1 + (2 * N - 1) * dimdyn + self.numDefectDyn + nnonlincon
@@ -320,7 +323,7 @@ class trajOptManifoldCollocProblem(trajOptCollocProblem):
 
     def __setXbound__(self, gamma_bound):
         """Set bounds on decision variables."""
-        trajOptCollocProblem.__setXbound__(self)
+        TrajOptCollocProblem.__setXbound__(self)
         # we only need to set gamma which are unbounded
         curN = self.numTraj + self.lenAddX
         # gamma cannot be too large, I guess

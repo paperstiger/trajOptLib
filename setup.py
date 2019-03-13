@@ -11,7 +11,7 @@ from distutils.version import LooseVersion
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 
-import trajOptLib
+import trajoptlib
 
 
 class CMakeExtension(Extension):
@@ -94,11 +94,11 @@ sys.argv = copied
 
 
 setup(
-        name='trajOptLib',
-        version='0.4.0',
+        name='trajoptlib',
+        version='1.0.0',
         author='Gao Tang',
         author_email='gao.tang@duke.edu',
-        packages=list(find_packages(trajOptLib.__path__, trajOptLib.__name__)),
+        packages=list(find_packages(trajoptlib.__path__, trajoptlib.__name__)),
         scripts=[],
         url='',
         license='LICENSE.txt',
@@ -111,6 +111,7 @@ setup(
             'autograd',
             'scipy>=1.0.0',
             'matplotlib>=1.13.0',
+            'six',
             'pyoptsolver'
         ],
 )

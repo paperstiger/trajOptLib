@@ -13,20 +13,19 @@ This class implements the direct collocation approach for humanoid trajectory op
 """
 from __future__ import division
 import numpy as np
-from scipy.interpolate import interp1d
-from .trajOptBase import linearObj, linearPointObj
-from .trajOptBase import linearPointConstr, linearConstr
-from .trajOptBase import nonLinearPointObj, nonLinearObj
-from .trajOptBase import nonLinearPointConstr, nonLinearConstr
-from .trajOptBase import lqrObj, quadPenalty
-from .trajOptBase import addX
-from .trajOptBase import daeSystem
-from . import SnoptConfig, probFun, solver
-from .utility import randomGenInBound, checkInBounds, interp
-from scipy.sparse import spmatrix, coo_matrix, csr_matrix
+from .trajOptBase import LinearObj as linearObj, LinearPointObj as linearPointObj
+from .trajOptBase import LinearPointConstr as linearPointConstr, LinearConstr as linearConstr
+from .trajOptBase import NonLinearPointObj as nonLinearPointObj, NonLinearObj as nonLinearObj
+from .trajOptBase import NonLinearPointConstr as nonLinearPointConstr, NonLinearConstr as nonLinearConstr
+from .trajOptBase import LqrObj as lqrObj
+from .trajOptBase import AddX as addX
+from .trajOptBase import DaeSystem as daeSystem
+from pyoptsolver import OptProblem
+from .utility import random_gen_in_bound as randomGenInBound, check_in_bounds as checkInBounds, interp
+from scipy.sparse import coo_matrix, csr_matrix
 
 
-class trajOptCollocProblem(probFun):
+class TrajOptCollocProblem(OptProblem):
     """A class for definition of trajectory optimization problem using collocation constraints.
 
     A general framework for using this class is to:
@@ -44,6 +43,20 @@ class trajOptCollocProblem(probFun):
 
     The system dynamics constraints are imposed using direct collocation approach with some additional optimization
     variables as suggested by others.
+
+    :currentmodule:
+    .. exclude-members:: addLinearPointConstr
+    .. exclude-members:: addLinearConstr
+    .. exclude-members:: addNonLinearConstr
+    .. exclude-members:: addNonLinearPointConstr
+    .. exclude-members:: addNonLinearPointObj
+    .. exclude-members:: addNonLinearObj
+    .. exclude-members:: addLinearPointObj
+    .. exclude-members:: addLinearObj
+    .. exclude-members:: getAddXIndexByIndex
+    .. exclude-members:: getStateIndexByIndex
+    .. exclude-members:: getControlIndexByIndex
+    .. exclude-members:: getParamIndexByIndex
 
     """
     def __init__(self, sys, N, t0, tf, addx=None):
@@ -166,7 +179,7 @@ class trajOptCollocProblem(probFun):
         self.objaddn = addn  # this is important for multiple objective function support
         self.numSol += addn
         self.numF += addn
-        probFun.__init__(self, self.numSol, self.numF)  # not providing G means we use finite-difference
+        OptProblem.__init__(self, self.numSol, self.numF)  # not providing G means we use finite-difference
         # we are ready to write Aval, Arow, Acol for this problem. They are arranged right after dynamics
         self.__setAPattern__(numDyn, nnonlincon, spA)
         self.__setXbound__()
@@ -176,6 +189,10 @@ class trajOptCollocProblem(probFun):
         self.__turnOnGrad__(randX)
 
     def plot_jacobian(self, savefnm=None):
+        """Plot the jacobian pattern of this problem.
+
+        :param savefnm: str, the filename to save pattern into. If none, no figure is saved.
+        """
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots()
         if self.Acol.size > 0:
@@ -258,7 +275,13 @@ class trajOptCollocProblem(probFun):
         nlincon = numC - nnonlincon
         return numC, nnonlincon, nlincon
 
-    def genGuessFromTraj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None, obj=None, interp_kind='linear'):
+    def genGuessFromTraj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None,
+                         obj=None, interp_kind='linear'):
+        """Alias for :func:`~trajOptLib.TrajOptCollocProblem.gen_guess_from_traj`"""
+        return self.gen_guess_from_traj(X, U, P, t0, tf, addx, tstamp, obj, interp_kind)
+
+    def gen_guess_from_traj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None,
+                         obj=None, interp_kind='linear'):
         """Generate an initial guess for the problem with user specified information.
 
         An amazing feature is the user does not have to give a solution of exactly the same time-stamped trajectory used internally.
@@ -342,9 +365,13 @@ class trajOptCollocProblem(probFun):
         return randX
 
     def genGuessFromSol(self, parsed_sol):
+        """Alias for :func:`~trajOptLib.TrajOptCollocProblem.gen_guess_from_traj`"""
+        return self.gen_guess_from_sol(parsed_sol)
+
+    def gen_guess_from_sol(self, parsed_sol):
         """Generate an initial guess from a previous solution. Mainly change grid size or add perturbation. But determining structure is difficult
 
-        :param parsed_sol: dictionary, output of calling parseSol
+        :param parsed_sol: dictionary, output of calling parse_sol
 
         """
         t = parsed_sol['t']
@@ -578,6 +605,10 @@ class trajOptCollocProblem(probFun):
         return spL, spM, spR
 
     def randomGenX(self):
+        """Alias for :func:`trajOptLib.TrajOptCollocProblem.random_gen_guess`"""
+        return self.random_gen_guess()
+
+    def random_gen_guess(self):
         """A more reansonable approach to generate random guess for the problem.
 
         It considers bounds on initial and final states so this is satisfied.
@@ -901,7 +932,11 @@ class trajOptCollocProblem(probFun):
         useP = X[:, self.dimpoint - self.dimp:]
         return useX, useU, useP
 
-    def parseF(self, guess, y=None):
+    def parseF(self, guess):
+        """Alias for :func:`~trajOptLib.TrajOptCollocProblem.parse_f`"""
+        return self.parse_f(guess)
+
+    def parse_f(self, guess, y=None):
         """Give an guess, evaluate it and parse into parts.
 
         :param guess: ndarray, (numSol, ) a guess or a solution to check
@@ -1368,7 +1403,7 @@ class trajOptCollocProblem(probFun):
         return curRow, curNg
 
     # interface functions for ipopt
-    def ipEvalF(self, x):
+    def __cost__(self, x):
         """The eval_f function required by ipopt.
 
         :param x: a guess/solution of the problem
@@ -1378,23 +1413,23 @@ class trajOptCollocProblem(probFun):
         row0 = self.spA.getrow(0)
         return np.dot(row0.data, x[row0.indices])
 
-    def ipEvalGradF(self, x):
+    def __gradient__(self, x, g):
         """Evaluation of the gradient of objective function.
 
         :param x: guess/solution to the problem
         :return grad: gradient of objective function w.r.t x
 
         """
-        return self.spA.getrow(0).toarray().flatten()
+        g[:] = self.spA.getrow(0).toarray().flatten()
+        return True
 
-    def ipEvalG(self, x):
+    def __constraint__(self, x, y):
         """Evaluation of the constraint function.
 
         :param x: ndarray, guess/solution to the problem.
         :return g: constraint function
 
         """
-        y = np.zeros(self.numF)
         G = np.zeros(1)
         row = np.zeros(1, dtype=int)
         col = np.zeros(1, dtype=int)
@@ -1403,20 +1438,19 @@ class trajOptCollocProblem(probFun):
         y += self.spA.dot(x)
         return y
 
-    def ipEvalJacG(self, x, flag):
+    def __jacobian__(self, x, g, row, col, rec):
         """Evaluate jacobian of constraints. I simply call __callg__
 
         :param x: ndarray, guess / solution to the problem
         :param flag: bool, True return row/col, False return values
 
         """
-        y = np.zeros(self.numF)
-        G = np.zeros(self.nG + self.spA.nnz)
-        if flag:
+        y = np.zeros(self.nf)
+        if rec:
             row = np.ones(self.nG + self.spA.nnz, dtype=int)
             col = np.ones(self.nG + self.spA.nnz, dtype=int)
             tmpx = self.randomGenX()
-            self.__callg__(tmpx, y, G, row, col, True, True)
+            self.__callg__(tmpx, y, g, row, col, True, True)
             # good news is there is no overlap of A and G
             row[self.nG:] = self.spA_coo.row
             col[self.nG:] = self.spA_coo.col
@@ -1424,9 +1458,9 @@ class trajOptCollocProblem(probFun):
         else:
             row = np.ones(1, dtype=int)
             col = np.ones(1, dtype=int)
-            self.__callg__(x, y, G, row, col, False, True)
-            G[self.nG:] = self.spA_coo.data
-            return G
+            self.__callg__(x, y, g, row, col, False, True)
+            g[self.nG:] = self.spA_coo.data
+            return g
 
     def __patchCol__(self, index, col, col_offset=0):
         """Find which indices it belongs to the original one for a local matrix at index with col.
@@ -1450,6 +1484,10 @@ class trajOptCollocProblem(probFun):
             return {'t': tgrid, 'x': X, 'u': U, 'p': P, 'addx': self.__parseAddX__(sol), 'obj': obj}
 
     def addLQRObj(self, lqrobj):
+        """Alias for :func:`trajOptLib.TrajOptCollocProblem.add_lqr_obj`"""
+        return self.add_lqr_obj(lqrobj)
+
+    def add_lqr_obj(self, lqrobj):
         """Add a lqr objective function to the problem. It changes lqrObj into a function being called.
 
         :param lqrobj: a lqrObj class.
@@ -1532,7 +1570,7 @@ class trajOptCollocProblem(probFun):
                 yF = np.sum(lqrobj.F.data * ((useX[-1, Fcol] - lqrobj.xfbase[Fcol]) ** 2))
                 if useQ > 0:
                     if needg:
-                        n0 = curG - numPoint * (useR + useP) - useF  # locate at the last row
+                        n0 = curG - (useR + useP) - useF  # locate at the last row
                         G[n0: n0 + useF] += 2.0 * lqrobj.F.data * (useX[-1, Fcol] - lqrobj.xfbase[Fcol])
                 else:
                     G[curG: curG + useF] = 2.0 * lqrobj.F.data * (useX[-1, Fcol] - lqrobj.xfbase[Fcol])
@@ -1763,6 +1801,10 @@ class trajOptCollocProblem(probFun):
             self.linPointConstr.append(constr)
 
     def addObj(self, obj, path=False):
+        """Alias for :func:`~trajOptLib.TrajOptCollocProblem.addObj`"""
+        self.add_obj(obj, path)
+
+    def add_obj(self, obj, path=False):
         """A high level function that add objective function of any kind.
 
         :param obj: an objective object.
@@ -1779,8 +1821,14 @@ class trajOptCollocProblem(probFun):
             self.addNonLinearPointObj(obj, path)
         elif isinstance(obj, lqrObj):
             self.addLQRObj(obj)
+        else:
+            print("Inappropriate type %s used as objective" % type(obj))
 
     def addConstr(self, constr, path=False, **kwargs):
+        """Alias for :func:`~trajOptLib.TrajOptCollocProblem.add_constr`"""
+        self.add_constr(constr, path, **kwargs)
+
+    def add_constr(self, constr, path=False, **kwargs):
         """Add a constraint to the problem.
 
         :param constr: a constraint object.
@@ -1796,9 +1844,9 @@ class trajOptCollocProblem(probFun):
         elif isinstance(constr, nonLinearPointConstr):
             self.addNonLinearPointConstr(constr, path, **kwargs)
         else:
-            raise NotImplementedError
+            print("Inappropriate type %s used as constraint" % type(constr))
 
-    def setN(self, N):
+    def set_N(self, N):
         """Set N.
 
         :param N: the size of discretization.
@@ -1806,7 +1854,7 @@ class trajOptCollocProblem(probFun):
         """
         self.N = N
 
-    def sett0tf(self, t0, tf):
+    def set_t0_tf(self, t0, tf):
         """Set t0 and tf.
 
         :param t0: float/ndarray (2,) allowable t0
@@ -1826,7 +1874,7 @@ class trajOptCollocProblem(probFun):
             self.fixt0 = False
             assert t0[0] <= t0[1]
 
-    def setXbound(self, xlb, xub):
+    def set_x_bound(self, xlb, xub):
         """Set bounds on state variables.
 
         :param xlb: ndarray, (dimx,) lower bounds on state variables.
@@ -1839,7 +1887,7 @@ class trajOptCollocProblem(probFun):
             print('Incorrect length of xub, it must be %d' % self.dimx)
         self.xbd = [np.array(xlb), np.array(xub)]
 
-    def setUbound(self, ulb, uub):
+    def set_u_bound(self, ulb, uub):
         """Set bounds on control variables.
 
         :param ulb: ndarray, (dimu,) lower bounds on control variables.
@@ -1852,7 +1900,7 @@ class trajOptCollocProblem(probFun):
             print('Incorrect length of uub, it must be %d' % self.dimu)
         self.ubd = [np.array(ulb), np.array(uub)]
 
-    def setPbound(self, plb, pub):
+    def set_p_bound(self, plb, pub):
         """Set bounds on parameter variables.
 
         :param plb: ndarray, (dimp,) lower bounds on parameter variables.
@@ -1865,7 +1913,7 @@ class trajOptCollocProblem(probFun):
             print('Incorrect length of pub, it must be %d' % self.dimp)
         self.pbd = [np.array(plb), np.array(pub)]
 
-    def setX0bound(self, x0lb, x0ub):
+    def set_x0_bound(self, x0lb, x0ub):
         """Set bounds on x0. This is optional but useful.
 
         :param x0lb: ndarray, (dimx,) lower bounds on x0 variables.
@@ -1878,7 +1926,7 @@ class trajOptCollocProblem(probFun):
             print('Incorrect length of x0ub, it must be %d' % self.dimx)
         self.x0bd = [np.array(x0lb), np.array(x0ub)]
 
-    def setXfbound(self, xflb, xfub):
+    def set_xf_bound(self, xflb, xfub):
         """Set bounds on xf. This is optional but useful.
 
         :param xflb: ndarray, (dimx,) lower bounds on xf variables.

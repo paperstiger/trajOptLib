@@ -13,24 +13,26 @@ Class for describing the trajectory optimization problems.
 """
 from __future__ import print_function, division
 import numpy as np
-from .trajOptBase import linearObj, linearPointObj
-from .trajOptBase import linearPointConstr, linearConstr
-from .trajOptBase import nonLinearPointObj, nonLinearObj
-from .trajOptBase import nonLinearPointConstr, nonLinearConstr
-from .trajOptBase import system, addX
-from .trajOptBase import lqrObj
-from . import SnoptConfig as snoptConfig, probFun, solver
-from .utility import parseX, randomGenInBound, checkInBounds, interp
+from .trajOptBase import LinearObj, LinearPointObj
+from .trajOptBase import LinearPointConstr, LinearConstr
+from .trajOptBase import NonLinearPointObj, NonLinearObj
+from .trajOptBase import NonLinearPointConstr, NonLinearConstr
+from .trajOptBase import System, AddX as addX
+from .trajOptBase import LqrObj
+from pyoptsolver import OptProblem
+from .utility import (random_gen_in_bound as randomGenInBound,
+                      check_in_bounds as checkInBounds,
+                      interp)
 from scipy import sparse
 from scipy.sparse import spmatrix, coo_matrix
 
 
-class trajOptProblem(probFun):
+class TrajOptProblem(OptProblem):
     """A class for definition of trajectory optimization problem.
 
     A general framework for using this class is to:
 
-    1. Define a class inherited from system and write dyn/Jdyn method.
+    1. Define a class inherited from system and write dyn/jac_dyn method.
     2. Optionally, write desired cost function by inheriting/creating from the list of available cost functions.
     3. Optionally, write desired constraint functions by inheriting from available constraints.
     4. Create this class with selected system, discretization, t0, tf range, gradient option
@@ -40,6 +42,16 @@ class trajOptProblem(probFun):
     8. Create snoptConfig instance and choose desired options
     9. Construct the solver
     10. Use the solver to solve with either automatic guess or user provided guess
+
+    :currentmodule:
+    .. exclude-members:: addLinearPointConstr
+    .. exclude-members:: addLinearConstr
+    .. exclude-members:: addNonLinearConstr
+    .. exclude-members:: addNonLinearPointConstr
+    .. exclude-members:: addNonLinearPointObj
+    .. exclude-members:: addNonLinearObj
+    .. exclude-members:: addLinearPointObj
+    .. exclude-members:: addLinearObj
 
     """
     def __init__(self, sys, N, t0, tf, gradmode=True, addx=None):
@@ -53,7 +65,7 @@ class trajOptProblem(probFun):
         :param addX: list of addX / one addX / None, additional optimization variables.
 
         """
-        assert isinstance(sys, system)
+        assert isinstance(sys, System)
         self.sys = sys
         self.N = N
         self.tf = tf
@@ -150,7 +162,7 @@ class trajOptProblem(probFun):
         self.objaddn = addn  # this is important for multiple objective function support
         self.numSol += addn
         self.numF += addn
-        probFun.__init__(self, self.numSol, self.numF)  # currently we do not know G yet
+        OptProblem.__init__(self, self.numSol, self.numF)  # currently we do not know G yet
         self.__setAPattern(numDyn, nnonlincon, spA)
         self.__setXbound()
         self.__setFbound()
@@ -160,7 +172,10 @@ class trajOptProblem(probFun):
             self.__turnOnGrad(randX)
 
     def plot_jacobian(self, savefnm=None):
-        """Plot the jacobian pattern of this problem."""
+        """Plot the jacobian pattern of this problem.
+
+        :param savefnm: str, the filename to save pattern into. If none, no figure is saved.
+        """
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots()
         if self.Acol.size > 0:
@@ -172,7 +187,15 @@ class trajOptProblem(probFun):
         if savefnm is not None:
             np.savez(savefnm, row=row, col=col, val=g, arow=self.Arow, acol=self.Acol, aval=self.Aval)
 
+    def preProcess(self, *args):
+        """Alias for pre_process"""
+        self.pre_process(*args)
+
     def genGuessFromTraj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None, obj=None, interp_kind='linear'):
+        """Alias for gen_guess_from_traj"""
+        return self.gen_guess_from_traj(X, U, P, t0, tf, addx, tstamp, obj, interp_kind)
+
+    def gen_guess_from_traj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None, obj=None, interp_kind='linear'):
         """Generate an initial guess for the problem with user specified information.
 
         An amazing feature is the user does not have to give a solution of exactly the same time-stamped trajectory used internally.
@@ -253,10 +276,6 @@ class trajOptProblem(probFun):
                     field[:] = randomGenInBound(guess, addx_.n)
         # I do not have to worry about objaddn since they are linear
         return randX
-
-    def preProcess(self, *args):
-        """Alias for pre_process"""
-        self.pre_process(*args)
 
     def __analyzeObj(self, numSol, numF):
         """Analyze the objective function.
@@ -350,6 +369,10 @@ class trajOptProblem(probFun):
         return curRow, curNA
 
     def randomGenX(self):
+        """Alias for :func:`~trajoptlib.TrajOptProblem.random_gen_guess`"""
+        return self.random_gen_guess()
+
+    def random_gen_guess(self):
         """A more reansonable approach to generate random guess for the problem.
 
         It considers bounds on initial and final states so this is satisfied.
@@ -416,7 +439,7 @@ class trajOptProblem(probFun):
         h, useT = self.__getTimeGrid(x)
         useX, useU, useP = self.__parseX__(x)
         # use one time/state/ctrl/para/h set to detect the sparsity pattern
-        ydot, Jac = self.sys.Jdyn(useT[0], useX[0], useU[0], useP[0])
+        ydot, Jac = self.sys.jac_dyn(useT[0], useX[0], useU[0], useP[0])
         nrow, ncol = Jac.shape
         if isinstance(Jac, np.ndarray):
             nnz = nrow * ncol
@@ -501,10 +524,10 @@ class trajOptProblem(probFun):
         numDynVar = self.N * dimpnt
         Mxlb = np.reshape(xlb[:numDynVar], (self.N, dimpnt))
         Mxub = np.reshape(xub[:numDynVar], (self.N, dimpnt))
-        Mulb = Mxlb[:, dimx:dimx+dimu]
-        Muub = Mxub[:, dimx:dimx+dimu]
-        Mplb = Mxlb[:, dimpnt-dimp:dimpnt]
-        Mpub = Mxub[:, dimpnt-dimp:dimpnt]
+        Mulb = Mxlb[:, dimx:dimx + dimu]
+        Muub = Mxub[:, dimx:dimx + dimu]
+        Mplb = Mxlb[:, dimpnt - dimp:dimpnt]
+        Mpub = Mxub[:, dimpnt - dimp:dimpnt]
         # set bounds for q and dq, agree with previous convention
         if self.xbd[0] is not None:
             Mxlb[:, :dimx] = self.xbd[0]
@@ -648,6 +671,10 @@ class trajOptProblem(probFun):
         return useX, useU, useP
 
     def parseF(self, guess):
+        """Alias for :func:`~trajOptLib.TrajOptProblem.parse_f`"""
+        return self.parse_f(guess)
+
+    def parse_f(self, guess):
         """Give an guess, evaluate it and parse into parts.
 
         :param guess: ndarray, (numSol, ) a guess or a solution to check
@@ -663,7 +690,7 @@ class trajOptProblem(probFun):
         else:
             self.__callf__(guess, y)
         obj = y[0]
-        dynCon = np.reshape(y[1:(N-1)*dimx+1], (N - 1, dimx))
+        dynCon = np.reshape(y[1:(N - 1) * dimx + 1], (N - 1, dimx))
         curN = 1 + (N - 1) * dimx
         pointCon = []
         for constr in self.pointConstr:
@@ -671,11 +698,11 @@ class trajOptProblem(probFun):
             curN += constr.nf
         pathCon = []
         for constr in self.pathConstr:
-            pathCon.append(np.reshape(y[curN: curN+N*constr.nf], (N, constr.nf)))
-            curN += N*constr.nf
+            pathCon.append(np.reshape(y[curN: curN + N * constr.nf], (N, constr.nf)))
+            curN += N * constr.nf
         nonLinCon = []
         for constr in self.nonLinConstr:
-            nonLinCon.append(y[curN: curN+constr.nf])
+            nonLinCon.append(y[curN: curN + constr.nf])
             curN += constr.nf
         # check bounds, return a -1, 1 value for non-equality bounds, and 0 for equality bounds
         useX, useU, useP = self.__parseX__(guess)
@@ -705,7 +732,10 @@ class trajOptProblem(probFun):
                 't0bd': t0bound, 'tfbd': tfbound, 'addXbd': addXbound}
 
     def parse_sol(self, sol):
-        """Call parseX function from utility and return a dict of solution."""
+        """Call parseX function from utility and return a dict of solution.
+
+        :param sol: ndarray, the solution.
+        """
         X, U, P = self.__parseX__(sol)
         if self.dimp == 0:
             P = None
@@ -715,6 +745,10 @@ class trajOptProblem(probFun):
             return {'t': tgrid, 'x': X, 'u': U, 'p': P, 'obj': obj}
         else:
             return {'t': tgrid, 'x': X, 'u': U, 'p': P, 'addx': self.__parseAddX__(sol), 'obj': obj}
+
+    def parseSol(self, sol):
+        """Alias for :func:`~trajOptLib.TrajOptProblem.parse_sol`"""
+        return self.parse_sol(sol)
 
     def __get_time_grid__(self, x):
         """Based on initial guess x, get the time grid for discretization.
@@ -833,7 +867,7 @@ class trajOptProblem(probFun):
 
         """
         # loop over all system dynamics constraint
-        cDyn = np.reshape(y[curRow:curRow+(self.N - 1) * self.dimx], (self.N - 1, self.dimx))
+        cDyn = np.reshape(y[curRow:curRow + (self.N - 1) * self.dimx], (self.N - 1, self.dimx))
         for i in range(self.N - 1):
             # evaluate gradient of system dynamics
             ydot = self.sys.dyn(useT[i], useX[i], useU[i], useP[i])
@@ -863,50 +897,50 @@ class trajOptProblem(probFun):
         """Evaluate the constraints imposed by system dynamics"""
         dimx, dimu, dimp = self.dimx, self.dimu, self.dimp
         numX, numU = self.numX, self.numU
-        cDyn = np.reshape(y[curRow:curRow+(self.N - 1) * self.dimx], (self.N - 1, self.dimx))
+        cDyn = np.reshape(y[curRow:curRow + (self.N - 1) * self.dimx], (self.N - 1, self.dimx))
         for i in range(self.N - 1):
             # evaluate gradient of system dynamics TODO: support other types of integration scheme
-            ydot, Jac = self.sys.Jdyn(useT[i], useX[i], useU[i], useP[i])  # TODO: support in-place Jacobian
+            ydot, Jac = self.sys.jac_dyn(useT[i], useX[i], useU[i], useP[i])  # TODO: support in-place Jacobian
             cDyn[i] = useX[i] + h * ydot - useX[i + 1]
             if needg:
                 if not self.dynSparse:
                     Jac *= h  # always useful
                     # assign a block for x
-                    G[curNg: curNg + dimx*dimx] = (Jac[:, 1:1+dimx] + np.eye(dimx)).flatten()
+                    G[curNg: curNg + dimx * dimx] = (Jac[:, 1:1 + dimx] + np.eye(dimx)).flatten()
                     if rec:
                         tmpMat = np.tile(np.arange(dimx), (dimx, 1))
-                        row[curNg: curNg + dimx*dimx] = curRow + tmpMat.T.flatten()
-                        col[curNg: curNg + dimx*dimx] = i * dimx + tmpMat.flatten()
+                        row[curNg: curNg + dimx * dimx] = curRow + tmpMat.T.flatten()
+                        col[curNg: curNg + dimx * dimx] = i * dimx + tmpMat.flatten()
                     curNg += dimx * dimx
                     # assign a block for u
-                    G[curNg: curNg + dimx*dimu] = Jac[:, 1+dimx:1+dimx+dimu].flatten()
+                    G[curNg: curNg + dimx * dimu] = Jac[:, 1 + dimx:1 + dimx + dimu].flatten()
                     if rec:
-                        row[curNg: curNg + dimx*dimu] = curRow + np.tile(np.arange(dimx), (dimu, 1)).T.flatten()
-                        col[curNg: curNg + dimx*dimu] = numX + i * dimu + np.tile(np.arange(dimu), dimx).flatten()
+                        row[curNg: curNg + dimx * dimu] = curRow + np.tile(np.arange(dimx), (dimu, 1)).T.flatten()
+                        col[curNg: curNg + dimx * dimu] = numX + i * dimu + np.tile(np.arange(dimu), dimx).flatten()
                     curNg += dimx * dimu
                     # assign a block for p, if necessary
                     if dimp > 0:
-                        G[curNg: curNg + dimx*dimp] = Jac[:, 1+dimx+dimu:1+dimx+dimu+dimp].flatten()
+                        G[curNg: curNg + dimx * dimp] = Jac[:, 1 + dimx + dimu:1 + dimx + dimu + dimp].flatten()
                         if rec:
-                            row[curNg: curNg + dimx*dimp] = curRow + np.tile(np.arange(dimx), (dimp, 1)).T.flatten()
-                            col[curNg: curNg + dimx*dimp] = numX + numU + i * dimp + np.tile(np.arange(dimp), dimx).flatten()
+                            row[curNg: curNg + dimx * dimp] = curRow + np.tile(np.arange(dimx), (dimp, 1)).T.flatten()
+                            col[curNg: curNg + dimx * dimp] = numX + numU + i * dimp + np.tile(np.arange(dimp), dimx).flatten()
                         curNg += dimx * dimp
                     # assign the diagonal block for x_{k+1}
                     G[curNg: curNg + dimx] = -1.0
                     if rec:
                         row[curNg: curNg + dimx] = curRow + np.arange(dimx)
-                        col[curNg: curNg + dimx] = np.arange((i+1)*dimx, (i+2)*dimx)
+                        col[curNg: curNg + dimx] = np.arange((i + 1) * dimx, (i + 2) * dimx)
                     curNg += dimx
                     # assign a column for t0, if necessary
                     if self.t0ind > 0:
-                        G[curNg: curNg + dimx] = -ydot / (self.N - 1) + Jac[:, 0] * (1-float(i)/(self.N - 1.0))
+                        G[curNg: curNg + dimx] = -ydot / (self.N - 1) + Jac[:, 0] * (1 - float(i) / (self.N - 1.0))
                         if rec:
                             row[curNg: curNg + dimx] = curRow + np.arange(dimx)
                             col[curNg: curNg + dimx] = self.t0ind
                         curNg += dimx
                     # assign a column for tf, if necessary
                     if self.tfind > 0:
-                        G[curNg: curNg + dimx] = ydot / (self.N - 1) + Jac[:, 0] * (float(i)/(self.N - 1.0))
+                        G[curNg: curNg + dimx] = ydot / (self.N - 1) + Jac[:, 0] * (float(i) / (self.N - 1.0))
                         if rec:
                             row[curNg: curNg + dimx] = curRow + np.arange(dimx)
                             col[curNg: curNg + dimx] = self.tfind
@@ -936,13 +970,13 @@ class trajOptProblem(probFun):
                         col[curNg: curNg + dimx] = np.arange(dimx) + (i + 1) * self.dimpoint
                     curNg += dimx
                     if self.t0ind > 0:
-                        G[curNg: curNg + dimx] = -ydot/(self.N - 1) + Jac.getcol(0).toarray()[:, 0] * (1 - float(i)/(self.N - 1.0))
+                        G[curNg: curNg + dimx] = -ydot / (self.N - 1) + Jac.getcol(0).toarray()[:, 0] * (1 - float(i) / (self.N - 1.0))
                         if rec:
                             row[curNg: curNg + dimx] = curRow + np.arange(dimx)
                             col[curNg: curNg + dimx] = self.t0ind
                         curNg += dimx
                     if self.tfind > 0:
-                        G[curNg: curNg + dimx] = ydot/(self.N - 1) + Jac.getcol(0).toarray()[:, 0] * (float(i)/(self.N - 1.0))
+                        G[curNg: curNg + dimx] = ydot / (self.N - 1) + Jac.getcol(0).toarray()[:, 0] * (float(i) / (self.N - 1.0))
                         if rec:
                             row[curNg: curNg + dimx] = curRow + np.arange(dimx)
                             col[curNg: curNg + dimx] = self.tfind
@@ -1067,7 +1101,7 @@ class trajOptProblem(probFun):
         return curRow, curNg
 
     # interface functions for ipopt
-    def ipEvalF(self, x):
+    def __cost__(self, x):
         """The eval_f function required by ipopt.
 
         :param x: a guess/solution of the problem
@@ -1080,76 +1114,36 @@ class trajOptProblem(probFun):
         self.__objModeF__(0, h, useT, useX, useU, useP, x, y)
         return y[0]
 
-    def __cost__(self, x):
-        print("Enter cost")
-        return self.ipEvalF(x)
-
-    def ipEvalGradF(self, x):
+    def __gradient__(self, x, g):
         """Evaluation of the gradient of objective function.
 
         :param x: guess/solution to the problem
-        :return grad: gradient of objective function w.r.t x
+        :param g: the gradient of objective function w.r.t x to be written into
 
         """
-        tmpG = np.zeros(self.numSol)
-        mask = self.Arow == 0
-        tmpG[self.Acol[mask]] = self.Aval[mask]
-        return tmpG
-
-    def __gradient__(self, x, g):
-        print("Enter gradient")
+        g[:] = 0
         mask = self.Arow == 0
         g[self.Acol[mask]] = self.Aval[mask]
         return True
 
-    def ipEvalG(self, x):
-        """Evaluation of the constraint function.
-
-        :param x: ndarray, guess/solution to the problem.
-        :return g: constraint function
-
-        """
-        y = np.zeros(self.numF)
-        if self.gradmode:
-            G = np.zeros(1)
-            row = np.zeros(1, dtype=int)
-            col = np.zeros(1, dtype=int)
-            self.__callg__(x, y, G, row, col, False, False)
-            return y
-        else:
-            self.__callf__(x, y)
-        return y
-
     def __constraint__(self, x, f):
-        print("Enter constraint")
+        """Evaluate constraint function.
+
+        :param x: guess/solution to the problem
+        :param f: constraints ready to be written upon
+        """
         G = np.zeros(1)
         row = np.zeros(1, dtype=int)
         col = np.zeros(1, dtype=int)
         self.__callg__(x, f, G, row, col, False, False)
         return 0
 
-    def ipEvalJacG(self, x, flag):
-        """Evaluate jacobian of constraints. I simply call __callg__
-
-        :param x: ndarray, guess / solution to the problem
-        :param flag: bool, True return row/col, False return values
-
-        """
-        y = np.zeros(self.numF)
-        G = np.zeros(self.nG)
-        if flag:
-            row = np.ones(self.nG, dtype=int)
-            col = np.ones(self.nG, dtype=int)
-            self.__callg__(x, y, G, row, col, True, True)
-            return row, col
-        else:
-            row = np.ones(1, dtype=int)
-            col = np.ones(1, dtype=int)
-            self.__callg__(x, y, G, row, col, False, True)
-            return G
-
     def __jacobian__(self, x, g, row, col, rec):
-        print("Enter Jacobian")
+        """Evaluate the Jacobian of the problem.
+
+        :param x: guess/solution to the problem
+        :param g: the vector being written on for Jacobian entries
+        """
         y = np.zeros(self.numF)
         self.__callg__(x, y, g, row, col, rec, True)
         return 1
@@ -1161,11 +1155,11 @@ class trajOptProblem(probFun):
             index = index + self.N
         return col - 1 + col_offset + index * self.dimpoint
 
-    def parseSol(self, sol):
-        """Call parseX function from utility and return a dict of solution."""
-        return parseX(sol, self.N, self.dimx, self.dimu, self.dimp, self.t0, self.tf, True)
-
     def addLQRObj(self, lqrobj):
+        """Alias for :func:`~trajOptLib.TrajOptProblem.add_lqr_obj`"""
+        self.add_lqr_obj(lqrobj)
+
+    def add_lqr_obj(self, lqrobj):
         """Add a lqr objective function to the problem. It changes lqrObj into a function being called in two modes...
 
         :param lqrobj: a lqrObj class.
@@ -1283,7 +1277,7 @@ class trajOptProblem(probFun):
         :param linObj: linearObj class
 
         """
-        assert isinstance(linObj, linearObj)
+        assert isinstance(linObj, LinearObj)
         self.linearObj.append(linObj)
 
     def addLinearPointObj(self, linPointObj, path=False):
@@ -1293,7 +1287,7 @@ class trajOptProblem(probFun):
         :param path: bool, if this is path obj (at every point except for final one)
 
         """
-        assert isinstance(linPointObj, linearPointObj)
+        assert isinstance(linPointObj, LinearPointObj)
         if path:
             self.linPathObj.append(linPointObj)
         else:
@@ -1305,7 +1299,7 @@ class trajOptProblem(probFun):
         :param nonLinObj: a nonLinObj class
 
         """
-        assert isinstance(nonlinObj, nonLinearObj)
+        assert isinstance(nonlinObj, NonLinearObj)
         self.nonLinObj.append(nonlinObj)
 
     def addNonLinearPointObj(self, nonPntObj, path=False):
@@ -1315,7 +1309,7 @@ class trajOptProblem(probFun):
         :param path: bool, if this obj is pointwise
 
         """
-        assert isinstance(nonPntObj, nonLinearPointObj)
+        assert isinstance(nonPntObj, NonLinearPointObj)
         if path:
             self.nonPathObj.append(nonPntObj)
         else:
@@ -1328,7 +1322,7 @@ class trajOptProblem(probFun):
         :param path: bool, if this obj
 
         """
-        assert isinstance(pntConstr, nonLinearPointConstr)
+        assert isinstance(pntConstr, NonLinearPointConstr)
         if path:
             self.pathConstr.append(pntConstr)
         else:
@@ -1340,44 +1334,63 @@ class trajOptProblem(probFun):
         :param constr: nonLinConstr class
 
         """
-        assert isinstance(constr, nonLinearConstr)
+        assert isinstance(constr, NonLinearConstr)
         self.nonLinConstr.append(constr)
 
     def addLinearConstr(self, constr):
-        assert isinstance(constr, linearConstr)
+        assert isinstance(constr, LinearConstr)
         self.linearConstr.append(constr)
 
     def addLinearPointConstr(self, constr, path=False):
-        assert isinstance(constr, linearPointConstr)
+        assert isinstance(constr, LinearPointConstr)
         if path:
             self.linPathConstr.append(constr)
         else:
             self.linPointConstr.append(constr)
 
     def addObj(self, obj, path=False):
-        """A high level function that add objective function of any kind."""
-        if isinstance(obj, linearObj):
+        """Alias for :func:`~trajOptLib.TrajOptProblem.add_obj`"""
+        self.add_obj(obj, path)
+
+    def add_obj(self, obj, path=False):
+        """A high level function that add objective function of any kind.
+
+        :param obj: an objective instance, can be LinearObj/LinearPointObj/NonLinearObj/NonLinearPointObj, LqrObj
+        :param path: bool, indicating if the constraint is path constraint.
+        """
+        if isinstance(obj, LinearObj):
             self.addLinearObj(obj)
-        elif isinstance(obj, linearPointObj):
+        elif isinstance(obj, LinearPointObj):
             self.addLinearPointObj(obj, path)
-        elif isinstance(obj, nonLinearObj):
+        elif isinstance(obj, NonLinearObj):
             self.addNonLinearObj(obj)
-        elif isinstance(obj, nonLinearPointObj):
+        elif isinstance(obj, NonLinearPointObj):
             self.addNonLinearPointObj(obj, path)
-        elif isinstance(obj, lqrObj):
+        elif isinstance(obj, LqrObj):
             self.addLQRObj(obj)
+        else:
+            print("Inappropriate type %s used as objective" % type(obj))
 
-    def addConstr(self, constr, path=False):
-        if isinstance(constr, linearConstr):
+    def addConstr(self, constr, path):
+        """Alias for :func:`~trajOptLib.TrajOptProblem.add_constr`"""
+
+    def add_constr(self, constr, path=False):
+        """Add a constraint to the problem.
+
+        :param constr: a constraint object, can be LinearConstr/LinearPointConstr/NonLinearConstr/NonLinearPointConstr
+        """
+        if isinstance(constr, LinearConstr):
             self.addLinearConstr(constr)
-        elif isinstance(constr, linearPointConstr):
+        elif isinstance(constr, LinearPointConstr):
             self.addLinearPointConstr(constr, path)
-        elif isinstance(constr, nonLinearConstr):
+        elif isinstance(constr, NonLinearConstr):
             self.addNonLinearConstr(constr)
-        elif isinstance(constr, nonLinearPointConstr):
+        elif isinstance(constr, NonLinearPointConstr):
             self.addNonLinearPointConstr(constr, path)
+        else:
+            print("Inappropriate type %s used as constraint" % type(constr))
 
-    def setN(self, N):
+    def set_N(self, N):
         """Set N.
 
         :param N: the size of discretization.
@@ -1385,7 +1398,7 @@ class trajOptProblem(probFun):
         """
         self.N = N
 
-    def sett0tf(self, t0, tf):
+    def set_t0_tf(self, t0, tf):
         """Set t0 and tf.
 
         :param t0: float/ndarray (2,) allowable t0

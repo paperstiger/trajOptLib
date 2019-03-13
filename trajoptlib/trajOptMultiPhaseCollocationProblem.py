@@ -14,19 +14,24 @@ I will also change code style to suppress those warnings.
 """
 from __future__ import division
 import numpy as np
-from .trajOptBase import linearPointObj
-from .trajOptBase import linearPointConstr, linearConstr
-from .trajOptBase import nonLinearPointObj, nonLinearObj
-from .trajOptBase import nonLinearPointConstr, nonLinearConstr
-from .trajOptBase import addX
-from . import snoptConfig, probFun, solver, result
-from .utility import randomGenInBound
+from .trajOptBase import LinearPointObj as linearPointObj
+from .trajOptBase import LinearPointConstr as linearPointConstr
+from .trajOptBase import NonLinearPointObj as nonLinearPointObj, NonLinearObj as nonLinearObj
+from .trajOptBase import NonLinearPointConstr as nonLinearPointConstr, NonLinearConstr as nonLinearConstr
+from .trajOptBase import AddX as addX
+from pyoptsolver import OptProblem, OptResult as result
+from .utility import random_gen_in_bound as randomGenInBound
 from scipy.sparse import coo_matrix, csr_matrix
-from .trajOptCollocationProblem import trajOptCollocProblem
+from .trajOptCollocationProblem import TrajOptCollocProblem
 
 
 class NonLinearConnectConstr(object):
-    """Class for defining point constraint function."""
+    """Class for defining point constraint function.
+
+    :currentmodule:
+    .. automethod:: __callg__
+    .. exclude-members:: find_time_gradient
+    """
     def __init__(self, phase1, phase2, nc, lb=None, ub=None, nG=None, index1=-1, index2=0, addx_index=None):
         """Constructor for nonlinear point constraint. Also serve as path constraint.
 
@@ -112,7 +117,11 @@ class NonLinearConnectConstr(object):
 
 
 class LinearConnectConstr(object):
-    """Class for defining linear constraint functions."""
+    """Class for defining linear constraint functions.
+
+    :currentmodule:
+    .. exclude-members:: find_time_gradient
+    """
     def __init__(self, phase1, phase2, a1, a2, lb=None, ub=None, index1=-1, index2=0, adda=None, addx_index=None):
         """Constructor for linear point constraint. Also serve as path constraint.
 
@@ -151,11 +160,14 @@ class LinearConnectConstr(object):
         self.autonomous = (auto1, auto2)
 
 
-class TrajOptMultiPhaseCollocProblem(probFun):
+class TrajOptMultiPhaseCollocProblem(OptProblem):
     """A class for definition of trajectory optimization problem using collocation constraints with support for phase transition.
 
     The support of multiple phase is implemented by calling functions defined in trajOptCollocProblem since I do not want to reinvent the wheels.
     I can conveniently add support for other constraints that connects two phases.
+
+    :currentmodule:
+    .. exclude-members:: change_connect_time_constr_bound
 
     """
     def __init__(self, probs, addx=None, process_args={}):
@@ -218,7 +230,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
             est_num_F += constr.nf
             linear_F += constr.nf
         est_num_sol = self.accum_num_sol[-1] + self.len_addX  # see previous line
-        probFun.__init__(self, est_num_F, est_num_sol)  # we have to allocate A related variables
+        OptProblem.__init__(self, est_num_F, est_num_sol)  # we have to allocate A related variables
         self.__set_A_pattern(est_num_sol, est_num_F)
         # we can determine num_f and num_sol for this class
         self.num_f = est_num_F + self.num_aux_obj_var
@@ -350,7 +362,7 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         return curRow, curNg
 
     # interface functions for ipopt
-    def ipEvalF(self, x):
+    def __cost__(self, x):
         """The eval_f function required by ipopt.
 
         :param x: a guess/solution of the problem
@@ -360,32 +372,32 @@ class TrajOptMultiPhaseCollocProblem(probFun):
         row0 = self.spA.getrow(0)
         return np.dot(row0.data, x[row0.indices])
 
-    def ipEvalGradF(self, x):
+    def __gradient__(self, x, g):
         """Evaluation of the gradient of objective function.
 
         :param x: guess/solution to the problem
         :return grad: gradient of objective function w.r.t x
 
         """
-        return self.spA.getrow(0).toarray().flatten()
+        g[:] = self.spA.getrow(0).toarray().flatten()
+        return True
 
-    def ipEvalG(self, x):
+    def __constr__(self, x, y):
         """Evaluation of the constraint function.
 
         :param x: ndarray, guess/solution to the problem.
         :return g: constraint function
 
         """
-        y = np.zeros(self.num_f)
         G = np.zeros(1)
         row = np.zeros(1, dtype=int)
         col = np.zeros(1, dtype=int)
         self.__callg__(x, y, G, row, col, False, False)
         # y should plus A times x
         y += self.spA.dot(x)
-        return y
+        return 0
 
-    def ipEvalJacG(self, x, flag):
+    def __jacobian__(self, x, g, row, col, flag):
         """Evaluate jacobian of constraints. I simply call __callg__
 
         :param x: ndarray, guess / solution to the problem
@@ -393,22 +405,21 @@ class TrajOptMultiPhaseCollocProblem(probFun):
 
         """
         y = np.zeros(self.num_f)
-        G = np.zeros(self.nG + self.spA.nnz)
         if flag:
             row = np.ones(self.nG + self.spA.nnz, dtype=int)
             col = np.ones(self.nG + self.spA.nnz, dtype=int)
             tmpx = self.randomGenX()
-            self.__callg__(tmpx, y, G, row, col, True, True)
+            self.__callg__(tmpx, y, g, row, col, True, True)
             # good news is there is no overlap of A and G
             row[self.nG:] = self.spA_coo.row
             col[self.nG:] = self.spA_coo.col
-            return row, col
+            return 0
         else:
             row = np.ones(1, dtype=int)
             col = np.ones(1, dtype=int)
-            self.__callg__(x, y, G, row, col, False, True)
-            G[self.nG:] = self.spA_coo.data
-            return G
+            self.__callg__(x, y, g, row, col, False, True)
+            g[self.nG:] = self.spA_coo.data
+            return 0
 
     def parse_sol(self, sol):
         """Given a solution, we parse and return readable data structure.
