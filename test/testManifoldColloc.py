@@ -10,7 +10,7 @@
 testManifoldColloc.py
 
 Test the collocation approach with manifold support.
-Basically I will define a second-order omni-directional car. 
+Basically I will define a second-order omni-directional car.
 It is constrained to move on a circle. We move from (0, 0) to (1, 1) on a circle (x-0.5)^2+(y-0.5)^2=0.5
 """
 import sys, os, time
@@ -18,14 +18,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import logging
 sys.path.append('../')
-from trajOptLib.io import getOnOffArgs
-from trajOptLib import daeSystem, trajOptCollocProblem
-from trajOptLib import manifoldConstr, trajOptManifoldCollocProblem
-from trajOptLib import nonLinearPointConstr
-from trajOptLib import nonLinearPointObj, linearPointObj, linearPointConstr
-from trajOptLib import lqrObj
-from trajOptLib import snoptConfig, solver
-from trajOptLib.utility import showSol
+from trajoptlib.io import getOnOffArgs
+from trajoptlib import daeSystem, trajOptCollocProblem
+from trajoptlib import manifoldConstr, trajOptManifoldCollocProblem
+from trajoptlib import nonLinearPointConstr
+from trajoptlib import nonLinearPointObj, linearPointObj, linearPointConstr
+from trajoptlib import lqrObj
+from trajoptlib import snoptConfig, solver
+from trajoptlib.utility import showSol
 from scipy.sparse import coo_matrix
 
 from carCommon import CircleConstr, SecondOrderOmniCar

@@ -1,0 +1,8 @@
+This is version 1.0.0 of the SQOPT C/C++ interface.
+
+Please visit
+   http://ccom.ucsd.edu/~optimizers
+for compilation and usage info on the C/C++ interface.
+
+This code is kept up-to-date on github:
+   http://github.com/snopt/sqopt-interface

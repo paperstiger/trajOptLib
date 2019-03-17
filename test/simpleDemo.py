@@ -15,28 +15,25 @@ import sys, os, time
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
-from trajOptLib.io import getOnOffArgs
-from trajOptLib.trajOptBase import system, nonLinearPointObj, lqrObj
-from trajOptLib.trajOptProblem import trajOptProblem
-from trajOptLib import snoptConfig, probFun, solver
-from trajOptLib.utility import showSol
-from trajOptLib import ipSolver, ipOption
+from trajoptlib.io import get_onoff_args
+from trajoptlib import System, NonLinearPointObj, LqrObj
+from trajoptlib import TrajOptProblem
+from trajoptlib import OptConfig, OptSolver
+from trajoptlib.utility import show_sol
 from scipy.sparse import coo_matrix
 
 
-
-
-class oneDcase(system):
+class OneDcase(System):
     """Test second order system."""
     def __init__(self):
-        system.__init__(self, 2, 1, 0, 'Euler')
+        System.__init__(self, 2, 1, 0, 'Euler')
 
     def dyn(self, t, x, u, p=None):
         y1 = x[1]
         y2 = u[0]
         return np.array([y1, y2])
 
-    def Jdyn(self, t, x, u, p=None):
+    def jac_dyn(self, t, x, u, p=None):
         y1 = x[1]
         y2 = u[0]
         J = np.zeros((2, 4))
@@ -45,12 +42,12 @@ class oneDcase(system):
         return np.array([y1, y2]), coo_matrix(J)
 
 
-class pendulum(system):
+class Pendulum(System):
     """Test pendulum nonlinearity."""
     def __init__(self):
-        system.__init__(self, 2, 1, 0, 'Euler')
+        System.__init__(self, 2, 1, 0, 'Euler')
 
-    def Jdyn(self, t, x, u, p=None):
+    def jac_dyn(self, t, x, u, p=None):
         y1 = x[1]
         y2 = u[0] / 5 - 5 * np.sin(x[0])
         y = np.array([y1, y2])
@@ -58,15 +55,16 @@ class pendulum(system):
         return y, J
 
 
-class quadCost(nonLinearPointObj):
+class QuadCost(NonLinearPointObj):
     """A quadratic cost on control."""
     def __init__(self):
-        nonLinearPointObj.__init__(self, -1, 2, 1, 0, 'user', nG=1)
+        NonLinearPointObj.__init__(self, -1, 2, 1, 0, 'user', nG=1)
         self.R = 1.0
 
     def __callf__(self, x, y):
         u = x[3]
         y[0] = u * self.R * u
+        return 0
 
     def __callg__(self, x, y, G, row, col, rec, needg):
         u = x[3]
@@ -80,138 +78,70 @@ class quadCost(nonLinearPointObj):
 
 
 def main():
-    args = getOnOffArgs('fd', 'grad', 'pen', 'lqr', 'ip')
-    if args.fd:
-        fdmode(args.lqr)
+    args = get_onoff_args('fd', 'grad', 'pen', 'lqr', 'backend ipopt')
     if args.grad:
-        gradmode(args.lqr)
+        gradmode(args)
     if args.pen:
-        penMode(args.lqr)
-    if args.ip:
-        ipMode(args.lqr)
+        penMode(args)
 
 
-def penMode(lqr):
+def penMode(args):
     """Run pendulum swing-up problem"""
-    sys = pendulum()
-    cost = quadCost()
+    sys = Pendulum()
+    cost = QuadCost()
     N = 40
     t0 = 0.0
     tf = 9.0
-    prob = trajOptProblem(sys, N, t0, tf, gradmode=True)
+    prob = TrajOptProblem(sys, N, t0, tf, gradmode=True)
     prob.xbd = [np.array([-1e20, -1e20]), np.array([1e20, 1e20])]
     prob.ubd = [np.array([-1.0]), np.array([1.0])]
     prob.x0bd = [np.array([0, 0]), np.array([0, 0])]
     prob.xfbd = [np.array([np.pi, 0]), np.array([np.pi, 0])]
-    if not lqr:
-        prob.addNonLinearPointObj(cost, True)  # add a path cost
+    if not args.lqr:
+        prob.add_obj(cost, True)  # add a path cost
     else:
-        lqr = lqrObj(R=np.ones(1))
-        prob.addLQRObj(lqr)
+        lqr = LqrObj(R=np.ones(1))
+        prob.add_lqr_obj(lqr)
     prob.preProcess()  # construct the problem
     # construct a solver for the problem
-    cfg = snoptConfig()
-    cfg.printLevel = 1
-    slv = solver(prob, cfg)
-    rst = slv.solveRand()
+    cfg = OptConfig(args.backend)
+    slv = OptSolver(prob, cfg)
+    rst = slv.solve_rand()
     print(rst.flag)
     if rst.flag == 1:
         print(rst.sol)
         # parse the solution
-        sol = prob.parseSol(rst.sol.copy())
-        showSol(sol)
+        sol = prob.parse_sol(rst.sol.copy())
+        show_sol(sol)
 
 
-def gradmode(lqr):
+def gradmode(args):
     """Solve the simple problem with gradient."""
-    sys = oneDcase()
-    cost = quadCost()
+    sys = OneDcase()
+    cost = QuadCost()
     N = 20
     t0 = 0.0
     tf = 2.0
-    prob = trajOptProblem(sys, N, t0, tf, gradmode=True)
+    prob = TrajOptProblem(sys, N, t0, tf, gradmode=True)
     prob.xbd = [np.array([-1e20, -1e20]), np.array([1e20, 1e20])]
     prob.ubd = [np.array([-1e20]), np.array([1e20])]
     prob.x0bd = [np.array([0, 0]), np.array([0, 0])]
     prob.xfbd = [np.array([1, 0]), np.array([1, 0])]
-    if not lqr:
-        prob.addNonLinearPointObj(cost, True)  # add a path cost
+    if not args.lqr:
+        prob.add_obj(cost, True)  # add a path cost
     else:
-        lqr = lqrObj(R=np.ones(1))
-        prob.addLQRObj(lqr)
+        lqr = LqrObj(R=np.ones(1))
+        prob.add_lqr_obj(lqr)
     prob.preProcess()  # construct the problem
     # construct a solver for the problem
-    cfg = snoptConfig()
-    cfg.printFile = 'test.out'
-    cfg.verifyLevel = 3
-    slv = solver(prob, cfg)
-    rst = slv.solveRand()
-    print(rst.flag, rst.sol)
-    if rst.flag == 1:
-        # parse the solution
-        sol = prob.parseSol(rst.sol.copy())
-        showSol(sol)
-
-
-def ipMode(lqr):
-    """Use ipopt to solve this simple problem and see what is happening."""
-    sys = oneDcase()
-    cost = quadCost()
-    N = 20
-    t0 = 0.0
-    tf = 2.0
-    prob = trajOptProblem(sys, N, t0, tf, gradmode=True)
-    prob.xbd = [np.array([-1e20, -1e20]), np.array([1e20, 1e20])]
-    prob.ubd = [np.array([-1e20]), np.array([1e20])]
-    prob.x0bd = [np.array([0., 0]), np.array([0., 0])]
-    prob.xfbd = [np.array([1., 0]), np.array([1., 0])]
-    if not lqr:
-        prob.addNonLinearPointObj(cost, True)  # add a path cost
-    else:
-        lqr = lqrObj(R=np.ones(1))
-        prob.addLQRObj(lqr)
-    prob.preProcess()  # construct the problem
-    # construct a solver for the problem
-    config = ipOption()
-    slv = ipSolver(prob, config)
+    cfg = OptConfig(args.backend)
+    slv = OptSolver(prob, cfg)
     rst = slv.solve_rand()
     print(rst.flag, rst.sol)
     if rst.flag == 1:
         # parse the solution
-        sol = prob.parseSol(rst.sol.copy())
-        showSol(sol)
-
-
-def fdmode(lqr):
-    """Solve the simple problem with finite difference."""
-    sys = oneDcase()
-    cost = quadCost()
-    x0 = np.random.random(2)
-    u = np.random.random(1)
-    print(sys.dyn(0, x0, u))
-    N = 20
-    t0 = 0.0
-    tf = 2.0
-    prob = trajOptProblem(sys, N, t0, tf, gradmode=False)
-    prob.xbd = [np.array([-1e20, -1e20]), np.array([1e20, 1e20])]
-    prob.ubd = [np.array([-1e20]), np.array([1e20])]
-    prob.x0bd = [np.array([0, 0]), np.array([0, 0])]
-    prob.xfbd = [np.array([1, 0]), np.array([1, 0])]
-    if not lqr:
-        prob.addNonLinearPointObj(cost, True)  # add a path cost
-    else:
-        lqr = lqrObj(R=np.ones(1))
-        prob.addLQRObj(lqr)
-    prob.preProcess()  # construct the problem
-    # construct a solver for the problem
-    cfg = snoptConfig()
-    cfg.printLevel = 1
-    slv = solver(prob, cfg)
-    rst = slv.solveRand()
-    print(rst.flag, rst.sol)
-    # parse the sulution
-    sol = prob.parseSol(rst.sol.copy())
-    showSol(sol)
+        sol = prob.parse_sol(rst.sol.copy())
+        show_sol(sol)
 
 
 if __name__ == '__main__':

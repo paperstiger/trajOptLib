@@ -48,3 +48,6 @@ class GeometricRobotSystem(System):
         jac = coo_matrix((np.ones(2 * self.dim),
                           (np.arange(2 * self.dim), np.arange(2 * self.dim) + 1 + self.dim)))
         return dx, jac
+
+    def dyn(self, t, x, u, p=None, h=None):
+        return np.concatenate((x[self.dim:], u))

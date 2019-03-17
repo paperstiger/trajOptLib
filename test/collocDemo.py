@@ -14,24 +14,18 @@ Use the collocation version of problem.
 import sys, os, time
 import numpy as np
 import matplotlib.pyplot as plt
-import logging
-sys.path.append('../')
-from trajOptLib.io import getOnOffArgs
-from trajOptLib import daeSystem, trajOptCollocProblem
-from trajOptLib import nonLinearPointObj, linearPointObj, linearPointConstr
-from trajOptLib import lqrObj
-from trajOptLib import snoptConfig, solver
-from trajOptLib.utility import showSol
+from trajoptlib.io import get_onoff_args
+from trajoptlib import DaeSystem, TrajOptCollocProblem
+from trajoptlib import NonLinearPointObj, LinearPointObj, LinearPointConstr
+from trajoptlib import LqrObj
+from trajoptlib import OptConfig, OptSolver
+from trajoptlib.utility import show_sol
 from scipy.sparse import coo_matrix
 
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
-
-class oneDcase(daeSystem):
+class OneDcase(DaeSystem):
     def __init__(self):
-        daeSystem.__init__(self, 3, 1, 0, 1, 2)  # ddx = u
+        DaeSystem.__init__(self, 3, 1, 0, 1, 2)  # ddx = u
 
     def dyn(self, t, x, u, p, y, G, row, col, rec, needg):
         y[0] = x[2] - u[0]
@@ -45,9 +39,9 @@ class oneDcase(daeSystem):
                 col[1] = 4
 
 
-class orderOneOneD(daeSystem):
+class OrderOneOneD(DaeSystem):
     def __init__(self):
-        daeSystem.__init__(self, 4, 1, 0, 2, 4)  # ddx = u
+        DaeSystem.__init__(self, 4, 1, 0, 2, 4)  # ddx = u
 
     def dyn(self, t, x, u, p, y, G, row, col, rec, needg):
         y[0] = x[2] - x[1]
@@ -63,10 +57,10 @@ class orderOneOneD(daeSystem):
                 col[:] = [3, 2, 4, 5]
 
 
-class pendulum(daeSystem):
+class Pendulum(DaeSystem):
     """Test pendulum nonlinearity."""
     def __init__(self):
-        daeSystem.__init__(self, 3, 1, 0, 1, 3)  # ddq = u/5 - .5*sin(q)
+        DaeSystem.__init__(self, 3, 1, 0, 1, 3)  # ddq = u/5 - .5*sin(q)
 
     def dyn(self, t, x, u, p, y, G, row, col, rec, needg):
         y[0] = x[2] - u[0] / 5. + 0.5 * np.sin(x[0])
@@ -79,10 +73,10 @@ class pendulum(daeSystem):
                 col[:3] = [1, 3, 4]
 
 
-class orderOnePendulum(daeSystem):
+class OrderOnePendulum(DaeSystem):
     """Pendulum with order 1"""
     def __init__(self):
-        daeSystem.__init__(self, 4, 1, 0, 2, 5)
+        DaeSystem.__init__(self, 4, 1, 0, 2, 5)
 
     def dyn(self, t, x, u, p, y, G, row, col, rec, needg):
         theta, omega, dtheta, domega = x
@@ -101,7 +95,7 @@ class orderOnePendulum(daeSystem):
 
 
 def main():
-    args = getOnOffArgs('oned', 'pen', 'lqr', 'ip', 'linear', 'orderone')
+    args = get_onoff_args('oned', 'pen', 'lqr', 'linear', 'orderone', 'backend ipopt')
     if args.oned:
         testOneD()
     if args.pen:
@@ -115,82 +109,77 @@ def main():
 def testOrderOne(args):
     """Test order one pendulum case, this is seen everywhere."""
     if args.pen:
-        sys = orderOnePendulum()
+        sys = OrderOnePendulum()
     else:
-        sys = orderOneOneD()
+        sys = OrderOneOneD()
     N = 20
     t0 = 0.0
     tf = 20.0
-    prob = trajOptCollocProblem(sys, N, t0, tf)
+    prob = TrajOptCollocProblem(sys, N, t0, tf)
     prob.xbd = [np.array([-1e20, -1e20, -1e20, -1e20]), np.array([1e20, 1e20, 1e20, 1e20])]
     prob.ubd = [np.array([-1.5]), np.array([1.5])]
     prob.x0bd = [np.array([0, 0, -1e20, -1e20]), np.array([0, 0, 1e20, 1e20])]
     prob.xfbd = [np.array([np.pi, 0, -1e20, -1e20]), np.array([np.pi, 0, 1e20, 1e20])]
-    lqr = lqrObj(R=np.ones(1))
-    prob.addLQRObj(lqr)
-    prob.preProcess()  # construct the problem
+    lqr = LqrObj(R=np.ones(1))
+    prob.add_lqr_obj(lqr)
+    prob.pre_process()  # construct the problem
     # construct a solver for the problem
-    cfg = snoptConfig()
-    cfg.printLevel = 1
-    cfg.printFile = 'test.out'
-    cfg.verifyLevel = 3
-    slv = solver(prob, cfg)
-    rst = slv.solveRand()
+    cfg = OptConfig(backend=args.backend)
+    solver = OptSolver(prob, cfg)
+    rst = solver.solve_rand()
     print(rst.flag)
     if rst.flag == 1:
         print(rst.sol)
         # parse the solution
         sol = prob.parseSol(rst.sol.copy())
-        showSol(sol)
+        show_sol(sol)
 
 
-def testLinear():
+def testLinear(args):
     """Test 1d problem with linear constraints and linear objective"""
-    sys = oneDcase()
+    sys = OneDcase()
     N = 10
     t0 = 0.0
     tf = 2.0
-    prob = trajOptCollocProblem(sys, N, t0, tf)
+    prob = TrajOptCollocProblem(sys, N, t0, tf)
     prob.xbd = [np.array([-1e20, -1e20, -1e20]), np.array([1e20, 1e20, 1e20])]
     prob.ubd = [np.array([-1e20]), np.array([1e20])]
     prob.x0bd = [np.array([0, 0, -1e20]), np.array([0, 0, 1e20])]
     prob.xfbd = [np.array([1, 0, -1e20]), np.array([1, 0, 1e20])]
-    lqr = lqrObj(R=np.ones(1))
-    prob.addLQRObj(lqr)
+    lqr = LqrObj(R=np.ones(1))
+    prob.add_lqr_obj(lqr)
     A = np.zeros(5)
     A[1] = 1
     A[2] = 1  # so it basically does nothing
-    linPntObj = linearPointObj(0, A, 3, 1, 0)
-    prob.addLinearPointObj(linPntObj)
+    linPntObj = LinearPointObj(0, A, 3, 1, 0)
+    prob.add_obj(linPntObj)
     # add linear constraint that x is increasing
     A = np.zeros(5)
     A[1] = 1
     lb = np.zeros(1)
     ub = np.ones(1)
-    linPntCon = linearPointConstr(-1, A, lb, ub)
-    prob.addLinearPointConstr(linPntCon, True)
+    linPntCon = LinearPointConstr(-1, A, lb, ub)
+    prob.add_constr(linPntCon, True)
     # we want mid point to be close to 0.8
     wantState = np.array([0.8, 0])
-    pntObj = pointObj(N, wantState)
+    pntObj = PointObj(N, wantState)
     prob.addObj(pntObj)
     prob.preProcess()  # construct the problem
     # construct a solver for the problem
-    cfg = snoptConfig()
-    cfg.printFile = 'test.out'
-    cfg.verifyLevel = 3
-    slv = solver(prob, cfg)
-    rst = slv.solveRand()
+    cfg = OptConfig(args.backend)
+    slv = OptSolver(prob, cfg)
+    rst = slv.solve_rand()
     print(rst.flag, rst.sol)
     if rst.flag == 1:
         # parse the solution
-        sol = prob.parseSol(rst.sol.copy())
-        showSol(sol)
+        sol = prob.parse_sol(rst.sol.copy())
+        show_sol(sol)
 
 
-class pointObj(nonLinearPointObj):
+class PointObj(NonLinearPointObj):
     """A objective function to make mid point close to a selected point"""
     def __init__(self, N, state):
-        nonLinearPointObj.__init__(self, 15, 3, 1, 0, 'user', 2)
+        NonLinearPointObj.__init__(self, 15, 3, 1, 0, 'user', 2)
         self.state = state
         self.weight = 100
 
@@ -204,58 +193,55 @@ class pointObj(nonLinearPointObj):
                 col[:2] = np.arange(1, 3)
 
 
-def testOneD():
+def testOneD(args):
     """Test solving one-dim problem using collocation approach"""
-    sys = oneDcase()
+    sys = OneDcase()
     N = 10
     t0 = [-1.0, 0]
     tf = [2.0, 3.0]
-    prob = trajOptCollocProblem(sys, N, t0, tf)
+    prob = TrajOptCollocProblem(sys, N, t0, tf)
     prob.xbd = [np.array([-1e20, -1e20, -1e20]), np.array([1e20, 1e20, 1e20])]
     prob.ubd = [np.array([-1e20]), np.array([1e20])]
     prob.x0bd = [np.array([0, 0, -1e20]), np.array([0, 0, 1e20])]
     prob.xfbd = [np.array([1, 0, -1e20]), np.array([1, 0, 1e20])]
-    lqr = lqrObj(R=np.ones(1))
-    prob.addLQRObj(lqr)
-    prob.preProcess()  # construct the problem
+    lqr = LqrObj(R=np.ones(1))
+    prob.add_lqr_obj(lqr)
+    prob.pre_process()  # construct the problem
     # construct a solver for the problem
-    cfg = snoptConfig()
-    cfg.printFile = 'test.out'
-    cfg.verifyLevel = 3
-    slv = solver(prob, cfg)
-    rst = slv.solveRand()
+    cfg = OptConfig(args.backend)
+    slv = OptSolver(prob, cfg)
+    rst = slv.solve_rand()
     print(rst.flag, rst.sol)
     if rst.flag == 1:
         # parse the solution
-        sol = prob.parseSol(rst.sol.copy())
-        showSol(sol)
+        sol = prob.parse_sol(rst.sol.copy())
+        show_sol(sol)
 
 
-def testPen():
+def testPen(args):
     """Test solving pendulum swing up problem using collocation approach"""
-    sys = pendulum()
+    sys = Pendulum()
     N = 20
     t0 = 0.0
     tf = 20.0
-    prob = trajOptCollocProblem(sys, N, t0, tf)
+    prob = TrajOptCollocProblem(sys, N, t0, tf)
     prob.xbd = [np.array([-1e20, -1e20, -1e20]), np.array([1e20, 1e20, 1e20])]
     prob.ubd = [np.array([-1.5]), np.array([1.5])]
     prob.x0bd = [np.array([0, 0, -1e20]), np.array([0, 0, 1e20])]
     prob.xfbd = [np.array([np.pi, 0, -1e20]), np.array([np.pi, 0, 1e20])]
-    lqr = lqrObj(R=np.ones(1))
-    prob.addLQRObj(lqr)
-    prob.preProcess()  # construct the problem
+    lqr = LqrObj(R=np.ones(1))
+    prob.add_lqr_obj(lqr)
+    prob.pre_process()  # construct the problem
     # construct a solver for the problem
-    cfg = snoptConfig()
-    cfg.printLevel = 1
-    slv = solver(prob, cfg)
-    rst = slv.solveRand()
+    cfg = OptConfig(args.backend)
+    slv = OptSolver(prob, cfg)
+    rst = slv.solve_rand()
     print(rst.flag)
     if rst.flag == 1:
         print(rst.sol)
         # parse the solution
-        sol = prob.parseSol(rst.sol.copy())
-        showSol(sol)
+        sol = prob.parse_sol(rst.sol.copy())
+        show_sol(sol)
 
 
 if __name__ == '__main__':

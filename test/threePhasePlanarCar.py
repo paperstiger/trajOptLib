@@ -12,22 +12,17 @@ And we solve a time optimal problem.
 """
 from __future__ import print_function
 import numpy as np
-from trajOptLib.io import getOnOffArgs
-from trajOptLib import daeSystem, trajOptCollocProblem
-from trajOptLib import nonLinearPointObj, linearPointObj, linearPointConstr, linearObj
-from trajOptLib import nonLinearPointConstr
-from trajOptLib import lqrObj
-from trajOptLib import snoptConfig, solver
-from trajOptLib import TrajOptMultiPhaseCollocProblem, LinearConnectConstr, NonLinearConnectConstr
-from trajOptLib import TrajOptCollocProblem
-from trajOptLib.utility import showSol
-from scipy.sparse import coo_matrix
+from trajoptlib import DaeSystem, TrajOptCollocProblem, LinearPointConstr, LinearObj
+from trajoptlib import LqrObj
+from trajoptlib import OptConfig, OptSolver
+from trajoptlib import TrajOptMultiPhaseCollocProblem, LinearConnectConstr
+from trajoptlib.utility import show_sol
 
 
-class orderTwoModel(daeSystem):
+class OrderTwoModel(DaeSystem):
     """A class with dynamics :math:`\ddot{x}=u; \ddot{y}=v`"""
     def __init__(self):
-        daeSystem.__init__(self, 6, 2, 0, 2, 4)
+        DaeSystem.__init__(self, 6, 2, 0, 2, 4)
 
     def dyn(self, t, x, u, p, y, G, row, col, rec, needg):
         y[0] = x[4] - u[0]
@@ -48,14 +43,14 @@ class ConnectConstr(LinearConnectConstr):
         LinearConnectConstr.__init__(self, n, n + 1, a1, a2)
 
 
-class FirstPointConstr(linearPointConstr):
+class FirstPointConstr(LinearPointConstr):
     """Limit bounds on some variables"""
     def __init__(self, index, lb, ub):
-        linearPointConstr.__init__(self, index, np.eye(2), lb, ub)
+        LinearPointConstr.__init__(self, index, np.eye(2), lb, ub)
 
 
 def main():
-    sys = orderTwoModel()
+    sys = OrderTwoModel()
     N = 10
     t0 = 0.0
     tf = 3.0
@@ -88,18 +83,18 @@ def main():
     # set bounds constraints for prob1 and prob2 at final
     a = np.zeros((2, 9))  # 1 + 6 + 2
     np.fill_diagonal(a[:, 1:3], 1.0)
-    prob1.addConstr(linearPointConstr(-1, a, np.array([0.2, 0.2]), np.array([0.2, 1e20])))
-    prob2.addConstr(linearPointConstr(-1, a, np.array([0.8, -1e20]), np.array([0.8, 0.3])))
+    prob1.add_constr(LinearPointConstr(-1, a, np.array([0.2, 0.2]), np.array([0.2, 1e20])))
+    prob2.add_constr(LinearPointConstr(-1, a, np.array([0.8, -1e20]), np.array([0.8, 0.3])))
 
     # define objective function, #TODO: change to time optimal
-    obj = lqrObj(R=0.01 * np.ones(2))
-    prob1.addObj(obj, path=True)
-    prob2.addObj(obj, path=True)
-    prob3.addObj(obj, path=True)
+    obj = LqrObj(R=0.01 * np.ones(2))
+    prob1.add_obj(obj, path=True)
+    prob2.add_obj(obj, path=True)
+    prob3.add_obj(obj, path=True)
     # optimize time
     obj_a = np.zeros(prob3.tfind + 1)
     obj_a[-1] = 1.0
-    prob3.addObj(linearObj(obj_a))
+    prob3.add_obj(LinearObj(obj_a))
     # add constraints to some phases
     prob = TrajOptMultiPhaseCollocProblem([prob1, prob2, prob3], addx=None)
     constr1 = ConnectConstr(0, 6)
@@ -109,14 +104,13 @@ def main():
 
     # ready to solve
     prob.pre_process()
-    cfg = snoptConfig()
-    cfg.print_level = 1
-    slv = solver(prob, cfg)
+    cfg = OptConfig()
+    slv = OptSolver(prob, cfg)
     rst = slv.solveRand()
     print(rst.flag)
     if rst.flag == 1:
         sol = prob.parse_sol(rst)
-        showSol(sol)
+        show_sol(sol)
 
 
 if __name__ == '__main__':

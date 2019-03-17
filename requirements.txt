@@ -3,3 +3,4 @@ autograd
 scipy>=1.0.0
 matplotlib>=1.13.0
 pyoptsolver
+six

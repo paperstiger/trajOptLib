@@ -12,41 +12,16 @@ carCommon.py
 Common class files for the car problem.
 """
 import numpy as np
-from trajOptLib import daeSystem, trajOptCollocProblem
-from trajOptLib import lqrObj, nonLinearObj
-from trajOptLib import system
-from trajOptLib import manifoldConstr, nonLinearPointConstr
+from trajoptlib import DaeSystem, TrajOptCollocProblem
+from trajoptlib import LqrObj, NonLinearObj
+from trajoptlib import System
+from trajoptlib import NonLinearPointConstr, ManifoldConstr
 
 
-class OmniCar(system):
-    """A omni-car system in 2D space.
-
-    It has simple dynamics \ddot{x}=u_x; \ddot{y}=u_y with support for constraint force
-
-    """
-    def __init__(self):
-        system.__init__(self, 4, 2, 1)
-        self.rx = 0
-        self.ry = 0
-        self.radius = 1
-
-    def dyn(self, t, x, u, p, needg=False):
-        y = np.zeros(self.nx)
-        y[:2] = x[2:]
-        y[2] = u[0] + 2*p[0] * (x[0] - self.rx)
-        y[3] = u[1] + 2*p[0] * (x[1] - self.ry)
-        return y
-        if needg:
-            G[:] = [1.0, 1.0, 2*p[0], 1.0, 2*(x[0] - self.rx), 2*p[0], 1.0, 2*(x[1] - self.ry)]
-            if rec:
-                row[:] = [0, 1, 2, 2, 2, 3, 3, 3]
-                col[:] = [3, 4, 1, 5, 7, 2, 6, 7]
-
-
-class FirstOrderOmniCar(daeSystem):
+class FirstOrderOmniCar(DaeSystem):
     """A car with first order dynamics."""
     def __init__(self):
-        daeSystem.__init__(self, 8, 2, 1, 4, 12)
+        DaeSystem.__init__(self, 8, 2, 1, 4, 12)
         self.rx = 0
         self.ry = 0
         self.radius = 1
@@ -65,10 +40,10 @@ class FirstOrderOmniCar(daeSystem):
                 col[:] = [5, 3, 6, 4, 9, 11, 1, 7, 10, 11, 2, 8]
 
 
-class SecondOrderOmniCar(daeSystem):
+class SecondOrderOmniCar(DaeSystem):
     """A car with second order dynamics. Constraints are present."""
     def __init__(self):
-        daeSystem.__init__(self, 6, 2, 1, 2, 8)
+        DaeSystem.__init__(self, 6, 2, 1, 2, 8)
         self.rx = 0
         self.ry = 0
         self.radius = 1
@@ -86,7 +61,7 @@ class SecondOrderOmniCar(daeSystem):
                 col[:] = [5, 6, 7, 8, 1, 2, 9, 9]
 
 
-class CollocCircleConstr(nonLinearPointConstr):
+class CollocCircleConstr(NonLinearPointConstr):
     """A constraint for collocation approach. Not manifold version."""
     def __init__(self, with_vel=False, with_acce=False, order=2):
         nG = 2
@@ -105,7 +80,7 @@ class CollocCircleConstr(nonLinearPointConstr):
         else:
             nx = 8
         nu = 2
-        nonLinearPointConstr.__init__(self, -1, nf, nx, nu, np=1, nG=nG)
+        NonLinearPointConstr.__init__(self, -1, nf, nx, nu, np=1, nG=nG)
         self.x = 0
         self.y = 0
         self.r = 1
@@ -156,11 +131,11 @@ class CollocCircleConstr(nonLinearPointConstr):
                             col[6:12] = [1, 2, 3, 4, 7, 8]
 
 
-class CircleConstr(manifoldConstr):
+class CircleConstr(ManifoldConstr):
     def __init__(self, order=2):
         assert order == 2
         if order == 2:
-            manifoldConstr.__init__(self, 6, 1, order=2, nG=12, nnzJx=2, nnzJg=2)
+            ManifoldConstr.__init__(self, 6, 1, order=2, nG=12, nnzJx=2, nnzJg=2)
         self.x = 0
         self.y = 0
         self.r = 1
@@ -195,7 +170,7 @@ class CircleConstr(manifoldConstr):
             F[0] = dx*dx + (x-self.x)*ddx + dy*dy + (y-self.y)*ddy
 
     def __calc_correction__(self, X, Gamma, Y, Gq, rowq, colq, Gg, rowg, colg, rec, needg):
-        """Calculate the constraint J(q)^T \gamma and corresponding Jacobians"""
+        r"""Calculate the constraint J(q)^T \gamma and corresponding Jacobians"""
         x, y = X[:2]
         gamma = Gamma[0]
         Y[0] = 2 * (x - self.x) * gamma

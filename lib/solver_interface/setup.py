@@ -6,7 +6,7 @@ import platform
 import subprocess
 
 from distutils.version import LooseVersion
-from setuptools import setup, Extension
+from setuptools import setup, Extension, find_packages
 from setuptools.command.build_ext import build_ext
 
 
@@ -83,6 +83,9 @@ setup(
     license='LICENSE.txt',
     description='A unified wrapper for many optimization problems',
     ext_modules=[CMakeExtension('pyoptsolvercpp')],
+    packages=['pyoptsolver'],
+    package_dir={'': './'},
+    package_data = {'': ['pyoptsolvercpp.so']},
     # add custom build_ext command
     cmdclass=dict(build_ext=CMakeBuild),
     zip_safe=False,

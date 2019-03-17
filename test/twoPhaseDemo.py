@@ -16,37 +16,29 @@ Basically, the car has to reach a certain point with free velocity.
 import sys, os, time
 import numpy as np
 import matplotlib.pyplot as plt
-import logging
-sys.path.append('../')
-from trajOptLib.io import getOnOffArgs
-from trajOptLib import daeSystem, trajOptCollocProblem
-from trajOptLib import nonLinearPointObj, linearPointObj, linearPointConstr
-from trajOptLib import nonLinearPointConstr
-from trajOptLib import lqrObj
-from trajOptLib import snoptConfig, solver
-from trajOptLib import TrajOptMultiPhaseCollocProblem, LinearConnectConstr, NonLinearConnectConstr
-from trajOptLib.utility import showSol
+from trajoptlib.io import get_onoff_args
+from trajoptlib import DaeSystem, TrajOptCollocProblem
+from trajoptlib import NonLinearPointObj, LinearPointObj, LinearPointConstr
+from trajoptlib import NonLinearPointConstr
+from trajoptlib import LqrObj
+from trajoptlib import OptConfig, OptSolver
+from trajoptlib import TrajOptMultiPhaseCollocProblem, LinearConnectConstr, NonLinearConnectConstr
+from trajoptlib.utility import show_sol
 from scipy.sparse import coo_matrix
 
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
-
 def main():
-    args = getOnOffArgs('one', 'two', 'oneleg')
+    args = get_onoff_args('one', 'two', 'oneleg')
     if args.one:
         testOne()
     if args.oneleg:
         testOneLeg()
-    if args.two:
-        testTwo()
 
 
-class orderTwoModel(daeSystem):
+class OrderTwoModel(DaeSystem):
     """A class with dynamics :math:`\ddot{x}=u; \ddot{y}=v`"""
     def __init__(self):
-        daeSystem.__init__(self, 6, 2, 0, 2, 4)
+        DaeSystem.__init__(self, 6, 2, 0, 2, 4)
 
     def dyn(self, t, x, u, p, y, G, row, col, rec, needg):
         y[0] = x[5] - u[0]
@@ -59,10 +51,10 @@ class orderTwoModel(daeSystem):
                 col[:] = [5, 6, 7, 8]
 
 
-class orderOneModel(daeSystem):
+class OrderOneModel(DaeSystem):
     """The 2D model in first order :math:`\dot{x}=v_x, \dot{y}=v_y, \dot{v_x}=u, \dot{v_y}=v`"""
     def __init__(self):
-        daeSystem.__init__(self, 8, 2, 0, 4, 8)
+        DaeSystem.__init__(self, 8, 2, 0, 4, 8)
 
     def dyn(self, t, x, u, p, y, G, row, col, rec, needg):
         y[:2] = x[4:6] - x[2:4]
@@ -76,7 +68,7 @@ class orderOneModel(daeSystem):
                 col[:] = [5, 6, 7, 8, 3, 4, 9, 10]
 
 
-class connectStateConstr(LinearConnectConstr):
+class ConnectStateConstr(LinearConnectConstr):
     """Linear constraint such that time is continuous; x, y continuous."""
     def __init__(self, N, dimq):
         a1 = np.eye(1 + dimq)
@@ -84,7 +76,7 @@ class connectStateConstr(LinearConnectConstr):
         LinearConnectConstr.__init__(self, 0, 1, a1, a2)  # this makes time continuous
 
 
-class connectVelocityConstr(NonLinearConnectConstr):
+class ConnectVelocityConstr(NonLinearConnectConstr):
     """Nonlinear constraint that u must change direction. x1 and x2 are both of length 11"""
     def __init__(self):
         NonLinearConnectConstr.__init__(self, 0, 1, 2, nG=4)
@@ -112,12 +104,12 @@ class connectVelocityConstr(NonLinearConnectConstr):
             return F, None, None
 
 
-class objAvoidConstr(nonLinearPointConstr):
+class ObjAvoidConstr(NonLinearPointConstr):
     """A constraint that at end of first phase, it is at least 0.2 distance w.r.t center"""
     def __init__(self, N):
         self.midpoint = np.array([0.5, 0.5])
         self.distance = 0.2
-        nonLinearPointConstr.__init__(self, N - 1, 1, 8, 2, np=0, lb=[0], ub=[1e20], nG=2)
+        NonLinearPointConstr.__init__(self, N - 1, 1, 8, 2, np=0, lb=[0], ub=[1e20], nG=2)
 
     def __callg__(self, x, y, G, row, col, rec, needg):
         dis = x[1:3] - self.midpoint
@@ -131,11 +123,11 @@ class objAvoidConstr(nonLinearPointConstr):
 
 def testOneLeg():
     """Test order one, leg one"""
-    sys = orderOneModel()
+    sys = OrderOneModel()
     N = 20
     t0 = 0.0
     tf = 10.0
-    prob1 = trajOptCollocProblem(sys, N, t0, tf)
+    prob1 = TrajOptCollocProblem(sys, N, t0, tf)
     xlb = -1e20 * np.ones(8)
     xub = 1e20 * np.ones(8)
     ulb = -1.5 * np.ones(2)
@@ -149,37 +141,34 @@ def testOneLeg():
     prob1.x0bd = [x0lb, x0ub]
     prob1.xfbd = [xflb, xfub]
     # define objective function
-    lqr = lqrObj(R=np.ones(2))
-    prob1.addLQRObj(lqr)
+    lqr = LqrObj(R=np.ones(2))
+    prob1.add_lqr_obj(lqr)
     # add several constraints
-    obj_avoid = objAvoidConstr(N)
-    prob1.addConstr(obj_avoid)
+    obj_avoid = ObjAvoidConstr(N)
+    prob1.add_constr(obj_avoid)
     # ready to construct this problem
-    prob1.preProcess()  # construct the problem
+    prob1.pre_process()  # construct the problem
     # construct a solver for the problem
-    cfg = snoptConfig()
-    cfg.printLevel = 1
-    cfg.printFile = 'test.out'
-    cfg.verifyLevel = 3
-    slv = solver(prob1, cfg)
-    rst = slv.solveRand()
+    cfg = OptConfig()
+    slv = OptSolver(prob1, cfg)
+    rst = slv.solve_rand()
     print(rst.flag)
     if rst.flag == 1:
         print(rst.sol)
         # parse the solution
-        sol = prob1.parseSol(rst.sol.copy())
-        showSol(sol)
+        sol = prob1.parse_sol(rst.sol.copy())
+        show_sol(sol)
 
 
 def testOne():
     """Test order one pendulum case, this is seen everywhere."""
-    sys = orderOneModel()
+    sys = OrderOneModel()
     N = 20
     t0 = 0.0
     tf = 10.0
     tmid = 5.0
-    prob1 = trajOptCollocProblem(sys, N, t0, [t0+1, tmid])
-    prob2 = trajOptCollocProblem(sys, N, tmid, tf) # [t0, tf], tf)
+    prob1 = TrajOptCollocProblem(sys, N, t0, [t0+1, tmid])
+    prob2 = TrajOptCollocProblem(sys, N, tmid, tf) # [t0, tf], tf)
     xlb = -1e20 * np.ones(8)
     xub = 1e20 * np.ones(8)
     ulb = -1.5 * np.ones(2)
@@ -197,37 +186,34 @@ def testOne():
     prob2.x0bd = [xlb, xub]
     prob2.xfbd = [xflb, xfub]
     # define objective function
-    lqr = lqrObj(R=np.ones(2))
-    prob1.addLQRObj(lqr)
-    prob2.addLQRObj(lqr)
+    lqr = LqrObj(R=np.ones(2))
+    prob1.add_lqr_obj(lqr)
+    prob2.add_lqr_obj(lqr)
     # add several constraints
-    obj_avoid = objAvoidConstr(2*N - 2)
+    obj_avoid = ObjAvoidConstr(2 * N - 2)
     prob1.addConstr(obj_avoid)
     # ready to construct this problem
     prob = TrajOptMultiPhaseCollocProblem([prob1, prob2], addx=None)
     # add connect constraints
-    constr1 = connectStateConstr(N, 4)  # since dimq = 4
-    constr2 = connectVelocityConstr()
+    constr1 = ConnectStateConstr(N, 4)  # since dimq = 4
+    constr2 = ConnectVelocityConstr()
     prob.add_constr(constr1)
     prob.add_constr(constr2)
     # ready to solve this problem. It is quite complicated to construct this problem, how come?
-    # TODO: add support for easy-to-construct constraints. 
+    # TODO: add support for easy-to-construct constraints.
     # For example, linear constraints can be constructed by giving matrix
     # nonlinear constraints can be constructed by functions. These functions can be auto-diffed
     prob.pre_process()  # construct the problem
     # construct a solver for the problem
-    cfg = snoptConfig()
-    cfg.printLevel = 1
-    cfg.printFile = 'test.out'
-    cfg.verifyLevel = 3
-    slv = solver(prob, cfg)
-    rst = slv.solveRand()
+    cfg = OptConfig()
+    slv = OptSolver(prob, cfg)
+    rst = slv.solve_rand()
     print(rst.flag)
     if rst.flag == 1:
         # print(rst.sol)
         # parse the solution
         sol = prob.parse_sol(rst)
-        showSol(sol)
+        show_sol(sol)
         fig, ax = plt.subplots()
         phase1 = sol['phases'][0]
         phase2 = sol['phases'][1]
@@ -238,10 +224,10 @@ def testOne():
         plt.show()
 
 
-class pointObj(nonLinearPointObj):
+class PointObj(NonLinearPointObj):
     """A objective function to make mid point close to a selected point"""
     def __init__(self, N, state):
-        nonLinearPointObj.__init__(self, 15, 3, 1, 0, 'user', 2)
+        NonLinearPointObj.__init__(self, 15, 3, 1, 0, 'user', 2)
         self.state = state
         self.weight = 100
 

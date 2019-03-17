@@ -10,6 +10,7 @@ __all__ = ['System', 'DaeSystem', 'BaseFun', 'AddX',
            'SystemWrapper', 'DaeSystemWrapper', 'NonLinearPointConstrWrapper', 'block_index',
            'GeometricRobot', 'GeometricRobotSystem',
            'parse_X', 'show_sol', 'get_inf',
+           'OptSolver', 'OptConfig',
            '__version__']
 __version__ = '1.0.0'
 
@@ -30,6 +31,9 @@ from .trajOptManifoldCollocationProblem import ManifoldConstr, TrajOptManifoldCo
 # those wrappers, might be useful but who knows
 from .classBuilder import SystemWrapper, DaeSystemWrapper, NonLinearPointConstrWrapper, blockIndex as block_index
 from .systemBuilder import GeometricRobot, GeometricRobotSystem
+
+from . import io
+from . import plot
 
 # utilities functions
 from .utility import parse_X, show_sol, get_inf, InfBuilder, OneBuilder, ZeroBuilder

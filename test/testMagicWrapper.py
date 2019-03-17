@@ -18,12 +18,11 @@ import autograd.numpy as numpy
 import matplotlib.pyplot as plt
 import logging
 import autograd.numpy as numpy
-sys.path.append('../')
-from trajOptLib import daeSystemWrapper
-from trajOptLib import daeSystem, trajOptCollocProblem
-from trajOptLib import lqrObj
-from trajOptLib.utility import showSol
-from trajOptLib import snoptConfig, solver
+from trajoptlib import DaeSystemWrapper
+from trajoptlib import DaeSystem, TrajOptCollocProblem
+from trajoptlib import LqrObj
+from trajoptlib.utility import show_sol
+from trajoptlib import OptConfig, OptSolver
 
 
 def sysFunOrder2(t, X, u, p):
@@ -42,50 +41,47 @@ def main():
     # prob = constructOrderOne()
     prob = constructOrderTwo()
     # construct a solver for the problem
-    cfg = snoptConfig()
-    cfg.printLevel = 1
-    cfg.printFile = 'test.out'
-    cfg.verifyLevel = 3
-    slv = solver(prob, cfg)
-    rst = slv.solveRand()
+    cfg = OptConfig()
+    slv = OptSolver(prob, cfg)
+    rst = slv.solve_rand()
     print(rst.flag)
     if rst.flag == 1:
         # parse the solution
-        sol = prob.parseSol(rst.sol)
-        showSol(sol)
+        sol = prob.parse_sol(rst.sol)
+        show_sol(sol)
 
 
 def constructOrderOne():
     """Test the wrapper class for this naive problem"""
-    sys = daeSystemWrapper(sysFunOrder1, 4, 1, 0, 2)
+    sys = DaeSystemWrapper(sysFunOrder1, 4, 1, 0, 2)
     N = 20
     t0 = 0.0
     tf = 10.0
-    prob = trajOptCollocProblem(sys, N, t0, tf)
+    prob = TrajOptCollocProblem(sys, N, t0, tf)
     prob.xbd = [np.array([-1e20, -1e20, -1e20, -1e20]), np.array([1e20, 1e20, 1e20, 1e20])]
     prob.ubd = [np.array([-1.5]), np.array([1.5])]
     prob.x0bd = [np.array([0, 0, -1e20, -1e20]), np.array([0, 0, 1e20, 1e20])]
     prob.xfbd = [np.array([np.pi, 0, -1e20, -1e20]), np.array([np.pi, 0, 1e20, 1e20])]
-    lqr = lqrObj(R=np.ones(1))
-    prob.addLQRObj(lqr)
-    prob.preProcess()  # construct the problem
+    lqr = LqrObj(R=np.ones(1))
+    prob.add_lqr_obj(lqr)
+    prob.pre_process()  # construct the problem
     return prob
 
 
 def constructOrderTwo():
     """Test the wrapper class for yet another naive problem."""
-    sys = daeSystemWrapper(sysFunOrder2, 3, 1, 0, 1)
+    sys = DaeSystemWrapper(sysFunOrder2, 3, 1, 0, 1)
     N = 20
     t0 = 0.0
     tf = 10.0
-    prob = trajOptCollocProblem(sys, N, t0, tf)
+    prob = TrajOptCollocProblem(sys, N, t0, tf)
     prob.xbd = [np.array([-1e20, -1e20, -1e20]), np.array([1e20, 1e20, 1e20])]
     prob.ubd = [np.array([-1.5]), np.array([1.5])]
     prob.x0bd = [np.array([0, 0, -1e20]), np.array([0, 0, 1e20])]
     prob.xfbd = [np.array([np.pi, 0, -1e20]), np.array([np.pi, 0, 1e20])]
-    lqr = lqrObj(R=np.ones(1))
-    prob.addLQRObj(lqr)
-    prob.preProcess()  # construct the problem
+    lqr = LqrObj(R=np.ones(1))
+    prob.add_lqr_obj(lqr)
+    prob.pre_process()  # construct the problem
     return prob
 
 

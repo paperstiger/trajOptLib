@@ -14,7 +14,7 @@ Easy arguments
 import argparse
 
 
-def getOnOffArgs(*args):
+def get_onoff_args(*args):
     """Get on-off arguments"""
     parser = argparse.ArgumentParser()
     for arg in args:
