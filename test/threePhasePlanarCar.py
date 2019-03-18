@@ -20,7 +20,7 @@ from trajoptlib.utility import show_sol
 
 
 class OrderTwoModel(DaeSystem):
-    """A class with dynamics :math:`\ddot{x}=u; \ddot{y}=v`"""
+    r"""A class with dynamics :math:`\ddot{x}=u; \ddot{y}=v`"""
     def __init__(self):
         DaeSystem.__init__(self, 6, 2, 0, 2, 4)
 
@@ -54,9 +54,9 @@ def main():
     N = 10
     t0 = 0.0
     tf = 3.0
-    prob1 = TrajOptCollocProblem(sys, N, t0, [t0, tf])
-    prob2 = TrajOptCollocProblem(sys, N, [t0, tf], [t0, tf])
-    prob3 = TrajOptCollocProblem(sys, N, [t0, tf], [t0, tf])
+    prob1 = TrajOptCollocProblem(sys, N, t0, [0.1, tf])  # maybe I need to give tips on choosing times
+    prob2 = TrajOptCollocProblem(sys, N, [0.1, tf], [0.11, tf])
+    prob3 = TrajOptCollocProblem(sys, N, [0.2, tf], [0.21, tf])
     xlb = -1e20 * np.ones(6)
     xub = 1e20 * np.ones(6)
     ulb = -np.ones(2)
@@ -104,9 +104,10 @@ def main():
 
     # ready to solve
     prob.pre_process()
+    # cfg = OptConfig(backend='snopt', deriv_check=1, print_file='tmp.out')
     cfg = OptConfig()
     slv = OptSolver(prob, cfg)
-    rst = slv.solveRand()
+    rst = slv.solve_rand()
     print(rst.flag)
     if rst.flag == 1:
         sol = prob.parse_sol(rst)

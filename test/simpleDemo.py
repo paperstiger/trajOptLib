@@ -78,7 +78,7 @@ class QuadCost(NonLinearPointObj):
 
 
 def main():
-    args = get_onoff_args('fd', 'grad', 'pen', 'lqr', 'backend ipopt')
+    args = get_onoff_args('grad', 'pen', 'lqr', 'backend ipopt')
     if args.grad:
         gradmode(args)
     if args.pen:

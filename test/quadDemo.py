@@ -12,7 +12,6 @@ quadDemo.py
 A demo of quadrotor which is quite challenging.
 Use the classical model used everywhere else.
 """
-import sys, os, time
 from math import sin, cos
 import numpy as np
 from trajoptlib import System, NonLinearObj, TrajOptProblem, LqrObj, OptConfig, OptSolver
@@ -37,11 +36,11 @@ class Rotor:
         self.drone_dyn(t, x, u)
         df[:] = 0
         f[:] = self.cfg0[:self.dimx]
-        df[:, 1: 1 + self.dimx + self.dimu] = self.cfg0[self.dimx:].reshape((self.dimx, self.dimx + self.dimu))
+        df[:, 1: 1 + self.dimx + self.dimu] = self.cfg0[self.dimx:].reshape((self.dimx, self.dimx + self.dimu), order='F')
 
     def drone_dyn(self, t, x, u):
         m, g, kF, kM, L, In, cg0 = self.m, self.g, self.kF, self.kM, self.L, self.In, self.cfg0
-        phi = x[3], theta = x[4], psi = x[5], xd = x[6], yd = x[7], zd = x[8], p = x[9], q = x[10], r = x[11]
+        phi = x[3]; theta = x[4]; psi = x[5]; xd = x[6]; yd = x[7]; zd = x[8]; p = x[9]; q = x[10]; r = x[11]
         t1 = cos(theta)
         t2 = sin(theta)
         t3 = p * t1 + r * t2
@@ -210,7 +209,7 @@ def main():
     else:
         lqr = LqrObj(R=np.ones(4))
         prob.add_lqr_obj(lqr)
-    prob.preProcess()
+    prob.pre_process()
     # construct a solver for the problem
     cfg = OptConfig(args.backend)
     slv = OptSolver(prob, cfg)
@@ -222,7 +221,6 @@ def main():
     rst = slv.solve_guess(guessx)
     print(rst.flag)
     if rst.flag == 1:
-        print(rst.sol)
         # parse the solution
         sol = prob.parse_sol(rst.sol.copy())
         show_sol(sol)

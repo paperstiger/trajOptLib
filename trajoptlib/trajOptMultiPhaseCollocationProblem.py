@@ -180,7 +180,7 @@ class TrajOptMultiPhaseCollocProblem(OptProblem):
         """
         assert isinstance(probs, list)
         for prob in probs:
-            assert isinstance(prob, trajOptCollocProblem)
+            assert isinstance(prob, TrajOptCollocProblem)
             prob.pre_process(**process_args)
         self.__parseAddX(addx)
         self.phases = probs

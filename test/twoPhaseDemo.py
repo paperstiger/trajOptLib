@@ -191,7 +191,7 @@ def testOne():
     prob2.add_lqr_obj(lqr)
     # add several constraints
     obj_avoid = ObjAvoidConstr(2 * N - 2)
-    prob1.addConstr(obj_avoid)
+    prob1.add_constr(obj_avoid)
     # ready to construct this problem
     prob = TrajOptMultiPhaseCollocProblem([prob1, prob2], addx=None)
     # add connect constraints

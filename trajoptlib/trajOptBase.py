@@ -25,7 +25,7 @@ class System(object):
 
     """
     odes = ['RK4', 'Dis', 'Euler', 'BackEuler']
-    def __init__(self, nx, nu, np=0, ode='RK4'):
+    def __init__(self, nx, nu, np=0, ode='Euler'):
         """Constructor for class.
 
         :param nx: int, dimension of state variable

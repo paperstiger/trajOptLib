@@ -19,5 +19,9 @@ def get_onoff_args(*args):
     parser = argparse.ArgumentParser()
     for arg in args:
         assert isinstance(arg, str)
-        parser.add_argument('-%s' % arg, action='store_true', default=False)
+        if ' ' in arg:
+            left, right = arg.split(' ')
+            parser.add_argument('-%s' % left, type=str, default=right)
+        else:
+            parser.add_argument('-%s' % arg, action='store_true', default=False)
     return parser.parse_args()

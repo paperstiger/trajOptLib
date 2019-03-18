@@ -97,11 +97,11 @@ class OrderOnePendulum(DaeSystem):
 def main():
     args = get_onoff_args('oned', 'pen', 'lqr', 'linear', 'orderone', 'backend ipopt')
     if args.oned:
-        testOneD()
+        testOneD(args)
     if args.pen:
-        testPen()
+        testPen(args)
     if args.linear:
-        testLinear()
+        testLinear(args)
     if args.orderone:
         testOrderOne(args)
 
@@ -131,7 +131,7 @@ def testOrderOne(args):
     if rst.flag == 1:
         print(rst.sol)
         # parse the solution
-        sol = prob.parseSol(rst.sol.copy())
+        sol = prob.parse_sol(rst.sol.copy())
         show_sol(sol)
 
 
@@ -164,7 +164,7 @@ def testLinear(args):
     wantState = np.array([0.8, 0])
     pntObj = PointObj(N, wantState)
     prob.addObj(pntObj)
-    prob.preProcess()  # construct the problem
+    prob.pre_process()  # construct the problem
     # construct a solver for the problem
     cfg = OptConfig(args.backend)
     slv = OptSolver(prob, cfg)

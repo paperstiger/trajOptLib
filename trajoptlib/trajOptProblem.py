@@ -458,6 +458,7 @@ class TrajOptProblem(OptProblem):
             else:
                 timennz = Jac.getcol(0).nnz  # TODO: this is in fact wrong
                 eyemat = sparse.diags(np.ones(self.dimx), offsets=1, shape=Jac.shape)
+                Jac.data[Jac.data == 0] = 1e-10
                 Jac = Jac.tocoo()
                 if self.sys.ode == 'Euler':
                     Jac.data *= h
@@ -658,6 +659,8 @@ class TrajOptProblem(OptProblem):
         else:
             usetf = x[self.tfind]
         h = (1.0 * (usetf - uset0)) / (self.N - 1)
+        if h <= 0 and not (self.fixt0 and self.fixtf):
+            h = 1e-6
         useT = np.linspace(uset0, usetf, self.N)
         return h, useT
 
@@ -896,7 +899,6 @@ class TrajOptProblem(OptProblem):
     def __dynconstrModeG(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg):
         """Evaluate the constraints imposed by system dynamics"""
         dimx, dimu, dimp = self.dimx, self.dimu, self.dimp
-        numX, numU = self.numX, self.numU
         cDyn = np.reshape(y[curRow:curRow + (self.N - 1) * self.dimx], (self.N - 1, self.dimx))
         for i in range(self.N - 1):
             # evaluate gradient of system dynamics TODO: support other types of integration scheme
@@ -905,31 +907,32 @@ class TrajOptProblem(OptProblem):
             if needg:
                 if not self.dynSparse:
                     Jac *= h  # always useful
+                    baseCol = i * self.dimpoint
                     # assign a block for x
                     G[curNg: curNg + dimx * dimx] = (Jac[:, 1:1 + dimx] + np.eye(dimx)).flatten()
                     if rec:
                         tmpMat = np.tile(np.arange(dimx), (dimx, 1))
                         row[curNg: curNg + dimx * dimx] = curRow + tmpMat.T.flatten()
-                        col[curNg: curNg + dimx * dimx] = i * dimx + tmpMat.flatten()
+                        col[curNg: curNg + dimx * dimx] = baseCol + tmpMat.flatten()
                     curNg += dimx * dimx
                     # assign a block for u
                     G[curNg: curNg + dimx * dimu] = Jac[:, 1 + dimx:1 + dimx + dimu].flatten()
                     if rec:
                         row[curNg: curNg + dimx * dimu] = curRow + np.tile(np.arange(dimx), (dimu, 1)).T.flatten()
-                        col[curNg: curNg + dimx * dimu] = numX + i * dimu + np.tile(np.arange(dimu), dimx).flatten()
+                        col[curNg: curNg + dimx * dimu] = baseCol + dimx + np.tile(np.arange(dimu), dimx).flatten()
                     curNg += dimx * dimu
                     # assign a block for p, if necessary
                     if dimp > 0:
                         G[curNg: curNg + dimx * dimp] = Jac[:, 1 + dimx + dimu:1 + dimx + dimu + dimp].flatten()
                         if rec:
                             row[curNg: curNg + dimx * dimp] = curRow + np.tile(np.arange(dimx), (dimp, 1)).T.flatten()
-                            col[curNg: curNg + dimx * dimp] = numX + numU + i * dimp + np.tile(np.arange(dimp), dimx).flatten()
+                            col[curNg: curNg + dimx * dimp] = baseCol + dimx + dimu + np.tile(np.arange(dimp), dimx).flatten()
                         curNg += dimx * dimp
                     # assign the diagonal block for x_{k+1}
                     G[curNg: curNg + dimx] = -1.0
                     if rec:
                         row[curNg: curNg + dimx] = curRow + np.arange(dimx)
-                        col[curNg: curNg + dimx] = np.arange((i + 1) * dimx, (i + 2) * dimx)
+                        col[curNg: curNg + dimx] = baseCol + self.dimpoint + np.arange(dimx)
                     curNg += dimx
                     # assign a column for t0, if necessary
                     if self.t0ind > 0:
@@ -946,6 +949,7 @@ class TrajOptProblem(OptProblem):
                             col[curNg: curNg + dimx] = self.tfind
                         curNg += dimx
                 else:
+                    Jac.data[Jac.data == 0] = 1e-10
                     Jac.data *= h  # as always, no damage to this
                     eyemat = sparse.diags(np.ones(self.dimx), offsets=1, shape=Jac.shape)
                     Jac += eyemat  # TODO: this assume forward Euler, backward needs update

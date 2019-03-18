@@ -17,6 +17,7 @@ from .trajOptBase import LinearObj as linearObj, LinearPointObj as linearPointOb
 from .trajOptBase import LinearPointConstr as linearPointConstr, LinearConstr as linearConstr
 from .trajOptBase import NonLinearPointObj as nonLinearPointObj, NonLinearObj as nonLinearObj
 from .trajOptBase import NonLinearPointConstr as nonLinearPointConstr, NonLinearConstr as nonLinearConstr
+from .trajOptBase import QuadPenalty
 from .trajOptBase import LqrObj as lqrObj
 from .trajOptBase import AddX as addX
 from .trajOptBase import DaeSystem as daeSystem
@@ -921,6 +922,8 @@ class TrajOptCollocProblem(OptProblem):
         else:
             usetf = x[self.tfind]
         h = (usetf - uset0) / (self.N - 1)
+        if h <= 0 and not self.fixTimeMode:
+            h = 1e-6
         useT = np.linspace(uset0, usetf, self.nPoint)
         return h, useT
 
@@ -1604,7 +1607,7 @@ class TrajOptCollocProblem(OptProblem):
         :param weights: float/ndarray weights associated with those variables.
 
         """
-        self.addNonLinearObj(quadPenalty(indices, weights))
+        self.addNonLinearObj(QuadPenalty(indices, weights))
 
     def addStateQuadPenalty(self, index, weights, mask=None):
         """Add a quadratic penalty on selected state variables.

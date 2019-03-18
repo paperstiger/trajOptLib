@@ -16,7 +16,7 @@ class OptConfig(object):
     Some custom options are also supported, but might not work depending on the backend.
     """
     shared_options = {'major_iter', 'opt_tol', 'fea_tol', 'print_level', 'deriv_check'}
-    snopt_options = {'minor_iter', 'iter_limit'}
+    snopt_options = {'minor_iter', 'iter_limit', 'print_file'}
     ipopt_options = {'print_freq', 'linear_solver', 'exact_hessian'}
     scipy_kws = {'tol'}
     scipy_option_kws = {'grad', 'xtol', 'gtol', 'barrier_tol', 'initial_constr_penalty',
@@ -72,6 +72,9 @@ class OptConfig(object):
             elif key == 'iter_limit':
                 if is_snopt:
                     self.option.set_iter_limit(val)
+            elif key == 'print_file':
+                if is_snopt:
+                    self.option.print_file = val
             elif key == 'print_freq':
                 if is_ipopt:
                     self.option.set_print_freq(val)
