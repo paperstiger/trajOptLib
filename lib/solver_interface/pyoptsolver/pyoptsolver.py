@@ -105,14 +105,28 @@ class OptConfig(object):
 class TrustConstrSolver(object):
     """A wrapper that builds on a already declared problem."""
     def __init__(self, problem, option):
+        assert isinstance(problem, OptProblem)
         self.problem = problem
         self.option = option
         self.g = np.zeros(problem.nG)
         self.y = np.zeros(problem.nf)
         self.row, self.col = np.zeros((2, problem.nG), dtype=int)
+        if not problem.ipstyle:
+            self.Aval = problem.Aval
+            self.Arow = problem.Arow.astype(int)
+            self.Acol = problem.Acol.astype(int)
+            self.obj_a_indice = np.where(problem.Arow == 0)
+            self.A_csc = coo_matrix((self.Aval, (self.Arow, self.Acol)),
+                                    shape=(problem.nf, problem.nx))
 
     def _get_coo(self):
-        return coo_matrix((self.g, (self.row, self.col)), shape=(self.problem.nf, self.problem.nx))
+        if self.Aval.size == 0:
+            return coo_matrix((self.g, (self.row, self.col)), shape=(self.problem.nf, self.problem.nx))
+        else:
+            return coo_matrix((np.concatenate((self.g, self.Aval)),
+                               (np.concatenate((self.row, self.Arow)),
+                                np.concatenate((self.col, self.Acol)))),
+                              shape=(self.problem.nf, self.problem.nx))
 
     def solve_rand(self):
         guess = self.problem.random_gen_x()
@@ -140,6 +154,7 @@ class TrustConstrSolver(object):
                     self.problem.__callg__(x, self.y, self.g, self.row, self.col, False, False)
                 else:
                     self.problem.__callf__(x, self.y)
+                self.y += self.A_csc.dot(x)
                 return self.y
 
             def jacfun(x):
@@ -152,6 +167,7 @@ class TrustConstrSolver(object):
                     self.cost_row_mask = np.where(self.row == 0)[0]
                 grad = np.zeros_like(x)
                 grad[self.col[self.cost_row_mask]] = self.g[self.cost_row_mask]
+                grad[self.Acol[self.obj_a_indice]] = self.Aval[self.obj_a_indice]
                 return self.y[0], grad
             # figure out the jacobian sparsity
             self.problem.__callg__(guess, self.y, self.g, self.row, self.col, True, True)

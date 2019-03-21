@@ -104,7 +104,7 @@ def penMode(args):
         prob.add_lqr_obj(lqr)
     prob.preProcess()  # construct the problem
     # construct a solver for the problem
-    cfg = OptConfig(args.backend)
+    cfg = OptConfig(args.backend, print_level=1)
     slv = OptSolver(prob, cfg)
     rst = slv.solve_rand()
     print(rst.flag)
@@ -134,7 +134,7 @@ def gradmode(args):
         prob.add_lqr_obj(lqr)
     prob.preProcess()  # construct the problem
     # construct a solver for the problem
-    cfg = OptConfig(args.backend)
+    cfg = OptConfig(args.backend, print_level=3)
     slv = OptSolver(prob, cfg)
     rst = slv.solve_rand()
     print(rst.flag, rst.sol)

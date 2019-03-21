@@ -143,7 +143,7 @@ class TrajOptManifoldCollocProblem(TrajOptCollocProblem):
         self.ext_man_constr_dim = ext_man_constr_dim
         self.numSol += self.numGamma  # add gamma to optimization variables
 
-    def preProcess(self, defect_u=True, defect_p=False, gamma_bound=1):
+    def pre_process(self, defect_u=True, defect_p=False, gamma_bound=1):
         """Initialize the problem, allocating spaces.
 
         Compared with trajOptCollocProblem, it has new sets of variables, different constraints.
@@ -222,7 +222,7 @@ class TrajOptManifoldCollocProblem(TrajOptCollocProblem):
         curRow += self.numLinCon
         # loop over all the objective functions, I haven't checked if order is correct since some linear constraints are followed
         curRow, curNg = self.__obj_mode_g__(curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg)
-        pass
+        return curRow, curNg
 
     def __manifold_constr_mode_g__(self, curRow, curNg, useX, y, G, row, col, rec, needg):
         """Calculate the manifold constraints on knots with autonomous assumption."""
@@ -298,7 +298,7 @@ class TrajOptManifoldCollocProblem(TrajOptCollocProblem):
         y = np.zeros(self.numF)
 
         # call previous function
-        rst = TrajOptCollocProblem.parseF(self, guess, y)
+        rst = TrajOptCollocProblem.parse_f(self, guess, y)
 
         numC, nnonlincon, nlincon = self.__sumConstrNum__()
         curN = 1 + (2 * N - 1) * dimdyn + self.numDefectDyn + nnonlincon
@@ -327,8 +327,8 @@ class TrajOptManifoldCollocProblem(TrajOptCollocProblem):
         # we only need to set gamma which are unbounded
         curN = self.numTraj + self.lenAddX
         # gamma cannot be too large, I guess
-        self.batchSetXlb(-gamma_bound*np.ones(self.numGamma), curN)
-        self.batchSetXub(gamma_bound*np.ones(self.numGamma), curN)
+        self.batch_set_xlb(-gamma_bound*np.ones(self.numGamma), curN)
+        self.batch_set_xub(gamma_bound*np.ones(self.numGamma), curN)
 
     def __setFbound__(self):
         """Set bound on F"""

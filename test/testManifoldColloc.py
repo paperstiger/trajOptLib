@@ -16,40 +16,19 @@ It is constrained to move on a circle. We move from (0, 0) to (1, 1) on a circle
 import sys, os, time
 import numpy as np
 import matplotlib.pyplot as plt
-import logging
-sys.path.append('../')
-from trajoptlib.io import getOnOffArgs
-from trajoptlib import daeSystem, trajOptCollocProblem
-from trajoptlib import manifoldConstr, trajOptManifoldCollocProblem
-from trajoptlib import nonLinearPointConstr
-from trajoptlib import nonLinearPointObj, linearPointObj, linearPointConstr
-from trajoptlib import lqrObj
-from trajoptlib import snoptConfig, solver
-from trajoptlib.utility import showSol
+from trajoptlib import TrajOptManifoldCollocProblem, LqrObj, OptConfig, OptSolver, show_sol
 from scipy.sparse import coo_matrix
 
 from carCommon import CircleConstr, SecondOrderOmniCar
 
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 RX = 0
 RY = 0
 RADIUS = 1
 
 
 def main():
-    args = getOnOffArgs('car', 'debug', 'naive', 'analy', 'warm')
-    if args.debug:
-        sys.path.append('/home/motion/GAO/ThirdPartyLibs/pycharm-debug.egg')
-        import pydevd
-        pydevd.settrace('10.197.52.193', port=10000, stdoutToServer=True, stderrToServer=True)
-    if args.naive:
-        testNaiveCar()
-    if args.car:
-        testCar(warm=args.warm)
-    if args.analy:
-        testAnalytic()
+    testAnalytic()
 
 
 def testAnalytic():
@@ -59,18 +38,15 @@ def testAnalytic():
     t0 = 0
     tf = 1
     man_constr = CircleConstr()
-    prob = trajOptManifoldCollocProblem(sys, N, t0, tf, man_constr)
+    prob = TrajOptManifoldCollocProblem(sys, N, t0, tf, man_constr)
     setBound(prob)
 
-    lqr = lqrObj(R=np.ones(2), P=np.ones(1))
-    prob.addLQRObj(lqr)
-    prob.preProcess(defect_u=True, defect_p=False)
+    lqr = LqrObj(R=np.ones(2), P=np.ones(1))
+    prob.add_lqr_obj(lqr)
+    prob.pre_process(defect_u=True, defect_p=False)
     # construct solver
-    cfg = snoptConfig()
-    cfg.printLevel = 1
-    cfg.printFile = 'test.out'
-    cfg.verifyLevel = 1
-    slv = solver(prob, cfg)
+    cfg = OptConfig()
+    slv = OptSolver(prob, cfg)
     # generate an guess
     x0 = np.zeros(prob.nx)
     # generate the random initial guess
@@ -92,58 +68,15 @@ def testAnalytic():
     useU[:, 0] = useX[:, 4]
     useU[:, 1] = useX[:, 5]
     # gamma is assumed zero
-    psf0 = prob.parseF(x0)
-    rst = slv.solveGuess(x0)
-    psf = prob.parseF(rst.sol)
+    psf0 = prob.parse_f(x0)
+    rst = slv.solve_guess(x0)
+    psf = prob.parse_f(rst.sol)
     # solve the problem
-    rst = slv.solveGuess(x0)
+    rst = slv.solve_guess(x0)
     print(rst.flag)
     # parse the solution
-    sol = prob.parseSol(rst.sol)
-    showSol(sol)
-
-
-def testCar(warm=False):
-    """Test the omni-directional car problem."""
-    sys = SecondOrderOmniCar()
-    # sys = SimpleOmniCar()
-    N = 10
-    t0 = 0
-    tf = 0.9
-    man_constr = CircleConstr()
-    prob = trajOptManifoldCollocProblem(sys, N, t0, tf, man_constr)
-    setBound(prob)
-
-    lqr = lqrObj(R=np.ones(2), P=1*np.ones(1))
-    prob.addLQRObj(lqr)
-    prob.preProcess(defect_u=True, defect_p=False, gamma_bound=1)
-    # construct solver
-    cfg = snoptConfig()
-    cfg.printLevel = 1
-    cfg.printFile = 'test.out'
-    cfg.verifyLevel = 1
-    slv = solver(prob, cfg)
-    if warm:
-        x0 = np.zeros(prob.numSol)
-        data = np.load('first_order_traj.npz')
-        useX, useU, useP = prob.__parseX__(x0)
-        useGamma = prob.__parseGamma__(x0)
-        useX[:] = data['X']
-        useU[:] = data['U']
-        useP[:] = data['P']
-        useGamma[:] = data['gamma']
-        psf = prob.parseF(x0)
-        rst = slv.solveGuess(x0)
-    else:
-        rst = slv.solveRand()
-    if rst.flag == 1 or rst.flag == 2:
-        psf = prob.parseF(rst.sol)
-        np.savez('tmp.npz', **psf)
-        print(psf.keys())
-        print(psf['gamma'])
-        # parse the solution
-        sol = prob.parseSol(rst.sol)
-        showSol(sol)
+    sol = prob.parse_sol(rst.sol)
+    show_sol(sol)
 
 
 def setBound(prob):

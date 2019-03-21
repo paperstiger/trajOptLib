@@ -935,9 +935,9 @@ class TrajOptCollocProblem(OptProblem):
         useP = X[:, self.dimpoint - self.dimp:]
         return useX, useU, useP
 
-    def parseF(self, guess):
+    def parseF(self, guess, y=None):
         """Alias for :func:`~trajOptLib.TrajOptCollocProblem.parse_f`"""
-        return self.parse_f(guess)
+        return self.parse_f(guess, y)
 
     def parse_f(self, guess, y=None):
         """Give an guess, evaluate it and parse into parts.

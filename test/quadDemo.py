@@ -211,7 +211,7 @@ def main():
         prob.add_lqr_obj(lqr)
     prob.pre_process()
     # construct a solver for the problem
-    cfg = OptConfig(args.backend)
+    cfg = OptConfig(args.backend, print_level=5)
     slv = OptSolver(prob, cfg)
     guessx = np.zeros(prob.nx)
     straightx = np.reshape(guessx[:N * dimx], (N, dimx))

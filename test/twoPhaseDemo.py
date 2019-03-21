@@ -149,7 +149,7 @@ def testOneLeg():
     # ready to construct this problem
     prob1.pre_process()  # construct the problem
     # construct a solver for the problem
-    cfg = OptConfig()
+    cfg = OptConfig(print_level=5)
     slv = OptSolver(prob1, cfg)
     rst = slv.solve_rand()
     print(rst.flag)
@@ -205,7 +205,7 @@ def testOne():
     # nonlinear constraints can be constructed by functions. These functions can be auto-diffed
     prob.pre_process()  # construct the problem
     # construct a solver for the problem
-    cfg = OptConfig()
+    cfg = OptConfig(print_level=5)
     slv = OptSolver(prob, cfg)
     rst = slv.solve_rand()
     print(rst.flag)

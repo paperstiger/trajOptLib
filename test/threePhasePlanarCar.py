@@ -105,7 +105,7 @@ def main():
     # ready to solve
     prob.pre_process()
     # cfg = OptConfig(backend='snopt', deriv_check=1, print_file='tmp.out')
-    cfg = OptConfig()
+    cfg = OptConfig(print_level=5)
     slv = OptSolver(prob, cfg)
     rst = slv.solve_rand()
     print(rst.flag)

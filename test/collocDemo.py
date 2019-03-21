@@ -124,7 +124,7 @@ def testOrderOne(args):
     prob.add_lqr_obj(lqr)
     prob.pre_process()  # construct the problem
     # construct a solver for the problem
-    cfg = OptConfig(backend=args.backend)
+    cfg = OptConfig(backend=args.backend, print_level=5)
     solver = OptSolver(prob, cfg)
     rst = solver.solve_rand()
     print(rst.flag)
@@ -166,7 +166,7 @@ def testLinear(args):
     prob.addObj(pntObj)
     prob.pre_process()  # construct the problem
     # construct a solver for the problem
-    cfg = OptConfig(args.backend)
+    cfg = OptConfig(args.backend, print_level=5)
     slv = OptSolver(prob, cfg)
     rst = slv.solve_rand()
     print(rst.flag, rst.sol)
@@ -208,7 +208,7 @@ def testOneD(args):
     prob.add_lqr_obj(lqr)
     prob.pre_process()  # construct the problem
     # construct a solver for the problem
-    cfg = OptConfig(args.backend)
+    cfg = OptConfig(args.backend, print_level=5)
     slv = OptSolver(prob, cfg)
     rst = slv.solve_rand()
     print(rst.flag, rst.sol)
@@ -233,7 +233,7 @@ def testPen(args):
     prob.add_lqr_obj(lqr)
     prob.pre_process()  # construct the problem
     # construct a solver for the problem
-    cfg = OptConfig(args.backend)
+    cfg = OptConfig(args.backend, print_level=5)
     slv = OptSolver(prob, cfg)
     rst = slv.solve_rand()
     print(rst.flag)

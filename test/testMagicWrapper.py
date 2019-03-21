@@ -41,7 +41,7 @@ def main():
     # prob = constructOrderOne()
     prob = constructOrderTwo()
     # construct a solver for the problem
-    cfg = OptConfig()
+    cfg = OptConfig(print_level=5)
     slv = OptSolver(prob, cfg)
     rst = slv.solve_rand()
     print(rst.flag)

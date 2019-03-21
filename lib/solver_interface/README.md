@@ -5,7 +5,7 @@ This project requires CMake, Eigen3 (maks sure cmake can find it), and pybind11 
 it; do not use pip install pybind11, but install from source.)
 
 ## Guide
-Use python setup.py *develop* to install the package.
+Use python setup.py install to install the package.
 However, you might need to set if building SNOPT or IPOPT wrappers.
 If you do not build SNOPT wrapper, you have to add -DBUILD_SNOPT=OFF to previous command.
 Similarly, add -DBUILD_IPOPT=OFF disables IPOPT wrapper.
