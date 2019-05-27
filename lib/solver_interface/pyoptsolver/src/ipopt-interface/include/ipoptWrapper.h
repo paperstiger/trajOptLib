@@ -65,7 +65,6 @@ public:
         cMapV Mx(x0_, n);
 
         if(prob.ipStyle) {
-            std::cout << "call evalJac function on first entry\n";
 #ifdef ENABLEIP
             prob.evalJac(Mx, G, rows, cols, true);
 #endif
@@ -80,8 +79,6 @@ public:
             for(int i = 0; i < prob.Aval.size(); i++)
                 if(prob.Arow(i) == 0)
                     a_obj_index.push_back(i);
-            std::cout << "g obs size " << g_obj_index.size() << "  ";
-            std::cout << "a obs size " << a_obj_index.size() << "\n";
         }
     }
 
@@ -246,7 +243,6 @@ public:
         else {
             if(prob.ipStyle){
 #ifdef ENABLEIP
-                std::cout << "call evalJac function\n";
                 cMapV Mx(x, n);
                 MapV G(values, prob.nG);
                 VXl row(0), col(0);
