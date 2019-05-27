@@ -1,7 +1,7 @@
-from pyoptsolvercpp import IpoptConfig, IpoptSolver
-from pyoptsolvercpp import SnoptConfig, SnoptSolver
-from pyoptsolvercpp import OptProblem, OptResult
-from pyoptsolvercpp import __with_snopt__, __with_ipopt__, __version__
+from .pyoptsolvercpp import IpoptConfig, IpoptSolver
+from .pyoptsolvercpp import SnoptConfig, SnoptSolver
+from .pyoptsolvercpp import OptProblem, OptResult
+from .pyoptsolvercpp import __with_snopt__, __with_ipopt__, __version__
 import warnings
 import six
 import numpy as np
@@ -120,7 +120,7 @@ class TrustConstrSolver(object):
                                     shape=(problem.nf, problem.nx))
 
     def _get_coo(self):
-        if self.Aval.size == 0:
+        if self.problem.ipstyle:
             return coo_matrix((self.g, (self.row, self.col)), shape=(self.problem.nf, self.problem.nx))
         else:
             return coo_matrix((np.concatenate((self.g, self.Aval)),

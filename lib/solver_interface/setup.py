@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import glob
 import sysconfig
 import platform
 import subprocess
@@ -74,6 +75,14 @@ for arg in sys.argv:
         add_args.append(arg)
 sys.argv = list(filter(lambda x: not x.startswith('-D'), sys.argv))
 print('Arguments passed to CMake:', add_args)
+major_ver, minor_ver = sys.version_info[:2]
+glob_so = glob.glob('pyoptsolver/*.so') + glob.glob('pyoptsolver/*.dylib')
+if len(glob_so) > 1:
+    print('Find dynamic libraries ', glob_so)
+    print('Please clean all files in folder pyoptsolver with extension so or dylib and redo')
+    sys.exit(0)
+else:
+    print('find file %s' % glob_so[0])
 
 setup(
     name='pyoptsolver',
@@ -85,7 +94,7 @@ setup(
     ext_modules=[CMakeExtension('pyoptsolvercpp')],
     packages=['pyoptsolver'],
     package_dir={'': './'},
-    package_data = {'': ['pyoptsolvercpp.so']},
+    package_data = {'': [os.path.basename(glob_so[0])]},
     # add custom build_ext command
     cmdclass=dict(build_ext=CMakeBuild),
     zip_safe=False,
