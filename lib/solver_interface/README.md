@@ -27,4 +27,12 @@ If you installed SNOPT at `~/snopt7` but has no IPOPT installation, your command
 python setup.py -DBUILD_IPOPT=OFF -DSNOPT_PATH=~/snopt7 install
 ```
 
+# FAQ
+1. What if I passed the wrong arguments to CMake and want to correct it?
+CMake use CMakeCache.txt file to store some variables and command line commands sometimes do not change them. In this version, we remove folder `./build` whenever a new installation is performed.
+
+2. What on earth is SNOPT and IPOPT?
+Information of SNOPT can be found at <https://web.stanford.edu/group/SOL/snopt.htm>.
+IPOPT information is at <https://www.coin-or.org/Ipopt/documentation/>
+
 # Tutorial (coming soon)

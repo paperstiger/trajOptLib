@@ -13,11 +13,11 @@ Installation is simple.
 
 0. You have to install pyoptsolver, which is located in lib/solver_interface; It is a separate tool for
    defining and solving optimization problems in Python using state-of-the-art nonlinear solvers. Please see instructions there.
-1. Install requirements by "pip install -r requirements.txt"
-2. Install package using pip, by "pip install -e ." or "python setup.py install"
+1. Install requirements by `pip install -r requirements.txt`
+2. Install package using pip, by `pip install -e .` or `python setup.py install`
 
 ## Test
-You can test a few simple examples. This is done by simply navigating to "test" folder in the main folder. And use "python simpleDemo.py -grad". You can also explore other possible arguments.
+You can test a few simple examples. This is done by simply navigating to `test` folder in the main folder. And use `python simpleDemo.py -grad`. You can also explore other possible arguments.
 There is a rotor example which requires the following procedure:
 
 1. Navigate to current directory. Make a directory for building "mkdir build & cd build"

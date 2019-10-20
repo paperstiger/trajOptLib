@@ -5,6 +5,7 @@ import glob
 import sysconfig
 import platform
 import subprocess
+import shutil
 
 from distutils.version import LooseVersion
 from setuptools import setup, Extension, find_packages
@@ -74,31 +75,35 @@ for arg in sys.argv:
     if arg.startswith('-D'):
         add_args.append(arg)
 sys.argv = list(filter(lambda x: not x.startswith('-D'), sys.argv))
+# remove build directory if it exists
+if os.path.exists('./build'):
+    shutil.rmtree('./build')
 print('Arguments passed to CMake:', add_args)
 major_ver, minor_ver = sys.version_info[:2]
 glob_so = glob.glob('pyoptsolver/*.so') + glob.glob('pyoptsolver/*.dylib')
 if len(glob_so) > 1:
     print('Find dynamic libraries ', glob_so)
-    print('Please clean all files in folder pyoptsolver with extension so or dylib and redo')
+    print('---Please clean all files in folder pyoptsolver with extension so or dylib and redo---')
     sys.exit(0)
 elif len(glob_so) == 1:
-    print('find file %s' % glob_so[0])
+    print('---Find file %s---' % glob_so[0])
 else:
+    print('---Cannot find dynamic library, make sure the dynamic library is in ./pyoptsolver')
     glob_so = ['pyoptsolver/pyoptsolvercpp.so']
+    sys.exit(0)
 
 
 setup(
     name='pyoptsolver',
-    version='0.4.0',
+    version='0.5.0',
     author='Gao Tang',
-    author_email='gao.tang@duke.edu',
+    author_email='gaotang2@illinois.edu',
     license='LICENSE.txt',
     description='A unified wrapper for many optimization problems',
     ext_modules=[CMakeExtension('pyoptsolvercpp')],
     packages=['pyoptsolver'],
     package_dir={'': './'},
     package_data = {'': [os.path.basename(glob_so[0])]},
-    # add custom build_ext command
     cmdclass=dict(build_ext=CMakeBuild),
     zip_safe=False,
     install_requires=[
