@@ -12,6 +12,7 @@
 using namespace Ipopt;
 using namespace std;
 
+bool VERBOSE = false;
 
 optResult solve_problem(ProblemFun &prob, IpoptConfig &config, cRefV x0) {
     // create instance
@@ -36,11 +37,10 @@ optResult solve_problem(ProblemFun &prob, IpoptConfig &config, cRefV x0) {
     // Ask Ipopt to solve the problem
     status = app->OptimizeTNLP(mynlp);
     if (status == Solve_Succeeded) {
-        printf("\n\n*** The problem solved!\n");
         result.flag = (int) status + 1;
     }
     else {
-        printf("\n\n*** The problem FAILED!\n");
+        printf("*** The problem FAILED!");
         result.flag = 0;
     }
     // As the SmartPtrs go out of scope, the reference count

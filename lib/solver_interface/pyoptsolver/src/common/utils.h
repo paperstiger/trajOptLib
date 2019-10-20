@@ -21,7 +21,7 @@
 
 class NotImplementedError : public std::logic_error{
 public:
-    NotImplementedError() : std::logic_error("Not implemented error") {};
+    NotImplementedError(std::string info) : std::logic_error("Not implemented error" + info) {};
 };
 
 
@@ -87,6 +87,7 @@ public:
     ProblemFun(int nx_, int nf_): funBase(nx_, nf_){
         _allocate_space();
     }
+
     ProblemFun(int nx_, int nf_, int ng_): funBase(nx_, nf_, ng_){
         _allocate_space();
     }
@@ -185,21 +186,29 @@ public:
     }
 
     virtual int operator()(cRefV x, RefV F){
-        throw NotImplementedError();
+#ifdef ENABLEIP
+        double obj = evalF(x);
+        F[0] = obj;
+        MapV g(F.data() + 1, F.size() - 1);
+        evalG(x, g);
         return 0;
+#else
+        throw NotImplementedError("callf");
+        return 0;
+#endif
     };  // A function to be overwritten by subclass, this is called to evaluate
 
     virtual std::pair<int, int> operator()(cRefV x, RefV F, RefV G, RefVl row, RefVl col, bool rec, bool needg){
-        throw NotImplementedError();
+        throw NotImplementedError("callg");
         return std::make_pair(0, 0);
     };  // A function to be overwritten by subclass, this is called for both assigning structure.
 
 #ifdef ENABLEIP
-    virtual double evalF(cRefV x) {throw NotImplementedError(); return 0;};
-    virtual bool evalGrad(cRefV x, RefV grad) {throw NotImplementedError(); return true;};
-    virtual int evalG(cRefV x, RefV g) {throw NotImplementedError(); return 0;};
-    virtual int evalJac(cRefV x, RefV G, RefVl row, RefVl col, bool rec) {throw NotImplementedError(); return 0;};
-    virtual int evalHess(cRefV x, double sigma, cRefV lmd, RefV G, RefVl row, RefVl col, bool rec) {throw NotImplementedError(); return 0;}
+    virtual double evalF(cRefV x) {throw NotImplementedError("evalF"); return 0;};
+    virtual bool evalGrad(cRefV x, RefV grad) {throw NotImplementedError("evalGrad"); return true;};
+    virtual int evalG(cRefV x, RefV g) {throw NotImplementedError("evalG"); return 0;};
+    virtual int evalJac(cRefV x, RefV G, RefVl row, RefVl col, bool rec) {throw NotImplementedError("evalJac"); return 0;};
+    virtual int evalHess(cRefV x, double sigma, cRefV lmd, RefV G, RefVl row, RefVl col, bool rec) {throw NotImplementedError("evalHess"); return 0;}
     // easy function calls for debugging purposes
     double ipEvalF(cRefV x) {
         return evalF(x);
@@ -570,19 +579,19 @@ public:
         stringOptions.push_back(nm);
     }
     virtual void setMajorIter(int iter) {
-        throw NotImplementedError();
+        throw NotImplementedError("set major iter");
     }
     virtual void setOptTol(double tol) {
-        throw NotImplementedError();
+        throw NotImplementedError("set opt tol");
     }
     virtual void setFeaTol(double tol) {
-        throw NotImplementedError();
+        throw NotImplementedError("set fea tol");
     }
     virtual int setPrintLevel(int lvl) {
-        throw NotImplementedError();
+        throw NotImplementedError("set print level");
     }
     virtual void enableDerivCheck(int lvl=3) {
-        throw NotImplementedError();
+        throw NotImplementedError("set deriv check");
     }
 };
 

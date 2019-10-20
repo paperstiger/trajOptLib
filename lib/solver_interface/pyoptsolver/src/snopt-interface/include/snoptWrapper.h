@@ -210,10 +210,7 @@ public:
             prob->operator()(mX, mV, Gvalue, lrow, lcol, true, true);
             row = lrow.cast<int>();
             col = lcol.cast<int>();
-        }
-        ToyProb.setG          ( lenG, iGfun, jGvar );
-        if(!prob->getGrad()){
-            ToyProb.computeJac();
+            ToyProb.setG          ( lenG, iGfun, jGvar );
         }
         if(prob->getGrad())
             ToyProb.setIntParameter( "Derivative option", 1 );
@@ -367,7 +364,10 @@ public:
             problem_setup();
         ToyProb.setF          ( F, Flow, Fupp, Fmul, Fstate );
         ToyProb.setX          ( x, xlow, xupp, xmul, xstate );
-        ToyProb.solve( 0 );
+        if(prob->getGrad())
+            ToyProb.solve( 0 );
+        else
+            ToyProb.nograd_solve( 0 );
         return ToyProb.getInfo();
     };
     //Solve the problem. given the solution, lmdF
@@ -389,7 +389,10 @@ public:
             problem_setup();
         ToyProb.setF          ( F, Flow, Fupp, Fmul, Fstate );
         ToyProb.setX          ( x, xlow, xupp, xmul, xstate );
-        ToyProb.solve( 0 );
+        if(prob->getGrad())
+            ToyProb.solve( 0 );
+        else
+            ToyProb.nograd_solve( 0 );
         return ToyProb.getInfo();
     };
 

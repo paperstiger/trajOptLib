@@ -66,7 +66,8 @@ public:
 
         if(prob.ipStyle) {
 #ifdef ENABLEIP
-            prob.evalJac(Mx, G, rows, cols, true);
+            if(prob_.grad)
+                prob.evalJac(Mx, G, rows, cols, true);
 #endif
         }
         else{
@@ -137,6 +138,8 @@ public:
     }
 
     virtual void receive_new_x(const double *x, bool needg) {
+        if(VERBOSE)
+            std::cout << "receive new x\n";
         cMapV Mx(x, prob.nx);
         VXl row(1), col(1);
         F.array() = 0;
@@ -151,6 +154,8 @@ public:
 
     virtual bool eval_f(Index n, const double* x, bool new_x, double& obj_value)
     {
+        if(VERBOSE)
+            std::cout << "evalf\n";
         if(prob.ipStyle){
 #ifdef ENABLEIP
             cMapV Mx(x, n);
@@ -172,6 +177,8 @@ public:
 
     virtual bool eval_grad_f(Index n, const double* x, bool new_x, double* grad_f)
     {
+        if(VERBOSE)
+            std::cout << "grad f\n";
         if(prob.ipStyle) {
 #ifdef ENABLEIP
             cMapV Mx(x, n);
@@ -199,6 +206,8 @@ public:
 
     virtual bool eval_g(Index n, const double* x, bool new_x, Index m, double* g)
     {
+        if(VERBOSE)
+            std::cout << "eval g\n";
         if(prob.ipStyle) {
 #ifdef ENABLEIP
             cMapV Mx(x, n);
@@ -224,6 +233,8 @@ public:
             Index m, Index nele_jac, Index* iRow, Index *jCol,
             double* values)
     {
+        if(VERBOSE)
+            std::cout << "jac g\n";
         // defines the positions of the nonzero elements of the jacobian
         if (values == NULL) {
             // first copy nonlinear part

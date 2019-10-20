@@ -17,7 +17,7 @@ class OptConfig(object):
     """
     shared_options = {'major_iter', 'opt_tol', 'fea_tol', 'print_level', 'deriv_check'}
     snopt_options = {'minor_iter', 'iter_limit', 'print_file'}
-    ipopt_options = {'print_freq', 'linear_solver', 'exact_hessian'}
+    ipopt_options = {'print_freq', 'linear_solver', 'exact_hessian', 'fd_jacobian'}
     scipy_kws = {'tol'}
     scipy_option_kws = {'grad', 'xtol', 'gtol', 'barrier_tol', 'initial_constr_penalty',
                         'initial_tr_radius', 'initial_barrier_parameter', 'initial_barrier_tolerance',
@@ -84,6 +84,9 @@ class OptConfig(object):
             elif key == 'exact_hessian':
                 if is_ipopt and val:
                     self.option.enable_exact_hessian()
+            elif key == 'fd_jacobian':
+                if is_ipopt and val:
+                    self.option.enable_fd_jacobian()
             elif key in self.scipy_kws:
                 self.option[key] = val
             elif key in self.scipy_option_kws:

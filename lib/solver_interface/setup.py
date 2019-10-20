@@ -81,8 +81,11 @@ if len(glob_so) > 1:
     print('Find dynamic libraries ', glob_so)
     print('Please clean all files in folder pyoptsolver with extension so or dylib and redo')
     sys.exit(0)
-else:
+elif len(glob_so) == 1:
     print('find file %s' % glob_so[0])
+else:
+    glob_so = ['pyoptsolver/pyoptsolvercpp.so']
+
 
 setup(
     name='pyoptsolver',

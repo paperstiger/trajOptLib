@@ -108,6 +108,17 @@ public:
       return inform;
   }
 
+  int nograd_solve ( integer starttype ) {
+      integer nS, nInf;
+      doublereal sInf;
+      inform = snoptProblemA::solve(starttype, neF, n, ObjAdd, ObjRow, usrfun, 
+                xlow, xupp, Flow, Fupp, 
+                x, xstate, xmul,
+                F, Fstate, Fmul,
+                nS, nInf, sInf);
+      return inform;
+  }
+
   // Functions that set up the problem data:
   void setProblemSize( integer an, integer aneF ) {
       n = an;

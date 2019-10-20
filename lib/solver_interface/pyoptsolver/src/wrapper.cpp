@@ -16,7 +16,6 @@
 #endif
 #ifdef IPOPT
 #include "ipoptWrapper.h"
-bool VERBOSE = false;
 #endif
 
 

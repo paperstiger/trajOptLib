@@ -10,8 +10,6 @@
 
 
 #include "snoptWrapper.h"
-#include "pybind11/functional.h"
-#include "pybind11/pybind11.h"
 
 
 class pySnoptWrapper: public snoptWrapper{
