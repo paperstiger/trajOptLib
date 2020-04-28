@@ -12,11 +12,12 @@ trajOptProblem.py
 Class for describing the trajectory optimization problems.
 """
 from __future__ import print_function, division
+from collections.abc import Iterable
 import numpy as np
-from .trajOptBase import LinearObj, LinearPointObj
-from .trajOptBase import LinearPointConstr, LinearConstr
-from .trajOptBase import NonLinearPointObj, NonLinearObj
-from .trajOptBase import NonLinearPointConstr, NonLinearConstr
+from .trajOptBase import LinearObj, LinearPointObj, LinearMultiPointObj
+from .trajOptBase import LinearPointConstr, LinearConstr, LinearMultiPointConstr
+from .trajOptBase import NonLinearPointObj, NonLinearMultiPointObj, NonLinearObj
+from .trajOptBase import NonLinearPointConstr, NonLinearConstr, NonLinearMultiPointConstr
 from .trajOptBase import System, AddX as addX
 from .trajOptBase import LqrObj
 from pyoptsolver import OptProblem
@@ -102,9 +103,11 @@ class TrajOptProblem(OptProblem):
         self.nonPathObj = []  # stores Lagrange integral cost. Includes LQR cost
         # nonlinear constraints. Linear constraints are treated as nonlinear
         self.pointConstr = []  # general constraint imposed at a certain point, such as initial and final point
+        self.multiPointConstr = []
         self.pathConstr = []  # general constraint imposed everywhere such as collision avoidance
         self.nonLinConstr = []  # stores general nonlinear constraint
         self.linPointConstr = []
+        self.linMultiPointConstr = []
         self.linPathConstr = []
         self.linearConstr = []
         # calculate number of variables to be optimized, time are always the last
@@ -145,6 +148,8 @@ class TrajOptProblem(OptProblem):
         numC = 0
         for constr in self.pointConstr:
             numC += constr.nf
+        for constr in self.multiPointConstr:
+            numC += constr.nf
         for constr in self.pathConstr:
             numC += self.N * constr.nf
         for constr in self.nonLinConstr:
@@ -152,6 +157,8 @@ class TrajOptProblem(OptProblem):
         nnonlincon = numC
         for constr in self.linPointConstr:
             numC += constr.A.shape[0]
+        for constr in self.linMultiPointConstr:
+            numC += constr.As[0].shape[0]
         for constr in self.linPathConstr:
             numC += constr.A.shape[0] * self.N  # this remains being argued
         for constr in self.linearConstr:
@@ -346,6 +353,12 @@ class TrajOptProblem(OptProblem):
             lstCArow.append(constr.A.row + curRow)
             lstCAcol.append(self.__patchCol__(constr.index, constr.A.col))  # take care on here
             curRow += constr.A.shape[0]
+        for constr in self.linMultiPointConstr:
+            for idx, A in constr:
+                lstCA.append(A.data)
+                lstCArow.append(constr.A.row + curRow)
+                lstCAcol.append(self.__patchCol__(idx, constr.A.col))
+            curRow += constr.As[0].shape[0]
         for constr in self.linPathConstr:
             for index in range(self.N):
                 lstCA.append(constr.A.data)
@@ -420,6 +433,8 @@ class TrajOptProblem(OptProblem):
         numCG = 0  # G from C
         # I only care about those in numC
         for constr in self.pointConstr:
+            numCG += constr.nG
+        for constr in self.multiPointConstr:
             numCG += constr.nG
         for constr in self.pathConstr:
             numCG += self.N * constr.nG
@@ -607,6 +622,12 @@ class TrajOptProblem(OptProblem):
             if constr.ub is not None:
                 cub[cind0: cind0 + constr.nf] = constr.ub
             cind0 += constr.nf
+        for constr in self.multiPointConstr:
+            if constr.lb is not None:
+                clb[cind0: cind0 + constr.nf] = constr.lb
+            if constr.ub is not None:
+                cub[cind0: cind0 + constr.nf] = constr.ub
+            cind0 += constr.nf
         for constr in self.pathConstr:
             tmplb = np.reshape(clb[cind0: cind0 + constr.nf * self.N], (self.N, constr.nf))
             tmpub = np.reshape(cub[cind0: cind0 + constr.nf * self.N], (self.N, constr.nf))
@@ -624,6 +645,11 @@ class TrajOptProblem(OptProblem):
         # the rest are linear constraints and we should write those bounds, too
         for constr in self.linPointConstr:
             cindf = cind0 + constr.A.shape[0]
+            clb[cind0: cindf] = constr.lb
+            cub[cind0: cindf] = constr.ub
+            cind0 = cindf
+        for constr in self.linMultiPointConstr:
+            cindf = cind0 + constr.As[0].shape[0]
             clb[cind0: cindf] = constr.lb
             cub[cind0: cindf] = constr.ub
             cind0 = cindf
@@ -699,6 +725,10 @@ class TrajOptProblem(OptProblem):
         for constr in self.pointConstr:
             pointCon.append(y[curN: curN + constr.nf])
             curN += constr.nf
+        multiPointCon = []
+        for constr in self.multiPointConstr:
+            multiPointCon.append(y[curN: curN + constr.nf])
+            curN += constr.nf
         pathCon = []
         for constr in self.pathConstr:
             pathCon.append(np.reshape(y[curN: curN + N * constr.nf], (N, constr.nf)))
@@ -730,9 +760,16 @@ class TrajOptProblem(OptProblem):
             addXbound = [checkInBounds(addx_, [addx__.lb, addx__.ub]) for addx_, addx__ in zip(addx, self.addX)]
         else:
             addXbound = None
-        return {'obj': obj, 'dyn': dynCon, 'point': pointCon, 'path': pathCon, 'nonlin': nonLinCon,
-                'Xbd': Xbound, 'Ubd': ubound, 'x0bd': x0bound, 'xfbd': xfbound, 'Pbd': pbound,
-                't0bd': t0bound, 'tfbd': tfbound, 'addXbd': addXbound}
+        result = {'obj': obj, 'dyn': dynCon, 'Xbd': Xbound, 'Ubd': ubound, 'x0bd': x0bound, 'xfbd': xfbound, 'Pbd': pbound, 't0bd': t0bound, 'tfbd': tfbound, 'addXbd': addXbound}
+        if pointCon:
+            result['point'] = pointCon
+        if multiPointCon:
+            result['mpoint'] = multiPointCon
+        if pathCon:
+            result['path'] = pathCon
+        if nonLinCon:
+            result['nonlin'] = nonLinCon
+        return result
 
     def parse_sol(self, sol):
         """Call parseX function from utility and return a dict of solution.
@@ -808,19 +845,16 @@ class TrajOptProblem(OptProblem):
         """
         y[0] = 0.0
         tmpout = np.zeros(1)
-        for obj in self.linearObj:
-            y[0] += obj.A.dot(x)
         for obj in self.linPointObj:
             tmpx = np.concatenate(([useT[obj.index]], useX[obj.index], useU[obj.index], useP[obj.index]))
             y[0] += obj.A.dot(tmpx)
-        for obj in self.nonLinObj:
-            obj.__callf__(x, tmpout)
-            y[0] += tmpout[0]
         for obj in self.linPathObj:
             for i in range(self.N - 1):
                 tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
                 obj.__callf__(tmpx, tmpout)
                 y[0] += tmpout[0] * h
+        for obj in self.linearObj:
+            y[0] += obj.A.dot(x)
         for obj in self.nonPointObj:
             tmpx = np.concatenate(([useT[obj.index]], useX[obj.index], useU[obj.index], useP[obj.index]))
             obj.__callf__(tmpx, tmpout)
@@ -831,7 +865,11 @@ class TrajOptProblem(OptProblem):
                 obj.__callf__(tmpx, tmpout)
                 y[0] += tmpout[0] * h
         for obj in self.nonLinObj:
-            obj.__callf__(x, tmpout)
+            if isinstance(obj, NonLinearObj):
+                obj.__callf__(x, tmpout)
+            else:  # NonLinearMultiPointObj
+                xins = [np.concatenate(([useT[idx]], useX[idx], useU[idx], useP[idx])) for idx in obj.indexes]
+                obj.__callf__(xins, tmpout)
             y[0] += tmpout[0]
         # add lqr cost, if applicable
         if self.lqrObj is not None:
@@ -850,11 +888,16 @@ class TrajOptProblem(OptProblem):
             tmpx = np.concatenate(([useT[constr.index]], useX[constr.index], useU[constr.index], useP[constr.index]))
             constr.__evalf__(tmpx, y[curRow: curRow + constr.nf])
             curRow += constr.nf
+        for constr in self.multiPointConstr:
+            xin = [np.concatenate((useT[idx], useX[idx], useU[idx], useP[idx])) for idx in constr.indexes]
+            constr.__evalf__(xin, y[curRow: curRow + constr.nf])
+            curRow += constr.nf
         for constr in self.pathConstr:
             for i in range(self.N):
                 tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
                 constr.__evalf__(tmpx, y[curRow: curRow + constr.nf])
-            self.numFcurRow += constr.nf
+            self.numF
+            curRow += constr.nf
         for constr in self.nonLinConstr:
             constr.__evalf__(x, y[curRow: curRow + constr.nf])
             curRow += constr.nf
@@ -1008,7 +1051,7 @@ class TrajOptProblem(OptProblem):
             curRow += 1
 
         # still in the point, path, obj order
-        if len(self.nonPointObj) > 0:
+        if self.nonPointObj:
             for obj in self.nonPointObj:
                 tmpx = np.concatenate(([useT[obj.index]], useX[obj.index], useU[obj.index], useP[obj.index]))
                 Gpiece = G[curNg: curNg + obj.nG]
@@ -1022,7 +1065,7 @@ class TrajOptProblem(OptProblem):
                 curNg += obj.nG
                 curRow += 1
 
-        if len(self.nonPathObj) > 0:
+        if self.nonPathObj:
             for obj in self.nonPathObj:
                 y[curRow] = 0
                 for i in range(self.N - 1):
@@ -1039,17 +1082,39 @@ class TrajOptProblem(OptProblem):
                     curNg += obj.nG
                 curRow += 1
 
-        if(len(self.nonLinObj)) > 0:
+        if self.nonLinObj:
             for obj in self.nonLinObj:  # nonlinear cost function
-                Gpiece = G[curNg: curNg + obj.nG]
-                rowpiece = row[curNg: curNg + obj.nG]
-                colpiece = col[curNg: curNg + obj.nG]
-                obj.__callg__(x, tmpout, Gpiece, rowpiece, colpiece, rec, needg)
-                y[curRow] = tmpout[0]
-                if rec:
-                    rowpiece[:] = curRow
-                curNg += obj.nG
-                curRow += 1
+                if isinstance(obj, NonLinearObj):
+                    Gpiece = G[curNg: curNg + obj.nG]
+                    rowpiece = row[curNg: curNg + obj.nG]
+                    colpiece = col[curNg: curNg + obj.nG]
+                    obj.__callg__(x, tmpout, Gpiece, rowpiece, colpiece, rec, needg)
+                    y[curRow] = tmpout[0]
+                    if rec:
+                        rowpiece[:] = curRow
+                    curNg += obj.nG
+                    curRow += 1
+                else:  # has to be NonLinearMultiPointObj
+                    Gpiece = G[curNg: curNg + obj.nG]
+                    rowpiece = row[curNg: curNg + obj.nG]
+                    colpiece = col[curNg: curNg + obj.nG]
+                    xins = [np.concatenate(([useT[idx]], useX[idx], useU[idx], useP[idx])) for idx in obj.indexes]
+                    Gs = rows = cols = []
+                    if needg:
+                        Gs = [np.inf * np.ones(obj.nG) for _ in range(obj.npoint)]
+                        if rec:
+                            rows = [-1 * np.ones(obj.nG, dtype=int) for _ in range(obj.npoint)]
+                            cols = [-1 * np.ones(obj.nG, dtype=int) for _ in range(obj.npoint)]
+                    obj.__callg__(xins, tmpout, Gs, rows, cols, rec, needg)
+                    if needg:
+                        idx_ = 0
+                        for i, idx in enumerate(obj.indexes):
+                            good_len = np.sum(~np.isnan(Gs[i]))
+                            Gpiece[idx_: idx_ + good_len] = Gs[i][:good_len]
+                            if rec:
+                                rowpiece[idx_: idx_ + good_len] = rows[i][:good_len]
+                                colpiece[idx_: idx_ + good_len] = cols[i][:good_len] + idx * self.dimpoint
+                            idx_ += good_len
         return curRow, curNg
 
     def __constrModeG(self, curRow, curNg, h, useT, useX, useU, useP, x, y, G, row, col, rec, needg):
@@ -1067,7 +1132,7 @@ class TrajOptProblem(OptProblem):
 
         """
         # loop over other constraints
-        if len(self.pointConstr) > 0:
+        if self.pointConstr:
             for constr in self.pointConstr:
                 tmpx = np.concatenate(([useT[constr.index]], useX[constr.index], useU[constr.index], useP[constr.index]))
                 pieceG = G[curNg: curNg + constr.nG]
@@ -1079,7 +1144,23 @@ class TrajOptProblem(OptProblem):
                     pieceCol[:] = self.__patchCol__(constr.index, pieceCol)
                 curRow += constr.nf
                 curNg += constr.nG
-        if len(self.pathConstr) > 0:
+        if self.multiPointConstr:
+            for constr in self.multiPointConstr:
+                xin = [np.concatenate((useT[idx], useX[idx], useU[idx], useP[idx])) for idx in constr.indexes]
+                constr.reset_buffer()
+                constr.__callg__(xin, y[curRow: curRow + constr.nf], constr.buffer[0], constr.buffer[1], constr.buffer[2], rec, needg)
+                if needg:
+                    idx_ = 0
+                    for i in range(constr.npoint):
+                        leng = np.sum(~np.isinf(constr.buffer[0][i]))
+                        pieceG[idx_: idx_ + leng] = constr.buffer[0][i][:leng]
+                        if rec:
+                            pieceRow[idx_: idx_ + leng] = curRow + constr.buffer[1][i][:leng]
+                            pieceCol[idx_: idx_ + leng] = self.__patchCol__(self.indexes[i], constr.buffer[2][i][:leng])
+                        idx_ += leng
+                curRow += constr.nf
+                curNg += constr.nG
+        if self.pathConstr:
             for constr in self.pathConstr:
                 for i in range(self.N):
                     tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
@@ -1092,7 +1173,7 @@ class TrajOptProblem(OptProblem):
                         pieceCol[:] = self.__patchCol__(i, pieceCol)
                     curRow += constr.nf
                     curNg += constr.nG
-        if len(self.nonLinConstr) > 0:
+        if self.nonLinConstr:
             for constr in self.nonLinConstr:
                 pieceG = G[curNg: curNg + constr.nG]
                 pieceRow = row[curNg: curNg + constr.nG]
@@ -1276,7 +1357,7 @@ class TrajOptProblem(OptProblem):
             self.lqrObj = __callf__
 
     def addLinearObj(self, linObj):
-        """Add linear objective function.
+        """Add linear objective function. Obsolete, use add_obj instead.
 
         :param linObj: linearObj class
 
@@ -1285,7 +1366,7 @@ class TrajOptProblem(OptProblem):
         self.linearObj.append(linObj)
 
     def addLinearPointObj(self, linPointObj, path=False):
-        """Add linear point objective function.
+        """Add linear point objective function. Obsolete, use add_obj instead.
 
         :param linPointObj: linearPointObj class
         :param path: bool, if this is path obj (at every point except for final one)
@@ -1298,16 +1379,16 @@ class TrajOptProblem(OptProblem):
             self.linPointObj.append(linPointObj)
 
     def addNonLinearObj(self, nonlinObj):
-        """Add nonlinear objective function.
+        """Add nonlinear objective function. Obsolete, use add_obj instead.
 
         :param nonLinObj: a nonLinObj class
 
         """
-        assert isinstance(nonlinObj, NonLinearObj)
+        assert isinstance(nonlinObj, (NonLinearObj, NonLinearPointObj))
         self.nonLinObj.append(nonlinObj)
 
     def addNonLinearPointObj(self, nonPntObj, path=False):
-        """Add nonlinear point objective.
+        """Add nonlinear point objective. Obsolete, use add_obj instead.
 
         :param nonPntObj: nonLinObj class
         :param path: bool, if this obj is pointwise
@@ -1320,7 +1401,7 @@ class TrajOptProblem(OptProblem):
             self.nonPointObj.append(nonPntObj)
 
     def addNonLinearPointConstr(self, pntConstr, path=False):
-        """Add point constraint.
+        """Add point constraint. Obsolete, use add_constr instead.
 
         :param pntConstr: pointConstr class
         :param path: bool, if this obj
@@ -1333,7 +1414,7 @@ class TrajOptProblem(OptProblem):
             self.pointConstr.append(pntConstr)
 
     def addNonLinearConstr(self, constr):
-        """Add a general nonlinear constraint.
+        """Add a general nonlinear constraint. Obsolete, use add_constr instead.
 
         :param constr: nonLinConstr class
 
@@ -1359,40 +1440,62 @@ class TrajOptProblem(OptProblem):
     def add_obj(self, obj, path=False):
         """A high level function that add objective function of any kind.
 
-        :param obj: an objective instance, can be LinearObj/LinearPointObj/NonLinearObj/NonLinearPointObj, LqrObj
+        :param obj: an objective instance or iterable of them, can be LinearObj/LinearPointObj/NonLinearObj/NonLinearPointObj, LqrObj
         :param path: bool, indicating if the constraint is path constraint.
         """
+        if isinstance(obj, Iterable):
+            for obj_ in obj:
+                self.add_obj(obj_, path)
+            return
         if isinstance(obj, LinearObj):
             self.addLinearObj(obj)
+        elif isinstance(obj, LinearMultiPointObj):
+            for idx, A in obj.idx_As:
+                self.addLinearPointObj(LinearPointObj(idx, A, *obj.nxup), False)
         elif isinstance(obj, LinearPointObj):
             self.addLinearPointObj(obj, path)
-        elif isinstance(obj, NonLinearObj):
+        elif isinstance(obj, (NonLinearObj, NonLinearMultiPointObj)):
             self.addNonLinearObj(obj)
         elif isinstance(obj, NonLinearPointObj):
             self.addNonLinearPointObj(obj, path)
         elif isinstance(obj, LqrObj):
             self.addLQRObj(obj)
         else:
-            print("Inappropriate type %s used as objective" % type(obj))
+            print("Skipping inappropriate type %s used as objective" % type(obj))
 
-    def addConstr(self, constr, path):
+    def addConstr(self, constr, path=False):
         """Alias for :func:`~trajOptLib.TrajOptProblem.add_constr`"""
+        self.add_constr(constr, path)
 
     def add_constr(self, constr, path=False):
         """Add a constraint to the problem.
 
-        :param constr: a constraint object, can be LinearConstr/LinearPointConstr/NonLinearConstr/NonLinearPointConstr
+        :param constr: a constraint object or iterable of them, can be LinearConstr/LinearPointConstr/NonLinearConstr/NonLinearPointConstr
         """
+        if isinstance(constr, Iterable):
+            for constr_ in constr:
+                self.add_constr(constr_, path)
+            return
         if isinstance(constr, LinearConstr):
-            self.addLinearConstr(constr)
+            self.linearConstr.append(constr)
         elif isinstance(constr, LinearPointConstr):
-            self.addLinearPointConstr(constr, path)
+            if path:
+                self.linPathConstr.append(constr)
+            else:
+                self.linPointConstr.append(constr)
+        elif isinstance(constr, LinearMultiPointConstr):
+            self.linMultiPointConstr.append(constr)
         elif isinstance(constr, NonLinearConstr):
-            self.addNonLinearConstr(constr)
+            self.nonLinConstr.append(constr)
         elif isinstance(constr, NonLinearPointConstr):
-            self.addNonLinearPointConstr(constr, path)
+            if path:
+                self.pathConstr.append(constr)
+            else:
+                self.pointConstr.append(constr)
+        elif isinstance(constr, NonLinearMultiPointConstr):
+            self.multiPointConstr.append(constr)
         else:
-            print("Inappropriate type %s used as constraint" % type(constr))
+            print("Skipping inappropriate type %s used as constraint" % type(constr))
 
     def set_N(self, N):
         """Set N.

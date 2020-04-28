@@ -1,1 +1,0 @@
-/usr/bin/c++  -fPIC   -shared  -o /home/motion/GAO/ThirdPartyLibs/solver_interface/libpyipopt.so CMakeFiles/pyipopt.dir/src/ipoptWrapper.cpp.o CMakeFiles/pyipopt.dir/src/pybindWrapper.cpp.o -flto -lipopt 

@@ -102,7 +102,7 @@ class DaeSystem(object):
         self.nf = nf
         self.nG = nG
         if nx % nf != 0:
-            warnings.warn("nx \% nf is not zero, make sure problem is defined correctly.")
+            warnings.warn(r"nx \% nf is not zero, make sure problem is defined correctly.")
         self.order = nx // nf - 1  # this is useful for detecting size
         self.autonomous = False
         self.timeindex = None
@@ -288,6 +288,27 @@ class LinearPointObj(_objectWithMatrix):
         self.index = index
 
 
+class LinearMultiPointObj(_objectWithMatrix):
+    """Class for defining objective function that involves multiple points. It can be useful in cases where periodic motion is desired.
+    Currently time is not supported.
+
+    :param indexes: iterable, indexes of points we are considering
+    :param As: iterable, np.ndarray or spmatrix, must of size equal to xdim
+    :param nx: int, dimension of state
+    :param nu: int, dimension of control
+    :param np: int, dimension of parameter
+    """
+    def __init__(self, indexes, As, nx, nu, np_):
+        self.nxup = (nx, nu, np_)
+        self.idx_As = []
+        xdim = 1 + nx + nu + np_  # length of the concatenated variable (t, x, u, p)
+        for idx, A in zip(indexes, As):
+            if isinstance(A, np.ndarray):
+                assert A.ndim == 1 and xdim == len(A)
+            A = coo_matrix(A)
+            self.idx_As.append((idx, A))
+
+
 class NonLinearObj(BaseFun):
     """Class for general nonlinear objective function over the entire decision variables.
 
@@ -297,12 +318,35 @@ class NonLinearObj(BaseFun):
     def __init__(self, nsol, gradmode='user', nG=None):
         """Constructor for nonlinear objective function.
 
-        :param nsol: int, length of decision variable
+        :param nsol: int, length of decision variable, it can be set arbitrarily and won't be checked
         :param gradmode: str, how gradient is provided
         :param nG: int, number of nnz of Jacobian
 
         """
         BaseFun.__init__(self, nsol, 1, gradmode, nG)
+
+
+class NonLinearMultiPointObj(BaseFun):
+    """Class for defining point objective functions that require multiple points.
+
+    The function is defined such that it can take a list of (t,x,u,p).
+
+    """
+    def __init__(self, indexes, nx, nu, np=0, gradmode='user', nG=None):
+        """Constructor for nonlinear objective function.
+        When defining __callf__, a list of points are passed as x
+        When defining __callg__, a list of points are passed as x, the same applies to G, row, col
+
+        :param index: int, at which point is objective calculated
+        :param nx, nu, np: int, dimensions
+        :param gradmode: str, how gradient is provided
+        :param nG: int, number of nnz of Jacobian, this has to be summed up for all points
+
+        """
+        self.indexes = indexes
+        self.npoint = len(indexes)
+        xdim = 1 + nx + nu + np
+        BaseFun.__init__(self, xdim * self.npoint, 1, gradmode, nG)
 
 
 class NonLinearPointObj(BaseFun):
@@ -436,6 +480,40 @@ class NonLinearPointConstr(BaseFun):
         self.ub = ub
 
 
+class NonLinearMultiPointConstr(BaseFun):
+    """Class for defining constraints where multiple points interacts.
+    To define __call__, the inputs x, G, row, col now becomes list of appropriate sizes
+    """
+    def __init__(self, indexes, nc, nx, nu, np=0, lb=None, ub=None, gradmode='user', nG=None):
+        """Constructor for nonlinear point constraint. Also serve as path constraint.
+
+        :param indexes: iterable, at which point is objective calculated
+        :param nc: int, dimension of constraint function
+        :param nx, nu, np: int, dimensions
+        :param lb, ub: lower and upper bound of the constraint function. None means equal to 0
+        :param gradmode: str, how gradient is provided
+        :param nG: int, number of nnz of Jacobian
+
+        """
+        xdim = 1 + nx + nu + np
+        BaseFun.__init__(self, xdim * len(indexes), nc, gradmode, nG)
+        self.indexes = indexes
+        self.npoint = len(indexes)
+        self.lb = lb
+        self.ub = ub
+        self.create_buffer()
+
+    def create_buffer(self):
+        nG = self.nG
+        if nG is not None and nG > 0:
+            buffer = [(np.inf * np.ones(nG), np.zeros(nG, dtype=int), np.zeros(nG, dtype=int)) for _ in range(self.npoint)]
+            self.buffer = list(zip(*buffer))
+
+    def reset_buffer(self):
+        for tmp in self.buffer[0]:
+            tmp[:] = np.inf
+
+
 class NonLinearConstr(BaseFun):
     """Class for defining constraint function in a general form."""
     def __init__(self, nsol, nc, lb=None, ub=None, gradmode='user', nG=None):
@@ -464,6 +542,15 @@ class LinearPointConstr(_objectWithMatrix):
             row, col = self.A.shape
             self.A = coo_matrix((self.A.data, (self.A.row, self.A.col + offset)),
                                 shape=(row, col + offset))
+
+
+class LinearMultiPointConstr(object):
+    """Class for linear constraints that multiple points play a role"""
+    def __init__(self, indexes, As, lb=None, ub=None):
+        self.lb = lb
+        self.ub = ub
+        self.indexes = indexes
+        self.As = [coo_matrix(A) for A in As]
 
 
 class LinearConstr(object):

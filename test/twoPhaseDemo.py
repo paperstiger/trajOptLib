@@ -12,6 +12,7 @@ twoPhaseDemo.py
 Test the multiple-phase solver using this example.
 We consider a 2D linear car problem.
 Basically, the car has to reach a certain point with free velocity.
+This file also shows how to add nonlinear constraints to the problem.
 """
 import sys, os, time
 import numpy as np

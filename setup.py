@@ -11,6 +11,11 @@ from distutils.version import LooseVersion
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 
+try:
+    import pyoptsolver
+except ImportError:
+    print("Cannot import pyoptsolver, make sure it is correctly installed")
+    sys.exit()
 import trajoptlib
 
 
@@ -95,7 +100,7 @@ sys.argv = copied
 
 setup(
         name='trajoptlib',
-        version='1.0.0',
+        version='1.0.1',
         author='Gao Tang',
         author_email='gao.tang@duke.edu',
         packages=list(find_packages(trajoptlib.__path__, trajoptlib.__name__)),
@@ -112,6 +117,5 @@ setup(
             'scipy>=1.0.0',
             'matplotlib>=1.13.0',
             'six',
-            'pyoptsolver'
         ],
 )

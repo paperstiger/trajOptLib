@@ -1,3 +1,0 @@
-/home/motion/GAO/ThirdPartyLibs/solver_interface/ipopt-interface/Build/CMakeFiles/rebuild_cache.dir
-/home/motion/GAO/ThirdPartyLibs/solver_interface/ipopt-interface/Build/CMakeFiles/edit_cache.dir
-/home/motion/GAO/ThirdPartyLibs/solver_interface/ipopt-interface/Build/CMakeFiles/pyipopt.dir
