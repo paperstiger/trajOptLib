@@ -13,6 +13,7 @@ Classes ready to be used for trajectory optimization.
 """
 import warnings
 import numpy as np
+import autograd
 from scipy.sparse import spmatrix, csr_matrix, csc_matrix, coo_matrix
 
 
@@ -145,7 +146,7 @@ class BaseFun(object):
     A function with user supplied gradient information, nx, nf, ng should be set.
 
     """
-    grad = ['user', 'no']
+    grad = ['user', 'no', 'ad', 'fd']
     def __init__(self, nx, nf, gradmode, ng=None):
         """Constructor for base function
 
@@ -162,6 +163,10 @@ class BaseFun(object):
             self.grad = True
         elif gradmode == 'no':
             self.grad = False
+        elif gradmode == 'ad':
+            self.grad = True
+            self.nG = nx * nf
+            self._jacobian = autograd.jacobian(self.__ad__)
         else:
             raise NotImplementedError
         self.gradmode = gradmode
@@ -189,6 +194,19 @@ class BaseFun(object):
         :param needg: bool, determine if we need to calculate gradient and write to G
 
         """
+        if self.gradmode == 'ad':  # the ad fun is called
+            F[:] = self.__ad__(x)
+            if needg:
+                jac = self._jacobian(x)
+                G[:] = jac.flat
+                if rec:
+                    row[:] = (np.arange(self.nf)[:, None] + np.zeros(self.nx)).flat
+                    col[:] = (np.zeros(self.nf)[:, None] + np.arange(self.nx)).flat
+        else:
+            raise NotImplementedError
+
+    def __ad__(self, x):
+        """Function called to compute some stuff but with autodiff"""
         raise NotImplementedError
 
     def findTimeGradient(self, x):
