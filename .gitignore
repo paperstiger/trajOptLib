@@ -1,13 +1,13 @@
 *~
 *.pyc
 build/
-*Build/*
+*Build/
+*.vscode/
 docs/source/*
 docs/*
 !docs/source/conf.py
 *.so
 *.out
 bin/
-lib/
 *.egg-info/
 *.swp

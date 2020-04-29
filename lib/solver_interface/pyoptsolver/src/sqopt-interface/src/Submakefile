@@ -1,0 +1,182 @@
+#-----------------------------------------------------------------------
+# Submakefile :: api
+#-----------------------------------------------------------------------
+
+API_SRCTOP   = $(top_srcdir)/interfaces
+API_OBJTOP   = $(top_builddir)/interfaces
+
+API_SRCDIR   = $(API_SRCTOP)/src
+API_OBJDIR   = $(API_OBJTOP)/src
+
+CEX_SRCDIR   = $(API_SRCTOP)/cexamples
+CEX_OBJDIR   = $(API_OBJTOP)/cexamples
+
+CPPEX_SRCDIR = $(API_SRCTOP)/cppexamples
+CPPEX_OBJDIR = $(API_OBJTOP)/cppexamples
+
+#-----------------------------------------------------------------------
+
+SQOPT_C_FILES   = sqopt_wrapper sqopt_cwrap
+SQOPT_CPP_FILES = sqopt_wrapper sqoptProblem
+
+SQOPT_C_LO   = $(SQOPT_C_FILES:%=$(API_OBJDIR)/%.lo)
+SQOPT_CPP_LO = $(SQOPT_CPP_FILES:%=$(API_OBJDIR)/%.lo)
+
+#-----------------------------------------------------------------------
+SQOPT_C_EX   = hs118
+SQOPT_CPP_EX = hs118
+
+SQOPT_C_EXAMPLES   = $(SQOPT_C_EX:%=$(CEX_OBJDIR)/%)
+SQOPT_CPP_EXAMPLES = $(SQOPT_CPP_EX:%=$(CPPEX_OBJDIR)/%)
+
+SQOPT_C_INCDIR    =  $(API_SRCTOP)/include
+SQOPT_API_INCLUDE = -I$(SQOPT_C_INCDIR)
+
+#-----------------------------------------------------------------------
+
+all: sqopt_c sqopt_cpp
+interface: lib_sqopt sqopt_c sqopt_cpp
+c: lib_sqopt sqopt_c
+cpp: lib_sqopt sqopt_cpp
+
+examples: lib_sqopt examples_sqopt_c examples_sqopt_cpp
+cexamples: lib_sqopt examples_sqopt_c
+cppexamples: lib_sqopt examples_sqopt_cpp
+
+clean: clean_sqopt_api
+veryclean: veryclean_sqopt_api
+distclean: veryclean_sqopt_api
+install: install_cpp install_c
+uninstall: uninstall_cpp uninstall_c
+
+#-----------------------------------------------------------------------
+
+ifeq ($(c_enabled),yes)
+sqopt_c: mod_dir api_objdir $(LIBDIR)/libsqopt7_c.la
+
+examples_sqopt_c: sqopt_c $(CEX_OBJDIR) $(SQOPT_C_EXAMPLES)
+ifneq ($(CEX_SRCDIR),$(CEX_OBJDIR))
+	@-cp $(CEX_SRCDIR)/*.spc $(CEX_OBJDIR)/
+endif
+
+install_c: sqopt_c $(libdir) $(incdir)
+	@-cp -f $(SQOPT_C_INCDIR)/sqopt.h $(incdir)
+	@-cp -f $(SQOPT_C_INCDIR)/sqopt_cwrap.h $(incdir)
+	@-cp -f $(SQOPT_C_INCDIR)/sqopt_cwrap.h $(incdir)
+	$(INSTALL_LIB) $(LIBDIR)/libsqopt7_c.la $(libdir)
+	$(FINISH) $(libdir)
+
+uninstall_c:
+	$(UNINSTALL) rm -f $(incdir)/sqopt.h $(incdir)/sqopt_cwrap.h $(incdir)/sqopt_cwrap.h
+	$(UNINSTALL) rm -f $(libdir)/libsqopt7_c.la
+	$(CLEAN) rm -f $(LIBDIR)/libsqopt7_c.la
+else
+sqopt_c:
+examples_sqopt_c:
+install_c:
+uninstall_c:
+endif
+
+#-----------------------------------------------------------------------
+
+ifeq ($(cpp_enabled),yes)
+sqopt_cpp: mod_dir api_objdir $(LIBDIR)/libsqopt7_cpp.la
+
+examples_sqopt_cpp: sqopt_cpp $(CPPEX_OBJDIR) $(SQOPT_CPP_EXAMPLES)
+ifneq ($(CPPEX_SRCDIR),$(CPPEX_OBJDIR))
+	@-cp $(CPPEX_SRCDIR)/*.spc $(CPPEX_OBJDIR)/
+endif
+
+install_cpp: sqopt_cpp $(libdir) $(incdir)
+	@-cp -f $(SQOPT_C_INCDIR)/sqopt.h $(incdir)
+	@-cp -f $(SQOPT_C_INCDIR)/sqoptProblem.hpp $(incdir)
+	$(INSTALL_LIB) $(LIBDIR)/libsqopt7_cpp.la $(libdir)
+	$(FINISH) $(libdir)
+
+uninstall_cpp:
+	$(UNINSTALL) rm -f $(incdir)/sqopt.h $(incdir)/sqoptProblem.hpp
+	$(UNINSTALL) rm -f $(libdir)/libsqopt7_cpp.la
+	$(CLEAN) rm -f $(LIBDIR)/libsqopt7_cpp.la
+else
+sqopt_cpp:
+examples_sqopt_cpp:
+install_cpp:
+uninstall_cpp:
+endif
+
+#-----------------------------------------------------------------------
+
+api_objdir: $(top_builddir)
+	if [ ! -d $(API_OBJTOP) ]; then mkdir $(API_OBJTOP); fi
+	if [ ! -d $(API_OBJDIR) ]; then mkdir $(API_OBJDIR); fi
+
+#-----------------------------------------------------------------------
+
+$(LIBDIR)/libsqopt7_cpp.la: $(SQOPT_CPP_LO)
+	$(LINK_F) $(LDFLAGS) $(CXXFLAGS) -o $@ $^ -rpath $(libdir)
+
+$(LIBDIR)/libsqopt7_c.la: $(SQOPT_C_LO)
+	$(LINK_F) $(LDFLAGS) $(CFLAGS) -o $@ $^ -rpath $(libdir)
+
+#-----------------------------------------------------------------------
+
+$(API_OBJDIR)/%.lo: $(API_SRCDIR)/%.f90
+	$(COMPILE_F)   -c $(FCFLAGS) $(MODFLAGS) $(SQOPT_API_INCLUDE) $< -o $@
+
+$(API_OBJDIR)/%.lo: $(API_SRCDIR)/%.c
+	$(COMPILE_C)   -c $(CFLAGS) $(SQOPT_API_INCLUDE) $< -o $@
+
+$(API_OBJDIR)/%.lo: $(API_SRCDIR)/%.cpp
+	$(COMPILE_CXX) -c $(CXXFLAGS) $(SQOPT_API_INCLUDE) $< -o $@
+
+#-----------------------------------------------------------------------
+
+$(CEX_OBJDIR)/%: $(CEX_OBJDIR)/%.lo
+	$(LINK_F) $(CFLAGS) $^ -o $@ $(SQOPT_C_LIBS)
+
+$(CEX_OBJDIR)/%.lo : $(CEX_SRCDIR)/%.c
+	$(COMPILE_C) $(CFLAGS) $(SQOPT_API_INCLUDE) -c $< -o $@
+
+#-----------------------------------------------------------------------
+
+$(CPPEX_OBJDIR)/%: $(CPPEX_OBJDIR)/%.lo
+	$(LINK_CXX) $(CXXFLAGS) $^ -o $@ $(SQOPT_CPP_LIBS)
+
+$(CPPEX_OBJDIR)/%.lo: $(CPPEX_SRCDIR)/%.cpp
+	$(COMPILE_CXX) $(CXXFLAGS) $(SQOPT_API_INCLUDE) -c $< -o $@
+
+#-----------------------------------------------------------------------
+
+$(CEX_OBJDIR): $(top_builddir)
+	if [ ! -d $(CEX_OBJDIR) ]; then mkdir $(CEX_OBJDIR); fi
+
+$(CPPEX_OBJDIR): $(top_builddir)
+	if [ ! -d $(CPPEX_OBJDIR) ]; then mkdir $(CPPEX_OBJDIR); fi
+
+#-----------------------------------------------------------------------
+
+clean_sqopt_api:
+	$(CLEAN) rm -f $(API_OBJDIR)/*.lo
+	$(CLEAN) rm -f $(CPPEX_OBJDIR)/*.lo
+	$(CLEAN) rm -f $(CEX_OBJDIR)/*.lo
+
+veryclean_sqopt_api: clean_sqopt_api
+	$(CLEAN) rm -f $(SQOPT_C_EXAMPLES)
+	$(CLEAN) rm -f $(SQOPT_CPP_EXAMPLES)
+	$(CLEAN) rm -f $(CEX_OBJDIR)/*.out
+	$(CLEAN) rm -f $(CPPEX_OBJDIR)/*.out
+ifneq ($(CEX_SRCDIR),$(CEX_OBJDIR))
+	$(CLEAN) rm -f $(CEX_OBJDIR)/*.spc
+endif
+ifneq ($(CPPEX_SRCDIR),$(CPPEX_OBJDIR))
+	$(CLEAN) rm -f $(CPPEX_OBJDIR)/*.spc
+endif
+
+#-----------------------------------------------------------------------
+
+.PRECIOUS: $(CEX_OBJDIR)/%.lo $(CPPEX_OBJDIR)/%.lo
+
+.PHONY: all examples install uninstall sqopt_c sqopt_cpp \
+        examples_sqopt_c examples_sqopt_cpp \
+        install_c install_cpp uninstall_c uninstall_cpp \
+        clean_sqopt_api veryclean_sqopt_api
