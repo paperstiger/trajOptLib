@@ -514,16 +514,11 @@ PYBIND11_MODULE(pyoptsolvercpp, m){
             Returns:
                 int: the info.
         )pbdoc")
-        .def("set_int_workspace", &pySnoptWrapper::setIntWorkspace, R"pbdoc(
-            Set the integer workspace size, this is necessary sometimes.
+        .def("set_workspace", &pySnoptWrapper::setWorkspace, R"pbdoc(
+            Set the integer and real workspace size, this is necessary sometimes.
 
             Args:
                 size (int): the desired integer workspace size.
-        )pbdoc")
-        .def("set_real_workspace", &pySnoptWrapper::setRealWorkspace, R"pbdoc(
-            Set the real workspace size, this is necessary sometimes.
-
-            Args:
                 size (int): the desired real workspace size.
         )pbdoc")
         .def("fEval", &pySnoptWrapper::fEval)
@@ -531,8 +526,7 @@ PYBIND11_MODULE(pyoptsolvercpp, m){
         .def("setFeaTol", &pySnoptWrapper::setFeaTol)
         .def("setIntOption", &pySnoptWrapper::setIntOption)
         .def("setFloatOption", &pySnoptWrapper::setDoubleOption)
-        .def("setIntWorkspace", &pySnoptWrapper::setIntWorkspace)
-        .def("setRealWorkspace", &pySnoptWrapper::setRealWorkspace)
+        .def("setWorkspace", &pySnoptWrapper::setWorkspace)
         .def("setMajorIter", &pySnoptWrapper::setMajorIter)
         .def("setPrintFile", &pySnoptWrapper::setPrintFile)
         .def("solveRand", (optResult (pySnoptWrapper::*)()) &pySnoptWrapper::solve)

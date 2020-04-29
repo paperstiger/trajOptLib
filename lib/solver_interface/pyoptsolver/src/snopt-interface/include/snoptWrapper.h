@@ -64,6 +64,7 @@ protected:
     integer *iAfun, *jAvar, *iGfun, *jGvar, *xstate, *Fstate;
     doublereal *mA, *G, *x, *xlow, *xupp, *xmul, *F, *Flow, *Fupp, *Fmul;
     char *xnames, *Fnames;
+    int cached_lw = -1, cached_rw = -1;
 public:
     ProblemFun *prob;
     snoptConfig *snpcfg;
@@ -156,7 +157,7 @@ public:
         ToyProb.setF          ( F, Flow, Fupp, Fmul, Fstate );
         ToyProb.setXNames     ( xnames, nxnames );
         ToyProb.setFNames     ( Fnames, nFnames );
-        ToyProb.setProbName   ( "Toy0" );
+        ToyProb.setProbName   ( "Gao" );
         ToyProb.setUserFun    ( toyusrf_ );
 
         if(snpcfg == nullptr){
@@ -336,10 +337,9 @@ public:
         ToyProb.setIntParameter( "Minor iterations limit", val);
     }
 
-    void setIntWorkspace(int iws){
+    void setWorkspace(int iws, int fws){
+        ToyProb.setWorkspace(neF, n, neA, neG);
         ToyProb.reallocI(iws);
-    }
-    void setRealWorkspace(int fws){
         ToyProb.reallocR(fws);
     }
 
