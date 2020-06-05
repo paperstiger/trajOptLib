@@ -22,6 +22,7 @@ from .trajOptBase import NonLinearPointConstr, NonLinearConstr
 from .trajOptBase import LinearPointConstr, LinearConstr
 # import basic solvers
 from .trajOptProblem import TrajOptProblem
+from .trajOptDisProblem import TrajOptDisProblem
 from .trajOptCollocationProblem import TrajOptCollocProblem
 # the multi-phase version
 from .trajOptMultiPhaseCollocationProblem import NonLinearConnectConstr, LinearConnectConstr

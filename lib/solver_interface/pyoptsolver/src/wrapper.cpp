@@ -19,7 +19,7 @@
 #endif
 
 
-#define VERSION_INFO "0.0.1"
+#define VERSION_INFO "0.6.0"
 
 double PYOPTSOLVER_FD_STEP = 1e-6;
 
@@ -139,12 +139,12 @@ PYBIND11_MODULE(pyoptsolvercpp, m){
         .def("get_xmul", &optResult::get_xmul, R"pbdoc(
             Return a reference to the Lagrangian multiplier on bounds without copying.
         )pbdoc")
-        .def_readonly("flag", &optResult::flag)
-        .def_readonly("obj", &optResult::val)
-        .def_readonly("sol", &optResult::sol)
-        .def_readonly("fval", &optResult::c)
-        .def_readonly("xmul", &optResult::xmul)
-        .def_readonly("lmd", &optResult::lmd);
+        .def_readwrite("flag", &optResult::flag)
+        .def_readwrite("obj", &optResult::val)
+        .def_readwrite("sol", &optResult::sol)
+        .def_readwrite("fval", &optResult::c)
+        .def_readwrite("xmul", &optResult::xmul)
+        .def_readwrite("lmd", &optResult::lmd);
 
 
     py::class_<ProblemFun, pyProbFun>(m, "OptProblem", R"pbdoc(
@@ -311,8 +311,8 @@ PYBIND11_MODULE(pyoptsolvercpp, m){
         .def("__callg__", (std::pair<int, int> (ProblemFun::*)(cRefV, RefV, RefV, RefVl, RefVl, bool, bool)) &pyProbFun::operator())
 #ifdef ENABLEIP
         .def("eval_cost", [](ProblemFun* self, cRefV x) {return self->evalF(x);})
-        .def("eval_gradient", [](ProblemFun* self, cRefV x) {VX grad(self->nf); self->evalGrad(x, grad); return grad;})
-        .def("eval_constr", [](ProblemFun* self, cRefV x) {VX grad(self->nf); self->evalGrad(x, grad); return grad;})
+        .def("eval_gradient", [](ProblemFun* self, cRefV x) {VX grad(self->nx); self->evalGrad(x, grad); return grad;})
+        .def("eval_constr", [](ProblemFun* self, cRefV x) {VX g(self->nf); self->evalG(x, g); return g;})
         .def("eval_jacobian", [](ProblemFun *self, cRefV x) {
               int nG = self->nG;
               VX g(nG);

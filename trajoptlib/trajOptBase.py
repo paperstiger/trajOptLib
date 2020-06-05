@@ -26,6 +26,7 @@ class System(object):
 
     """
     odes = ['RK4', 'Dis', 'Euler', 'BackEuler']
+    fd_step = 1e-6
     def __init__(self, nx, nu, np=0, ode='Euler'):
         """Constructor for class.
 
@@ -40,6 +41,9 @@ class System(object):
         self.np = np
         assert ode in System.odes
         self.ode = ode
+        self._is_ad = self.__ad__.__func__ != System.__ad__
+        if self._is_ad:
+            self._jac_fun = autograd.jacobian(self.__ad__)
 
     def set_ode(self, method):
         """Set ode approach.
@@ -50,7 +54,10 @@ class System(object):
         assert method in System.odes
         self.ode = method
 
-    def dyn(self, t, x, u, p=None, h=None):
+    def __ad__(self, txup):
+        raise NotImplementedError
+
+    def dyn(self, t, x, u, p=None):
         """Dynamics function without gradient information.
 
         It has to be overriden.
@@ -59,13 +66,12 @@ class System(object):
         :param x: np.ndarray, (nx,) state variable
         :param u: np.ndarray, (nu,) control variable
         :param p: np.ndarray, (np,) additional optimizing variable
-        :param h: float, used for discretized system. Integration step size
         :return: either dotx or x_k+1 depends on system type
 
         """
         raise NotImplementedError
 
-    def jac_dyn(self, t, x, u, p=None, h=None):
+    def jac_dyn(self, t, x, u, p=None):
         """Dynamics function with Jacobian return.
 
         It has to be overriden.
@@ -75,7 +81,124 @@ class System(object):
         :returns: J: ndarray/spmatrix, returning Jacobian of this function evaluation
 
         """
+        if self._is_ad:
+            if self.ode == 'Dis':
+                if p is not None:
+                    xin = np.concatenate((x, u, p))
+                else:
+                    xin = np.concatenate((x, u))
+            else:
+                if p is not None:
+                    xin = np.concatenate(([t], x, u, p))
+                else:
+                    xin = np.concatenate(([t], x, u))
+            y0 = self.__ad__(xin)
+            J = self._jac_fun(xin)
+            return y0, J
+        # implement a basic finite difference version
+        if self.ode == 'Dis':
+            J = np.zeros((self.nx, self.nx + self.nu + self.np))
+            y0 = self.dyn(t, x, u, p)
+            for i in range(self.nx):
+                xp = x.copy()
+                xp[i] += System.fd_step
+                yi = self.dyn(t, xp, u, p)
+                J[:, i] = (yi - y0) / System.fd_step
+            # do it for u
+            for i in range(self.nu):
+                up = u.copy()
+                up[i] += System.fd_step
+                yi = self.dyn(t, x, up, p)
+                J[:, self.nx + i] = (yi - y0) / System.fd_step
+            # for p
+            for i in range(self.np):
+                pp = p.copy()
+                pp[i] += System.fd_step
+                yi = self.dyn(t, x, u, pp)
+                J[:, self.nx + self.nu + i] = (yi - y0) / System.fd_step
+            return y0, J
         raise NotImplementedError
+
+
+class MultiStepDisSystem(System):
+    """
+    This class takes in a system and allow several steps of forward simulation
+    
+    :param system: The basic discrete system which is of type System and has ode == Dis
+    :param k: int, the number of forward simulation steps
+    """
+    def __init__(self, system, k):
+        assert isinstance(system, System) and system.ode == 'Dis'
+        System.__init__(self, system.nx, nu, np=0, ode='Euler'
+        self.system = system
+        self.k = k
+        self.ode = 'Dis'
+        
+    def dyn(self, t, x, u, p=None):
+        """Dynamics function without gradient information.
+
+        It has to be overriden.
+
+        :param t: float, time when evaluating system dynamics
+        :param x: np.ndarray, (nx,) state variable
+        :param u: np.ndarray, (nu,) control variable
+        :param p: np.ndarray, (np,) additional optimizing variable
+        :return: either dotx or x_k+1 depends on system type
+
+        """
+        for i in range(self.k):
+            x = system.dyn(i, x, u, p)
+        return x
+
+    def jac_dyn(self, t, x, u, p=None):
+        """Dynamics function with Jacobian return.
+        """
+        J = np.c_[np.eye(self.nx), np.zeros((self.nx, self.nu + self.np))  # this keeps the current jacobian estimation
+        for i in range(self.k):
+            x, Ji = system.jac_dyn(i, x, u, p)
+            J[:, self.nx:] = Ji[:, self.nx:] + Ji[:, :self.nx].dot(J[:, self.nx:]
+            J[:, :self.nx] = Ji[:, :self.nx].dot(J[:, :self.nx])
+        return x, J
+
+
+class MultiStepContSystem(System):
+    """
+    Given a continuous system and fixed step size, this class do forward integration for k steps.
+    This greatly reduces the problem parameter numbers while keep integration accuracy higher.
+    
+    :param system: The basic continuous system which is of type System and has ode == 'Euler'
+    :param h: float, the integration step size used in Euler integration
+    :param k: int, the number of forward simulation steps, (hk) is the actual step size of optimized trajectory.
+    """
+    def __init__(self, system, h, k):
+        self.system = system
+        self.h = h
+        self.k = k
+        self.ode = 'Dis'
+    
+    def dyn(self, t, x, u, p=None):
+        """
+        Perform forward integration for k steps and return
+        """
+        for i in range(self.k):
+            xdot = self.system.dyn(t + i * self.h, x, u, p)
+            x = x + xdot * self.h
+        return x
+        
+    def jac_dyn(self, t, x, u, p=None):
+        """
+        Perform forward integration for several steps, but with Jacobian information computed as well.
+        """
+        outj = np.zeros((self.nx, self.nx + self.nu + self.np))
+        np.fill_diagonal(outj, 1)
+        for i in range(self.k):
+            xdot, jac = self.system.jac_dyn(-1, x, u, p)
+            x = x + xdot * self.h
+            tmp = np.eye(self.nx) + jac[:, 1: 1 + self.nx] * self.h
+            outj[:, :self.nx] = tmp.dot(outj[:, :self.nx])
+            outj[:, self.nx:] = tmp.dot(outj[:, self.nx:]) + self.h * jac[:, 1 + self.nx:]
+        return x, outj
+    
 
 
 class DaeSystem(object):
@@ -299,9 +422,9 @@ class LinearPointObj(_objectWithMatrix):
         """
         xdim = 1 + nx + nu + np_  # this x means length of variable at one point, (t, x, u, p)
         if isinstance(A, np.ndarray):
-            assert A.ndim == 1 and xdim == len(A)
+            assert A.ndim == 1 and (xdim == len(A) or len(A) == xdim - 1)
             A = coo_matrix(A)
-        assert A.shape[0] == 1 and A.shape[1] == xdim
+        assert A.shape[0] == 1 and (A.shape[1] == xdim or A.shape[1] == xdim - 1)
         self.A = A
         self.index = index
 

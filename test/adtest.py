@@ -15,7 +15,6 @@ class SimpleConstr(NonLinearPointConstr):
 
 def main():
     constr = SimpleConstr()
-    import pdb; pdb.set_trace()
     xin = np.random.random(7)
     G = np.zeros(constr.nG)
     row, col = np.zeros((2, constr.nG), dtype=int)

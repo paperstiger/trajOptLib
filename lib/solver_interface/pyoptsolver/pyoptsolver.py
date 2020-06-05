@@ -7,6 +7,12 @@ import six
 import numpy as np
 from scipy.optimize import NonlinearConstraint, minimize, Bounds
 from scipy.sparse import coo_matrix
+try:
+    from .pyknitro import KnitroSolver
+    __has_knitro__ = True
+except:
+    print("Cannot import KnitroSolver, make sure its Python interface is installed")
+    __has_knitro__ = False
 
 
 class OptConfig(object):
@@ -23,14 +29,18 @@ class OptConfig(object):
                         'initial_tr_radius', 'initial_barrier_parameter', 'initial_barrier_tolerance',
                         'factorization_method', 'disp'}
     def __init__(self, backend='ipopt', **kw):
-        if backend not in ['ipopt', 'snopt', 'scipy']:
-            warnings.warn('Backend should be in ipopt, snopt, scipy')
+        if backend not in ['ipopt', 'snopt', 'scipy', 'knitro']:
+            warnings.warn('Backend should be in ipopt, snopt, scipy, knitro')
         if __with_ipopt__ and backend == 'ipopt':
             self.backend = 'ipopt'
             self.option = IpoptConfig()
         elif __with_snopt__ and backend == 'snopt':
             self.backend = 'snopt'
             self.option = SnoptConfig()
+        elif backend == 'knitro':
+            assert __has_knitro__, "To use Knitro, Knitro Python interface must be installed correctly"
+            self.backend = backend
+            self.option = {}
         else:
             self.backend = 'scipy'
             self.option = {'options': {'sparse_jacobian': True}, 'tol': 1e-6}
@@ -196,6 +206,9 @@ class OptSolver(object):
             self.solver = SnoptSolver(problem, config.option)
         elif config.backend == 'ipopt':
             self.solver = IpoptSolver(problem, config.option)
+        elif config.backend == 'knitro':
+            assert __has_knitro__, "To use Knitro, Knitro Python interface must be installed correctly"
+            self.solver = KnitroSolver(problem, config.option)
         else:
             self.solver = TrustConstrSolver(problem, config.option)
 
