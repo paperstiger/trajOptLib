@@ -50,7 +50,23 @@ class KnitroSolver(object):
 
         # Set option to print output after every iteration.
         # Just set some default values, may improve later
+        # default options from Zherong
+        use_direct = config.get('use_direct', False)
+        KN_set_int_param (kc, KN_PARAM_ALGORITHM, KN_ALG_BAR_DIRECT if use_direct else KN_ALG_BAR_CG)
+        KN_set_int_param (kc, KN_PARAM_BAR_FEASIBLE, KN_BAR_FEASIBLE_GET_STAY)
+        KN_set_int_param (kc, KN_PARAM_CG_MAXIT, 50)
         KN_set_int_param (kc, KN_PARAM_OUTLEV, KN_OUTLEV_ITER)
+        # set other options
+        for key, item in config.items():
+            if key == 'use_direct':
+                continue
+            if isinstance(item, int):
+                kn_set_int_param(kc, key, item)
+            elif isinstance(item, float):
+                kn_set_double_param(kc, key, item)
+            elif isinstance(item, str):
+                kn_set_char_param(kc, key, item)
+        # default_options = {KN_PARAM_ALGORITHM: KN_
 
         # cache some results
         self.kc = kc

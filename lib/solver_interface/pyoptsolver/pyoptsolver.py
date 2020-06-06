@@ -50,6 +50,10 @@ class OptConfig(object):
         is_ipopt = self.backend == 'ipopt'
         is_snopt = self.backend == 'snopt'
         is_scipy = self.backend == 'scipy'
+        is_knitro = self.backend == 'knitro'
+        if is_knitro:
+            self.option.update(kws)
+            return
         if is_scipy:
             options = self.option['options']
         for key, val in six.iteritems(kws):
