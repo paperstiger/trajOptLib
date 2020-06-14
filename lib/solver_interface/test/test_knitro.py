@@ -53,8 +53,6 @@ class TestFunction2(OptProblem):
         return 1
             
 if __name__ == "__main__":
-
-    
     print('\n\n Test another style\n\n')
     prob = TestFunction2()
     config = OptConfig(backend='knitro', history=True)

@@ -17,8 +17,9 @@ class KnitroSolver(object):
         self.config = config
         self._grad = np.zeros(self.prob.nx)
         self._y = np.zeros(self.prob.nf)
-        self._jac = np.zeros(self.prob.nG)
-        self._row, self._col = np.zeros((2, self.prob.nG), dtype=int)
+        nG = self.prob.nG + len(self.prob.Aval)
+        self._jac = np.zeros(nG)
+        self._row, self._col = np.zeros((2, nG), dtype=int)
         # prepare the solver and define some stuff
         kc = KN_new()
         xIndices = KN_add_vars(kc, prob.nx)
@@ -58,9 +59,41 @@ class KnitroSolver(object):
         KN_set_int_param (kc, KN_PARAM_OUTLEV, KN_OUTLEV_ITER)
         # set other options
         exclude_keys = {'use_direct', 'history', 'user_callback'}
+
+        def get_key(key):
+            if isinstance(key, int):
+                return key
+            elif isinstance(key, 'float'):
+                if key.isnumeric():
+                    return int(key)
+                else:
+                    # find the string at first
+                    key = key.upper()
+                    if not key.startswith('KN_PARAM'):
+                        key = 'KN_PARAM_' + key
+                    try:
+                        return eval(key)
+                    except:
+                        raise Exception("Option %s is not defined in knitro" % key)
+        
+        def get_item(item):
+            """Try to convert val to correct value"""
+            if isinstance(item, (int, float)):
+                return item
+            elif isinstance(item, str):
+                try:
+                    uitem = item.upper()
+                    if not uitem.startswith('KN_'):
+                        uitem = 'KN_' + uitem
+                    return eval(uitem)
+                except:
+                    return item
+
         for key, item in config.items():
             if key in exclude_keys:
                 continue
+            key = get_key(key)
+            item = get_item(item)
             if isinstance(item, int):
                 KN_set_int_param(kc, key, item)
             elif isinstance(item, float):
@@ -83,7 +116,7 @@ class KnitroSolver(object):
         if evalRequest.type != KN_RC_EVALFC:
             print ("*** callbackEvalFC incorrectly called with eval type %d" % evalRequest.type)
             return -1
-        x = evalRequest.x
+        x = np.array(evalRequest.x)
         # Evaluate nonlinear term in objective
         evalResult.obj = self.prob.__cost__(x)
         # Evaluate nonlinear terms in constraints
@@ -94,12 +127,13 @@ class KnitroSolver(object):
 
     def callbackHistory(self, kc, x, lambda_, userParams):
         self.history.append(x.copy())
+        return 0
 
     def callbackEvalGA(self, kc, cb, evalRequest, evalResult, userParams):
         if evalRequest.type != KN_RC_EVALGA:
             print ("*** callbackEvalGA incorrectly called with eval type %d" % evalRequest.type)
             return -1
-        x = evalRequest.x
+        x = np.array(evalRequest.x)
 
         # Evaluate nonlinear term in objective gradient
         self._grad[:] = 0
@@ -114,9 +148,8 @@ class KnitroSolver(object):
     def callbackEvalH(self, kc, cb, evalRequest, evalResult, userParams):
         raise NotImplementedError("Hessian is not implemented by default")
 
-    def callbackNewPoint(self, kc, x, lambda_, userParams):
-        return 0
-
+    # def callbackNewPoint(self, kc, x, lambda_, userParams):
+    #     return 0
     def solve_rand(self):
         guess = np.random.random(self.prob.nx)
         guess = np.clip(guess, self.prob.xlb, self.prob.xub)

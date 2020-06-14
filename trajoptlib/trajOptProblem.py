@@ -25,7 +25,7 @@ from .utility import (random_gen_in_bound as randomGenInBound,
                       check_in_bounds as checkInBounds,
                       interp)
 from scipy import sparse
-from scipy.sparse import spmatrix, coo_matrix
+from scipy.sparse import spmatrix, coo_matrix, csr_matrix
 
 
 class TrajOptProblem(OptProblem):
@@ -171,12 +171,17 @@ class TrajOptProblem(OptProblem):
         self.numF += addn
         OptProblem.__init__(self, self.numSol, self.numF)  # currently we do not know G yet
         self.__setAPattern(numDyn, nnonlincon, spA)
+        self._spA = coo_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.numF, self.numSol)).tocsr()
         self.__setXbound()
         self.__setFbound()
         # detect gradient information
         if self.gradmode:  # in this case, we randomly generate a guess and use it to initialize everything
             randX = self.randomGenX()
             self.__turnOnGrad(randX)
+        else:
+            raise Exception("Currently trajoptlib only supports gradient mode, it's more robust and efficient.\
+                If you have trouble providing gradients, consider using finite difference or automatic differentiation.\
+                These are naturally supported by trajoptlib and you can easily turn them on")
 
     def plot_jacobian(self, savefnm=None):
         """Plot the jacobian pattern of this problem.
@@ -377,6 +382,10 @@ class TrajOptProblem(OptProblem):
         self.Aval = np.concatenate(lstCA)
         self.Arow = np.concatenate(lstCArow)
         self.Acol = np.concatenate(lstCAcol)
+        # compute first row mask
+        mask = self.Arow == 0
+        self.Aval_row0 = self.Aval[mask]
+        self.Acol_row0 = self.Acol[mask]
         self.set_a_by_triplet(self.Aval, self.Arow, self.Acol)
         curNA = len(self.Aval)  # this is just for bookkeeping
         return curRow, curNA
@@ -873,7 +882,7 @@ class TrajOptProblem(OptProblem):
             y[0] += tmpout[0]
         # add lqr cost, if applicable
         if self.lqrObj is not None:
-            y[0] += self.lqrObj(h, useX, useU, useP)
+            y[0] += self.lqrObjf(h, useX, useU, useP)
 
     def __constrModeF__(self, curRow, h, useT, useX, useU, useP, x, y):
         """Calculate constraint function. F mode
@@ -1193,11 +1202,7 @@ class TrajOptProblem(OptProblem):
         :return f: float, objective function
 
         """
-        y = np.zeros(1)
-        h, useT = self.__getTimeGrid(x)
-        useX, useU, useP = self.__parseX__(x)
-        self.__objModeF__(0, h, useT, useX, useU, useP, x, y)
-        return y[0]
+        return np.dot(x[self.Acol_row0], self.Aval_row0)
 
     def __gradient__(self, x, g):
         """Evaluation of the gradient of objective function.
@@ -1207,8 +1212,7 @@ class TrajOptProblem(OptProblem):
 
         """
         g[:] = 0
-        mask = self.Arow == 0
-        g[self.Acol[mask]] = self.Aval[mask]
+        g[self.Acol_row0] = self.Aval_row0
         return True
 
     def __constraint__(self, x, f):
@@ -1221,6 +1225,7 @@ class TrajOptProblem(OptProblem):
         row = np.zeros(1, dtype=int)
         col = np.zeros(1, dtype=int)
         self.__callg__(x, f, G, row, col, False, False)
+        f += self._spA.dot(x)
         return 0
 
     def __jacobian__(self, x, g, row, col, rec):
@@ -1231,6 +1236,11 @@ class TrajOptProblem(OptProblem):
         """
         y = np.zeros(self.numF)
         self.__callg__(x, y, g, row, col, rec, True)
+        g[self.nG:] = self.Aval
+        # append the linear parts here
+        if rec:
+            row[self.nG:] = self.Arow
+            col[self.nG:] = self.Acol
         return 1
 
     def __patchCol__(self, index, col, col_offset=0):
@@ -1353,6 +1363,7 @@ class TrajOptProblem(OptProblem):
 
         if self.gradmode:
             self.lqrObj = __callg__
+            self.lqrObjf = __callf__
         else:
             self.lqrObj = __callf__
 
