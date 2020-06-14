@@ -22,7 +22,7 @@ class OptConfig(object):
     Some custom options are also supported, but might not work depending on the backend.
     """
     shared_options = {'major_iter', 'opt_tol', 'fea_tol', 'print_level', 'deriv_check'}
-    snopt_options = {'minor_iter', 'iter_limit', 'print_file'}
+    snopt_options = {'minor_iter', 'iter_limit', 'print_file', 'history'}
     ipopt_options = {'print_freq', 'linear_solver', 'exact_hessian', 'fd_jacobian'}
     scipy_kws = {'tol'}
     scipy_option_kws = {'grad', 'xtol', 'gtol', 'barrier_tol', 'initial_constr_penalty',
@@ -101,6 +101,14 @@ class OptConfig(object):
             elif key == 'fd_jacobian':
                 if is_ipopt and val:
                     self.option.enable_fd_jacobian()
+            elif key == 'history':
+                if is_snopt and val:
+                    self.option.enable_history()
+                if is_knitro and val:
+                    self.option['history'] = val
+            elif key == 'user_callback':
+                if is_knitro:
+                    self.option['user_callback'] = val
             elif key in self.scipy_kws:
                 self.option[key] = val
             elif key in self.scipy_option_kws:

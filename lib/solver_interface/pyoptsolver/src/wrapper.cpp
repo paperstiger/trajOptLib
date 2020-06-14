@@ -130,6 +130,9 @@ PYBIND11_MODULE(pyoptsolvercpp, m){
         .def("get_sol", &optResult::get_sol, R"pbdoc(
             Return a reference to the solution without copying.
         )pbdoc")
+        .def("get_history", &optResult::get_history, R"pbdoc(
+            Return a reference to the history of solution without copying.
+        )pbdoc")
         .def("get_fval", &optResult::get_fval, R"pbdoc(
             Return a reference to the function evaluation without copying.
         )pbdoc")
@@ -142,6 +145,7 @@ PYBIND11_MODULE(pyoptsolvercpp, m){
         .def_readwrite("flag", &optResult::flag)
         .def_readwrite("obj", &optResult::val)
         .def_readwrite("sol", &optResult::sol)
+        .def_readwrite("history", &optResult::history)
         .def_readwrite("fval", &optResult::c)
         .def_readwrite("xmul", &optResult::xmul)
         .def_readwrite("lmd", &optResult::lmd);
@@ -427,6 +431,9 @@ PYBIND11_MODULE(pyoptsolvercpp, m){
 
             Args:
                 level (int): the derivative check level
+        )pbdoc")
+        .def("enable_history", &snoptConfig::enableIterHistory, R"pbdoc(
+            Store iteration history and return to the user.
         )pbdoc")
         .def("addIntOption", &snoptConfig::addIntOption)
         .def("addFloatOption", &snoptConfig::addFloatOption)

@@ -61,12 +61,18 @@ class KnitroSolver(object):
             if key == 'use_direct':
                 continue
             if isinstance(item, int):
-                kn_set_int_param(kc, key, item)
+                KN_set_int_param(kc, key, item)
             elif isinstance(item, float):
-                kn_set_double_param(kc, key, item)
+                KN_set_double_param(kc, key, item)
             elif isinstance(item, str):
-                kn_set_char_param(kc, key, item)
+                KN_set_char_param(kc, key, item)
         # default_options = {KN_PARAM_ALGORITHM: KN_
+        # enable history
+        if config.get('history', False):
+            KN_set_newpt_callback(kc, self.callbackHistory)
+            self.history = []
+        if 'user_callback' in config:
+            KN_set_newpt_callback(kc, config['user_callback'])
 
         # cache some results
         self.kc = kc
@@ -84,6 +90,9 @@ class KnitroSolver(object):
         self.prob.__constraint__(x, self._y)
         evalResult.c[:] = self._y
         return 0
+
+    def callbackHistory(self, kc, x, lambda_, userParams):
+        self.history.append(x.copy())
 
     def callbackEvalGA(self, kc, cb, evalRequest, evalResult, userParams):
         if evalRequest.type != KN_RC_EVALGA:
@@ -128,6 +137,8 @@ class KnitroSolver(object):
         result.obj = objSol
         result.sol = x
         result.lmd = lambda_
+        if hasattr(self, 'history'):
+            result.history = np.array(self.history)
         return result
 
     def __del__(self):

@@ -33,6 +33,7 @@ class optResult{
         VX c;
         VX lmd;
         VX xmul;
+        rMX history;
         optResult(){}
 
         RefV get_sol(){
@@ -49,6 +50,10 @@ class optResult{
 
         RefV get_xmul() {
             return RefV(xmul);
+        }
+
+        Eigen::Ref<rMX> get_history() {
+            return Eigen::Ref<rMX>(history);
         }
 };
 

@@ -129,7 +129,7 @@ class MultiStepDisSystem(System):
     """
     def __init__(self, system, k):
         assert isinstance(system, System) and system.ode == 'Dis'
-        System.__init__(self, system.nx, nu, np=0, ode='Euler'
+        System.__init__(self, system.nx, nu, np=0, ode='Euler')
         self.system = system
         self.k = k
         self.ode = 'Dis'
@@ -153,10 +153,10 @@ class MultiStepDisSystem(System):
     def jac_dyn(self, t, x, u, p=None):
         """Dynamics function with Jacobian return.
         """
-        J = np.c_[np.eye(self.nx), np.zeros((self.nx, self.nu + self.np))  # this keeps the current jacobian estimation
+        J = np.c_[np.eye(self.nx), np.zeros((self.nx, self.nu + self.np))]  # this keeps the current jacobian estimation
         for i in range(self.k):
             x, Ji = system.jac_dyn(i, x, u, p)
-            J[:, self.nx:] = Ji[:, self.nx:] + Ji[:, :self.nx].dot(J[:, self.nx:]
+            J[:, self.nx:] = Ji[:, self.nx:] + Ji[:, :self.nx].dot(J[:, self.nx:])
             J[:, :self.nx] = Ji[:, :self.nx].dot(J[:, :self.nx])
         return x, J
 

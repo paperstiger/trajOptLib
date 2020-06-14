@@ -93,7 +93,6 @@ else:
     if sys.version_info[0] < 3:
         glob_so = ['pyoptsolver/pyoptsolvercpp.so']
 
-
 setup(
     name='pyoptsolver',
     version='0.6.0',

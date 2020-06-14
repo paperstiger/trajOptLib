@@ -57,15 +57,15 @@ if __name__ == "__main__":
     
     print('\n\n Test another style\n\n')
     prob = TestFunction2()
-    config = OptConfig(backend='knitro')
+    config = OptConfig(backend='knitro', history=True)
     print('solve with random guess')
     solver = OptSolver(prob, config)
     rst = solver.solve_rand()
     print(rst.flag, rst.obj, rst.sol)
     print('solve with provided guess')
     rst = solver.solve_guess([0.3, 0.4])
-    print(rst.flag, rst.obj, rst.sol)
+    print(rst.flag, rst.obj, rst.sol, rst.history)
     print('solve with auto guess')
     rst = solver.solve_guess(None)
-    print(rst.flag, rst.obj, rst.sol)
+    print(rst.flag, rst.obj, rst.sol, rst.history)
 
