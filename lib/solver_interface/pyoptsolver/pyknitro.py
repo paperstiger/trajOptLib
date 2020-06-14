@@ -57,8 +57,9 @@ class KnitroSolver(object):
         KN_set_int_param (kc, KN_PARAM_CG_MAXIT, 50)
         KN_set_int_param (kc, KN_PARAM_OUTLEV, KN_OUTLEV_ITER)
         # set other options
+        exclude_keys = {'use_direct', 'history', 'user_callback'}
         for key, item in config.items():
-            if key == 'use_direct':
+            if key in exclude_keys:
                 continue
             if isinstance(item, int):
                 KN_set_int_param(kc, key, item)

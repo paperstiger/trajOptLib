@@ -432,9 +432,9 @@ PYBIND11_MODULE(pyoptsolvercpp, m){
             Args:
                 level (int): the derivative check level
         )pbdoc")
-        .def("enable_history", &snoptConfig::enableIterHistory, R"pbdoc(
-            Store iteration history and return to the user.
-        )pbdoc")
+        //.def("enable_history", &snoptConfig::enableIterHistory, R"pbdoc(
+        //    Store iteration history and return to the user.
+        //)pbdoc")
         .def("addIntOption", &snoptConfig::addIntOption)
         .def("addFloatOption", &snoptConfig::addFloatOption)
         .def("addStringOption", &snoptConfig::addStringOption)
