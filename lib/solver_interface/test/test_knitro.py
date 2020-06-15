@@ -55,7 +55,8 @@ class TestFunction2(OptProblem):
 if __name__ == "__main__":
     print('\n\n Test another style\n\n')
     prob = TestFunction2()
-    config = OptConfig(backend='knitro', history=True)
+    options = {'1014': 20, '1023': 1e-4, '1027': 1e-4, '1016': 2, 'history': True}
+    config = OptConfig(backend='knitro', **options)
     print('solve with random guess')
     solver = OptSolver(prob, config)
     rst = solver.solve_rand()

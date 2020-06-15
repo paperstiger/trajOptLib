@@ -63,7 +63,7 @@ class KnitroSolver(object):
         def get_key(key):
             if isinstance(key, int):
                 return key
-            elif isinstance(key, 'float'):
+            elif isinstance(key, str):
                 if key.isnumeric():
                     return int(key)
                 else:
