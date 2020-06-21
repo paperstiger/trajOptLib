@@ -727,6 +727,9 @@ class TrajOptProblem(OptProblem):
             self.__callg__(guess, y, np.zeros(1), np.zeros(1), np.zeros(1), False, False)
         else:
             self.__callf__(guess, y)
+        # add linear stuff
+        for i, j, v in zip(self.Arow, self.Acol, self.Aval):
+            y[i] += v * guess[j]
         obj = y[0]
         dynCon = np.reshape(y[1:(N - 1) * dimx + 1], (N - 1, dimx))
         curN = 1 + (N - 1) * dimx
