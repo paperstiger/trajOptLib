@@ -126,7 +126,9 @@ class KnitroSolver(object):
         return 0
 
     def callbackHistory(self, kc, x, lambda_, userParams):
-        self.history.append(x.copy())
+        obj = KN_get_obj_value(kc)
+        con = KN_get_con_values(kc)
+        self.history.append({'x': x.copy(), 'obj': obj, 'con': con})
         return 0
 
     def callbackEvalGA(self, kc, cb, evalRequest, evalResult, userParams):
