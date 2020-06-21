@@ -7,6 +7,17 @@ from knitro import *
 from pyoptsolver import OptResult, OptProblem
 
 
+class PyOptResult(object):
+    def __init__(self, nStatus, objSol, x, lambda_):
+        self.flag = nStatus
+        self.obj = objSol
+        self.sol = x
+        self.lmd = lambda_
+
+    def add_history(self, hist):
+        self.history = hist
+
+
 class KnitroSolver(object):
     def __init__(self, prob, config):
         """
@@ -168,13 +179,9 @@ class KnitroSolver(object):
         nStatus, objSol, x, lambda_ =  KN_get_solution(self.kc)
         print ("  feasibility violation    = %e" % KN_get_abs_feas_error(self.kc))
         print ("  KKT optimality violation = %e" % KN_get_abs_opt_error(self.kc))
-        result = OptResult()
-        result.flag = nStatus
-        result.obj = objSol
-        result.sol = x
-        result.lmd = lambda_
+        result = PyOptResult(nStatus, objSol, x, lambda_)
         if hasattr(self, 'history'):
-            result.history = np.array(self.history)
+            result.add_history(self.history)
         return result
 
     def __del__(self):
