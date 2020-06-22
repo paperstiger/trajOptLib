@@ -722,7 +722,7 @@ class TrajOptProblem(OptProblem):
         assert len(guess) == self.numSol
         N = self.N
         dimx = self.dimx
-        y = np.ones(self.numF)
+        y = np.zeros(self.numF)
         if self.gradmode:
             self.__callg__(guess, y, np.zeros(1), np.zeros(1), np.zeros(1), False, False)
         else:
