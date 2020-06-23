@@ -137,7 +137,7 @@ class TrajOptProblem(OptProblem):
         self.numSol = numSol + self.lenAddX
         self.t0ind, self.tfind = self.__getTimeIndices()
 
-    def pre_process(self, *args):
+    def pre_process(self, *args, **kwargs):
         """Initialize the instances of probFun now we are ready.
 
         Call this function after the objectives and constraints have been set appropriately.
@@ -173,7 +173,10 @@ class TrajOptProblem(OptProblem):
         self.__setAPattern(numDyn, nnonlincon, spA)
         self._spA = coo_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.numF, self.numSol)).tocsr()
         self.__setXbound()
-        self.__setFbound()
+        if 'dyn_tol' in kwargs:
+            self.__setFbound(kwargs['dyn_tol'])
+        else:
+            self.__setFbound(0)
         # detect gradient information
         if self.gradmode:  # in this case, we randomly generate a guess and use it to initialize everything
             randX = self.randomGenX()
@@ -615,7 +618,7 @@ class TrajOptProblem(OptProblem):
         self.set_xlb(xlb)
         self.set_xub(xub)
 
-    def __setFbound(self):
+    def __setFbound(self, dyn_tol):
         """Set bound on F"""
         # set bound on F
         numF = self.numF
@@ -624,6 +627,8 @@ class TrajOptProblem(OptProblem):
         cub = np.zeros(numF)
         clb[0] = -1e20
         cub[0] = 1e20
+        clb[1: 1 + numDyn] = -dyn_tol
+        cub[1: 1 + numDyn] = dyn_tol
         cind0 = 1 + numDyn
         for constr in self.pointConstr:
             if constr.lb is not None:
