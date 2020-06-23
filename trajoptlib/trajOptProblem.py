@@ -840,6 +840,7 @@ class TrajOptProblem(OptProblem):
         else:
             obj = self.__cost__(guess)
             curRow = 0
+            self.__constraint__(guess, y)
         dynCon = np.reshape(y[curRow:(N - 1) * dimx + curRow], (N - 1, dimx))
         curN = curRow + (N - 1) * dimx
         pointCon = []
