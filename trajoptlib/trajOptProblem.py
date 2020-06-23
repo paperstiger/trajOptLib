@@ -1367,37 +1367,47 @@ class TrajOptProblem(OptProblem):
         useX, useU, useP = self.__parseX__(x)
         # first
         tmpout = np.zeros(1)
-        Gpiece = self.grad_buffer
-        rowpiece, colpiece = self.grad_row_buffer, self.grad_col_buffer
         cost = 0
         if self.lqrObj is not None:  # the lqr obj
+            Gpiece = self.grad_buffer[:self.LQRnG]
+            rowpiece = self.grad_row_buffer[:self.LQRnG]
+            colpiece = self.grad_col_buffer[:self.LQRnG]
             self.lqrObj(h, useX, useU, useP, tmpout, Gpiece, rowpiece, colpiece, True, True)
             cost += tmpout[0]
-            g[colpiece[:self.LQRnG]] += Gpiece[:self.LQRnG]
+            g[colpiece] += Gpiece
         # still in the point, path, obj order
         if self.nonPointObj:
             for obj in self.nonPointObj:
                 tmpx = np.concatenate(([useT[obj.index]], useX[obj.index], useU[obj.index], useP[obj.index]))
+                Gpiece = self.grad_buffer[:obj.nG]
+                rowpiece = self.grad_row_buffer[:obj.nG]
+                colpiece = self.grad_col_buffer[:obj.nG]
                 obj.__callg__(tmpx, tmpout, Gpiece, rowpiece, colpiece, True, True)
                 colpiece[:] = self.__patchCol__(obj.index, colpiece)
                 cost += tmpout[0]
-                g[colpiece[:obj.nG]] += Gpiece[:obj.nG]
+                g[colpiece] += Gpiece
 
         if self.nonPathObj:
             for obj in self.nonPathObj:
                 for i in range(self.N - 1):
                     tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
+                    Gpiece = self.grad_buffer[:obj.nG]
+                    rowpiece = self.grad_row_buffer[:obj.nG]
+                    colpiece = self.grad_col_buffer[:obj.nG]
                     obj.__callg__(tmpx, tmpout, Gpiece, rowpiece, colpiece, True, True)
                     cost += tmpout[0] * h
                     colpiece[:] = self.__patchCol__(i, colpiece)
-                    g[colpiece[:obj.nG]] += Gpiece[:obj.nG] * h
+                    g[colpiece] += Gpiece * h
 
         if self.nonLinObj:
             for obj in self.nonLinObj:  # nonlinear cost function
+                Gpiece = self.grad_buffer[:obj.nG]
+                rowpiece = self.grad_row_buffer[:obj.nG]
+                colpiece = self.grad_col_buffer[:obj.nG]
                 if isinstance(obj, NonLinearObj):
                     obj.__callg__(x, tmpout, Gpiece, rowpiece, colpiece, True, True)
                     cost += tmpout[0]
-                    g[colpiece[:obj.nG]] += Gpiece[:obj.nG]
+                    g[colpiece] += Gpiece
                 else:  # has to be NonLinearMultiPointObj
                     raise NotImplementedError("Currently not supported for NonLinearMultiPointObj")
                     xins = [np.concatenate(([useT[idx]], useX[idx], useU[idx], useP[idx])) for idx in obj.indexes]
