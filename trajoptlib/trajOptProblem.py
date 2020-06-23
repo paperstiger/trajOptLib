@@ -128,7 +128,7 @@ class TrajOptProblem(OptProblem):
             numT -= 1
         if self.fixtf:
             numT -= 1
-        numSol = numX + numU + numP + numT
+        numSol = numX + numU + numP + numT  # this is the minimum length we required
         self.numX = numX
         self.numU = numU
         self.numP = numP
@@ -144,6 +144,7 @@ class TrajOptProblem(OptProblem):
         It calculate the space required for SNOPT and allocates sparsity structure if necessary.
 
         """
+        self.snopt_mode = kwargs.get('snopt_mode', True)  # by default I'm still using snopt mode...
         numDyn = self.dimx * (self.N - 1)  # constraints from system dynamics
         numC = 0
         for constr in self.pointConstr:
@@ -163,14 +164,23 @@ class TrajOptProblem(OptProblem):
             numC += constr.A.shape[0] * self.N  # this remains being argued
         for constr in self.linearConstr:
             numC += constr.A.shape[0]
-        self.numF = 1 + numDyn + numC
+        if self.snopt_mode:
+            self.numF = 1 + numDyn + numC
+        else:
+            self.numF = numDyn + numC
         # time to analyze all objective functions in order to detect pattern for A, and additional variables for other nonlinear objective function
-        spA, addn = self.__analyzeObj(self.numSol, self.numF)
-        self.objaddn = addn  # this is important for multiple objective function support
-        self.numSol += addn
-        self.numF += addn
-        OptProblem.__init__(self, self.numSol, self.numF)  # currently we do not know G yet
-        self.__setAPattern(numDyn, nnonlincon, spA)
+        if self.snopt_mode:
+            spA, addn = self.__analyzeObj(self.numSol, self.numF)
+            self.objaddn = addn  # this is important for multiple objective function support
+            self.numSol += addn
+            self.numF += addn
+            OptProblem.__init__(self, self.numSol, self.numF)  # currently we do not know G yet
+            self.__setAPattern(numDyn, nnonlincon, spA)
+        else:
+            self.obj_spA = self.__analyzeObj_non_snopt(self.numSol)
+            OptProblem.__init__(self, self.numSol, self.numF)  # this line should not change
+            self.ipopt_style()
+            self.__setAPattern_non_snopt(numDyn, nnonlincon)
         self._spA = coo_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.numF, self.numSol)).tocsr()
         self.__setXbound()
         if 'dyn_tol' in kwargs:
@@ -180,7 +190,11 @@ class TrajOptProblem(OptProblem):
         # detect gradient information
         if self.gradmode:  # in this case, we randomly generate a guess and use it to initialize everything
             randX = self.randomGenX()
-            self.__turnOnGrad(randX)
+            self.grad = True
+            if self.snopt_mode:
+                self.__getSparsity(randX)
+            else:
+                self.__getSparsity_non_snopt(randX)
         else:
             raise Exception("Currently trajoptlib only supports gradient mode, it's more robust and efficient.\
                 If you have trouble providing gradients, consider using finite difference or automatic differentiation.\
@@ -202,9 +216,9 @@ class TrajOptProblem(OptProblem):
         if savefnm is not None:
             np.savez(savefnm, row=row, col=col, val=g, arow=self.Arow, acol=self.Acol, aval=self.Aval)
 
-    def preProcess(self, *args):
+    def preProcess(self, *args, **kwargs):
         """Alias for pre_process"""
-        self.pre_process(*args)
+        self.pre_process(*args, **kwargs)
 
     def genGuessFromTraj(self, X=None, U=None, P=None, t0=None, tf=None, addx=None, tstamp=None, obj=None, interp_kind='linear'):
         """Alias for gen_guess_from_traj"""
@@ -337,6 +351,38 @@ class TrajOptProblem(OptProblem):
         spA = coo_matrix((catA, (catArow, catAcol)))
         return spA, addn
 
+    def __analyzeObj_non_snopt(self, numSol):
+        """In this function, I analyze the objective function and allocate enough buffer for gradient computation.
+        I do not have to extend decision variables dimension or add more constraints so it is pretty handy.
+        """
+        # I just extract maximum number of nnz
+        if self.lqrObj is not None:
+            maxnnz = self.LQRnG
+        else:
+            maxnnz = 0
+        # analyze the linear objective functions in a good way
+        A = np.zeros(numSol)
+        for obj in self.linearObj:
+            A[obj.A.col] += obj.A.data
+        for obj in self.linPointObj:
+            A[self.__patchCol__(obj.index, obj.A.col)] += obj.A.data
+        for obj in self.linPathObj:  # this is not particularly useful, I have to say
+            for i in range(self.numPoint):
+                A[self.__patchCol__(i, obj.A.col)] += obj.A.data
+        # get sparse representation of A
+        spA = coo_matrix(A)
+        # get maximum nnz of other terms...
+        for obj in self.nonLinObj:
+            maxnnz = max(obj.nG, maxnnz)
+        for obj in self.nonPointObj:
+            maxnnz = max(maxnnz, obj.nG)
+        for obj in self.nonPathObj:
+            maxnnz = max(maxnnz, obj.nG)
+        # create buffer
+        self.grad_buffer = np.zeros(maxnnz)
+        self.grad_row_buffer, self.grad_col_buffer = np.zeros((2, maxnnz), dtype=int)
+        return spA
+
     def __setAPattern(self, ndyncon, nnonlincon, spA):
         """Set sparsity pattern for A. curRow is current row.
 
@@ -393,6 +439,48 @@ class TrajOptProblem(OptProblem):
         curNA = len(self.Aval)  # this is just for bookkeeping
         return curRow, curNA
 
+    def __setAPattern_non_snopt(self, ndyncon, nnonlincon):
+        """Set sparsity pattern for A in non-snopt mode. In fact, this may be removed completely.
+
+        :param ndyncon: int, describes how many dynamics constraints we have
+        :param nnonlincon: int, describes how many nonlinear constraints we have
+        """
+        curRow = ndyncon + nnonlincon  # now that I removed the first row stuff
+        lstCA = []
+        lstCArow = []
+        lstCAcol = []
+        for constr in self.linPointConstr:
+            lstCA.append(constr.A.data)
+            lstCArow.append(constr.A.row + curRow)
+            lstCAcol.append(self.__patchCol__(constr.index, constr.A.col))  # take care on here
+            curRow += constr.A.shape[0]
+        for constr in self.linMultiPointConstr:
+            for idx, A in constr:
+                lstCA.append(A.data)
+                lstCArow.append(constr.A.row + curRow)
+                lstCAcol.append(self.__patchCol__(idx, constr.A.col))
+            curRow += constr.As[0].shape[0]
+        for constr in self.linPathConstr:
+            for index in range(self.N):
+                lstCA.append(constr.A.data)
+                lstCArow.append(constr.A.row + curRow)
+                lstCAcol.append(self.__patchCol__(index, constr.A.col))
+                curRow += constr.A.shape[0]
+        for constr in self.linearConstr:
+            lstCA.append(constr.A.data)
+            lstCArow.append(constr.A.row + curRow)
+            lstCAcol.append(constr.A.col)
+            curRow += constr.A.shape[0]
+        # for python3 compaticity, I extend the list
+        if lstCA:
+            self.Aval = np.concatenate(lstCA)
+            self.Arow = np.concatenate(lstCArow)
+            self.Acol = np.concatenate(lstCAcol)
+        else:
+            self.Aval = np.empty(0)
+            self.Arow = np.empty(0, dtype=int)
+            self.Acol = np.empty(0, dtype=int)
+
     def randomGenX(self):
         """Alias for :func:`~trajoptlib.TrajOptProblem.random_gen_guess`"""
         return self.random_gen_guess()
@@ -431,11 +519,6 @@ class TrajOptProblem(OptProblem):
         # I do not have to worry about objaddn since they are linear
         return randX
 
-    def __turnOnGrad(self, x0):
-        """Turn on gradient, this is called after an initial x0 has been generated"""
-        self.grad = True
-        self.__getSparsity(x0)
-
     def __getSparsity(self, x0):
         """Detect sparsity of the problem with an initial guess."""
         numObjG = self.__getObjSparsity(x0)
@@ -453,7 +536,22 @@ class TrajOptProblem(OptProblem):
         for constr in self.nonLinConstr:
             numCG += constr.nG
         numG = numObjG + numDynG + numCG
-        self.numG = numG
+        self.nG = numG
+
+    def __getSparsity_non_snopt(self, x0):
+        """Find how many nnz we have in the jacobian"""
+        numDynG = self.__getDynSparsity(x0)
+        numCG = 0  # G from C
+        # I only care about those in numC
+        for constr in self.pointConstr:
+            numCG += constr.nG
+        for constr in self.multiPointConstr:
+            numCG += constr.nG
+        for constr in self.pathConstr:
+            numCG += self.N * constr.nG
+        for constr in self.nonLinConstr:
+            numCG += constr.nG
+        numG = numDynG + numCG
         self.nG = numG
 
     def __getDynSparsity(self, x):
@@ -510,8 +608,6 @@ class TrajOptProblem(OptProblem):
         :returns: nG: int, # Jacobian from nonlinear objective function
 
         """
-        h, useT = self.__getTimeGrid(x)
-        useX, useU, useP = self.__parseX__(x)
         nG = 0
         # check sparseObj mode
         if self.lqrObj is not None:
@@ -611,8 +707,9 @@ class TrajOptProblem(OptProblem):
                 xub[curN: curN + addx.n] = addx.ub
 
         # set bound on objaddn, this is obvious
-        xlb[-self.objaddn:] = -1e20
-        xub[-self.objaddn:] = 1e20
+        if self.snopt_mode:
+            xlb[-self.objaddn:] = -1e20
+            xub[-self.objaddn:] = 1e20
 
         # assign to where it should belong to
         self.set_xlb(xlb)
@@ -625,11 +722,14 @@ class TrajOptProblem(OptProblem):
         numDyn = self.dimx * (self.N - 1)  # constraints from system dynamics
         clb = np.zeros(numF)
         cub = np.zeros(numF)
-        clb[0] = -1e20
-        cub[0] = 1e20
-        clb[1: 1 + numDyn] = -dyn_tol
-        cub[1: 1 + numDyn] = dyn_tol
-        cind0 = 1 + numDyn
+        curRow = 0
+        if self.snopt_mode:
+            clb[0] = -1e20
+            cub[0] = 1e20
+            curRow = 1
+        clb[curRow: curRow + numDyn] = -dyn_tol
+        cub[curRow: curRow + numDyn] = dyn_tol
+        cind0 = curRow + numDyn
         for constr in self.pointConstr:
             if constr.lb is not None:
                 clb[cind0: cind0 + constr.nf] = constr.lb
@@ -827,7 +927,10 @@ class TrajOptProblem(OptProblem):
         return h, useT
 
     def __parseObj__(self, x):
-        return x[self.numSol - self.objaddn:]
+        if self.snopt_mode:
+            return x[self.numSol - self.objaddn:]
+        else:
+            return 0
 
     def __parseAddX__(self, x):
         numTraj = self.numTraj
@@ -958,7 +1061,7 @@ class TrajOptProblem(OptProblem):
     def __dynconstrModeG(self, curRow, curNg, h, useT, useX, useU, useP, y, G, row, col, rec, needg):
         """Evaluate the constraints imposed by system dynamics"""
         dimx, dimu, dimp = self.dimx, self.dimu, self.dimp
-        cDyn = np.reshape(y[curRow:curRow + (self.N - 1) * self.dimx], (self.N - 1, self.dimx))
+        cDyn = np.reshape(y[curRow: curRow + (self.N - 1) * self.dimx], (self.N - 1, self.dimx))
         for i in range(self.N - 1):
             # evaluate gradient of system dynamics TODO: support other types of integration scheme
             ydot, Jac = self.sys.jac_dyn(useT[i], useX[i], useU[i], useP[i])  # TODO: support in-place Jacobian
@@ -1209,17 +1312,93 @@ class TrajOptProblem(OptProblem):
         :return f: float, objective function
 
         """
-        return np.dot(x[self.Acol_row0], self.Aval_row0)
+        h, useT = self.__getTimeGrid(x)
+        useX, useU, useP = self.__parseX__(x)
+
+        cost = 0
+        cost += self.obj_spA.data.dot(x[self.obj_spA.col])
+        tmpout = np.zeros(1)
+        Gpiece = np.zeros(0)
+        rowpiece, colpiece = np.zeros((2, 1), dtype=int)
+        if self.lqrObj is not None:  # the lqr obj
+            self.lqrObj(h, useX, useU, useP, tmpout, Gpiece, rowpiece, colpiece, False, False)
+            cost += tmpout[0]
+        # still in the point, path, obj order
+        if self.nonPointObj:
+            for obj in self.nonPointObj:
+                tmpx = np.concatenate(([useT[obj.index]], useX[obj.index], useU[obj.index], useP[obj.index]))
+                obj.__callg__(tmpx, tmpout, Gpiece, rowpiece, colpiece, False, False)
+                cost += tmpout[0]
+
+        if self.nonPathObj:
+            for obj in self.nonPathObj:
+                for i in range(self.N - 1):
+                    tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
+                    obj.__callg__(tmpx, tmpout, Gpiece, rowpiece, colpiece, False, False)
+                    cost += tmpout[0] * h
+
+        if self.nonLinObj:
+            for obj in self.nonLinObj:  # nonlinear cost function
+                if isinstance(obj, NonLinearObj):
+                    obj.__callg__(x, tmpout, Gpiece, rowpiece, colpiece, False, False)
+                    cost += tmpout[0]
+                else:  # has to be NonLinearMultiPointObj
+                    xins = [np.concatenate(([useT[idx]], useX[idx], useU[idx], useP[idx])) for idx in obj.indexes]
+                    obj.__callg__(xins, tmpout, Gpiece, rowpiece, colpiece, False, False)
+                    cost += tmpout[0]
+        return cost
 
     def __gradient__(self, x, g):
         """Evaluation of the gradient of objective function.
 
         :param x: guess/solution to the problem
         :param g: the gradient of objective function w.r.t x to be written into
-
-        """
+        """  
+        # first reset all gradient
         g[:] = 0
-        g[self.Acol_row0] = self.Aval_row0
+        g[self.obj_spA.col] = self.obj_spA.data 
+        # then parse what we want...
+        h, useT = self.__getTimeGrid(x)
+        useX, useU, useP = self.__parseX__(x)
+        # first
+        tmpout = np.zeros(1)
+        Gpiece = self.grad_buffer
+        rowpiece, colpiece = self.grad_row_buffer, self.grad_col_buffer
+        cost = 0
+        if self.lqrObj is not None:  # the lqr obj
+            self.lqrObj(h, useX, useU, useP, tmpout, Gpiece, rowpiece, colpiece, True, True)
+            cost += tmpout[0]
+            g[colpiece[:self.LQRnG]] += Gpiece[:self.LQRnG]
+        # still in the point, path, obj order
+        if self.nonPointObj:
+            for obj in self.nonPointObj:
+                tmpx = np.concatenate(([useT[obj.index]], useX[obj.index], useU[obj.index], useP[obj.index]))
+                obj.__callg__(tmpx, tmpout, Gpiece, rowpiece, colpiece, True, True)
+                colpiece[:] = self.__patchCol__(obj.index, colpiece)
+                cost += tmpout[0]
+                g[colpiece[:obj.nG]] += Gpiece[:obj.nG]
+
+        if self.nonPathObj:
+            for obj in self.nonPathObj:
+                for i in range(self.N - 1):
+                    tmpx = np.concatenate(([useT[i]], useX[i], useU[i], useP[i]))
+                    obj.__callg__(tmpx, tmpout, Gpiece, rowpiece, colpiece, True, True)
+                    cost += tmpout[0] * h
+                    colpiece[:] = self.__patchCol__(i, colpiece)
+                    g[colpiece[:obj.nG]] += Gpiece[:obj.nG] * h
+
+        if self.nonLinObj:
+            for obj in self.nonLinObj:  # nonlinear cost function
+                if isinstance(obj, NonLinearObj):
+                    obj.__callg__(x, tmpout, Gpiece, rowpiece, colpiece, True, True)
+                    cost += tmpout[0]
+                    g[colpiece[:obj.nG]] += Gpiece[:obj.nG]
+                else:  # has to be NonLinearMultiPointObj
+                    raise NotImplementedError("Currently not supported for NonLinearMultiPointObj")
+                    xins = [np.concatenate(([useT[idx]], useX[idx], useU[idx], useP[idx])) for idx in obj.indexes]
+                    obj.__callg__(xins, tmpout, Gpiece, rowpiece, colpiece, True, True)
+                    cost += tmpout[0]
+                    g[colpiece[:obj.nG]] += Gpiece[:obj.nG]
         return True
 
     def __constraint__(self, x, f):
@@ -1228,11 +1407,18 @@ class TrajOptProblem(OptProblem):
         :param x: guess/solution to the problem
         :param f: constraints ready to be written upon
         """
+        h, useT = self.__getTimeGrid(x)
+        useX, useU, useP = self.__parseX__(x)
+        # dummy variables
         G = np.zeros(1)
         row = np.zeros(1, dtype=int)
         col = np.zeros(1, dtype=int)
-        self.__callg__(x, f, G, row, col, False, False)
-        f += self._spA.dot(x)
+        # loop over all system dynamics constraint
+        curRow = 0
+        curNg = 0
+        curRow, curNg = self.__dynconstrModeG(curRow, curNg, h, useT, useX, useU, useP, f, G, row, col, False, False)
+        curRow, curNg = self.__constrModeG(curRow, curNg, h, useT, useX, useU, useP, x, f, G, row, col, False, False)
+        f += self._spA.dot(x)  # linear constraint part
         return 0
 
     def __jacobian__(self, x, g, row, col, rec):
@@ -1241,8 +1427,15 @@ class TrajOptProblem(OptProblem):
         :param x: guess/solution to the problem
         :param g: the vector being written on for Jacobian entries
         """
-        y = np.zeros(self.numF)
-        self.__callg__(x, y, g, row, col, rec, True)
+        # parse the input
+        h, useT = self.__getTimeGrid(x)
+        useX, useU, useP = self.__parseX__(x)
+        # create buffer 
+        f = np.zeros(self.numF)
+        curRow = 0
+        curNg = 0
+        curRow, curNg = self.__dynconstrModeG(curRow, curNg, h, useT, useX, useU, useP, f, g, row, col, rec, True)
+        curRow, curNg = self.__constrModeG(curRow, curNg, h, useT, useX, useU, useP, x, f, g, row, col, rec, True)
         g[self.nG:] = self.Aval
         # append the linear parts here
         if rec:

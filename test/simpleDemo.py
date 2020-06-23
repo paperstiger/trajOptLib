@@ -102,7 +102,8 @@ def penMode(args):
     else:
         lqr = LqrObj(R=np.ones(1))
         prob.add_lqr_obj(lqr)
-    prob.preProcess()  # construct the problem
+    snopt_mode = args.backend == 'snopt'
+    prob.preProcess(snopt_mode=snopt_mode)  # construct the problem
     # construct a solver for the problem
     cfg = OptConfig(args.backend)  #, print_level=1)
     slv = OptSolver(prob, cfg)
@@ -132,7 +133,8 @@ def gradmode(args):
     else:
         lqr = LqrObj(R=np.ones(1))
         prob.add_lqr_obj(lqr)
-    prob.preProcess()  # construct the problem
+    snopt_mode = args.backend == 'snopt'
+    prob.preProcess(snopt_mode=snopt_mode)  # construct the problem
     # construct a solver for the problem
     cfg = OptConfig(args.backend) #, print_level=3)
     slv = OptSolver(prob, cfg)
