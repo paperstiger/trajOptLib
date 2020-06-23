@@ -243,7 +243,7 @@ class TrajOptProblem(OptProblem):
         """
         randX = 2 * np.random.random(self.numSol) - 1
         Xtarget, Utarget, Ptarget = self.__parseX__(randX)
-        if obj is not None:
+        if obj is not None and self.snopt_mode:
             obj_ = self.__parseObj__(randX)
             obj_[:] = obj
         # generate t0 and tf, if applicable
@@ -828,15 +828,20 @@ class TrajOptProblem(OptProblem):
         N = self.N
         dimx = self.dimx
         y = np.zeros(self.numF)
-        if self.gradmode:
-            self.__callg__(guess, y, np.zeros(1), np.zeros(1), np.zeros(1), False, False)
+        if self.snopt_mode:
+            if self.gradmode:
+                self.__callg__(guess, y, np.zeros(1), np.zeros(1), np.zeros(1), False, False)
+            else:
+                self.__callf__(guess, y)
+            # add linear stuff
+            y += self._spA.dot(guess)
+            obj = y[0]
+            curRow = 1
         else:
-            self.__callf__(guess, y)
-        # add linear stuff
-        y += self._spA.dot(guess)
-        obj = y[0]
-        dynCon = np.reshape(y[1:(N - 1) * dimx + 1], (N - 1, dimx))
-        curN = 1 + (N - 1) * dimx
+            obj = self.__cost__(guess)
+            curRow = 0
+        dynCon = np.reshape(y[curRow:(N - 1) * dimx + curRow], (N - 1, dimx))
+        curN = curRow + (N - 1) * dimx
         pointCon = []
         for constr in self.pointConstr:
             pointCon.append(y[curN: curN + constr.nf])
