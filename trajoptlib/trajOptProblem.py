@@ -66,6 +66,7 @@ class TrajOptProblem(OptProblem):
         :param addX: list of addX / one addX / None, additional optimization variables.
 
         """
+        OptProblem.__init__(self)
         assert isinstance(sys, System)
         self.sys = sys
         self.N = N
@@ -174,11 +175,11 @@ class TrajOptProblem(OptProblem):
             self.objaddn = addn  # this is important for multiple objective function support
             self.numSol += addn
             self.numF += addn
-            OptProblem.__init__(self, self.numSol, self.numF)  # currently we do not know G yet
+            self.set_size(self.numSol, self.numF)  # currently we do not know G yet
             self.__setAPattern(numDyn, nnonlincon, spA)
         else:
             self.obj_spA = self.__analyzeObj_non_snopt(self.numSol)
-            OptProblem.__init__(self, self.numSol, self.numF)  # this line should not change
+            self.set_size(self.numSol, self.numF)  # this line should not change
             self.ipopt_style()
             self.__setAPattern_non_snopt(numDyn, nnonlincon)
         self._spA = coo_matrix((self.Aval, (self.Arow, self.Acol)), shape=(self.numF, self.numSol)).tocsr()

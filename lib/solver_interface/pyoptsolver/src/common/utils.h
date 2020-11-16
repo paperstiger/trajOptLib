@@ -97,6 +97,20 @@ public:
         _allocate_space();
     }
 
+    void set_size(int nx_, int nf_) {
+	nx = nx_;
+	nf = nf_;
+	_allocate_space();
+    }
+
+    void set_sizeg(int nx_, int nf_, int ng_) {
+	nx = nx_;
+	nf = nf_;
+	nG = ng_;
+	grad = true;
+	_allocate_space();
+    }
+
     void enable_time_record(){
         is_record_time = true;
         tmp_y.resize(nf);

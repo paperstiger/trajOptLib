@@ -15,7 +15,9 @@ from pyoptsolver import OptProblem as IpoptProblem, IpoptConfig, IpoptSolver
 
 class BasicQP(IpoptProblem):
     def __init__(self):
-        IpoptProblem.__init__(self, 2, 3, 4)
+        IpoptProblem.__init__(self)
+        self.set_sizeg(2, 3, 4)
+        # IpoptProblem.__init__(self, 2, 3, 4)
         self.batch_set_xlb(np.zeros(2), 0)
         self.batch_set_xub(2*np.ones(2), 0)
         lb = self.get_lb()
@@ -75,7 +77,9 @@ class Demo(IpoptProblem):
     def __init__(self, ip=False):
         self.ip = ip
         if ip:
-            IpoptProblem.__init__(self, 4, 2, 8)
+            IpoptProblem.__init__(self)
+            self.set_sizeg(4, 2, 8)
+            # IpoptProblem.__init__(self, 4, 2, 8)
             self.ipopt_style()
             self.set_lb([25., 40.])
             self.set_ub([2e19, 40.0])

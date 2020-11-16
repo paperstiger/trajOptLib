@@ -186,8 +186,11 @@ PYBIND11_MODULE(pyoptsolvercpp, m){
             Use ipopt_style() and snopt_style() to toggle function evaluation mode.
     )pbdoc")
         .def(py::init<>())
+        .def(py::init<int>())
         .def(py::init<int, int>())
         .def(py::init<int, int, int>())
+	.def("set_size", &ProblemFun::set_size, R"pbdoc(Set size of the problem using nx and nf)pbdoc")
+	.def("set_sizeg", &ProblemFun::set_sizeg, R"pbdoc(Set size of the problem using nx and nf and ng)pbdoc")
         .def("update_nf", &ProblemFun::updateNf, R"pbdoc(
             Update nf and reallocate space for lb and ub, if necessary.
 
