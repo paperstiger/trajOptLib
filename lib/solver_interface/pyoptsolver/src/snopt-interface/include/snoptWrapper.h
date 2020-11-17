@@ -337,11 +337,13 @@ public:
         ToyProb.setIntParameter( "Minor iterations limit", val);
     }
 
+#ifdef ENABLE_WORKSPACE
     void setWorkspace(int iws, int fws){
         ToyProb.setWorkspace(neF, n, neA, neG);
         ToyProb.reallocI(iws);
         ToyProb.reallocR(fws);
     }
+#endif
 
     void update_problem() {
         setxbound();
