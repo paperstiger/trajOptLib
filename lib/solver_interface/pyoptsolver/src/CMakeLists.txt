@@ -52,6 +52,6 @@ if(CMAKE_BUILD_TYPE EQUAL Debug)
 endif()
 
 target_link_libraries(pyoptsolvercpp PRIVATE ${LINKLIB})
-set_target_properties(pyoptsolvercpp PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY  "${TARGET_LIB_DIRECTORY}"
-    )
+# set_target_properties(pyoptsolvercpp PROPERTIES
+#     LIBRARY_OUTPUT_DIRECTORY  "${TARGET_LIB_DIRECTORY}"
+#     )

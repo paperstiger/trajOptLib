@@ -56,7 +56,10 @@ class CMakeBuild(build_ext):
             build_args += ['--', '/m']
         else:
             cmake_args += ['-DCMAKE_BUILD_TYPE=' + cfg]
-            build_args += ['--', '-j2']
+            build_args += ['--', '-j8']
+
+        # cmake_args += ["-DCMAKE_BUILD_WITH_INSTALL_RPATH=TRUE"]
+        # cmake_args += ["-DCMAKE_INSTALL_RPATH={}".format("$ORIGIN")]
 
         env = os.environ.copy()
         env['CXXFLAGS'] = '{} -DVERSION_INFO=\\"{}\\"'.format(
@@ -80,18 +83,6 @@ if os.path.exists('./build'):
     shutil.rmtree('./build')
 print('Arguments passed to CMake:', add_args)
 major_ver, minor_ver = sys.version_info[:2]
-glob_so = glob.glob('pyoptsolver/*.so') + glob.glob('pyoptsolver/*.dylib')
-if len(glob_so) > 1:
-    print('Find dynamic libraries ', glob_so)
-    print('---Please clean all files in folder pyoptsolver with extension so or dylib and redo---')
-    sys.exit(0)
-elif len(glob_so) == 1:
-    print('---Find file %s---' % glob_so[0])
-else:
-    print('---Cannot find dynamic library, make sure the dynamic library is in ./pyoptsolver')
-    print('Please redo it')
-    if sys.version_info[0] < 3:
-        glob_so = ['pyoptsolver/pyoptsolvercpp.so']
 
 setup(
     name='pyoptsolver',
@@ -100,13 +91,12 @@ setup(
     author_email='gaotang2@illinois.edu',
     license='LICENSE.txt',
     description='A unified wrapper for many optimization problems',
-    ext_modules=[CMakeExtension('pyoptsolvercpp')],
-    packages=['pyoptsolver'],
+    ext_modules=[CMakeExtension('pyoptsolver/pyoptsolvercpp')],
+    packages=find_packages(),
     package_dir={'': './'},
-    package_data = {'': [os.path.basename(glob_so[0])] if len(glob_so) > 0 else []},
     cmdclass=dict(build_ext=CMakeBuild),
     zip_safe=False,
     install_requires=[
-        'numpy>=1.15.0'
+        'numpy'
     ],
 )
