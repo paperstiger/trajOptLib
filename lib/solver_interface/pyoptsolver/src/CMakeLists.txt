@@ -33,6 +33,7 @@ if(NOT (BUILD_SNOPT OR BUILD_IPOPT))
 endif()
 
 set(COMMON_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/common)
+set(EIGEN3_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${EIGEN3_INCLUDE_DIR} ${COMMON_HEADER})
 include_directories(snopt-interface/include ipopt-interface/include)
 

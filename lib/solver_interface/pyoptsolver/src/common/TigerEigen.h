@@ -1,7 +1,7 @@
 #ifndef TIGEREIGEN_H
 #define TIGEREIGEN_H
-#include "eigen3/Eigen/Dense"
-#include "eigen3/Eigen/Sparse"
+#include "Eigen/Dense"
+#include "Eigen/Sparse"
 typedef Eigen::VectorXd VX;
 typedef Eigen::RowVectorXd rVX;
 typedef Eigen::MatrixXd MX;
