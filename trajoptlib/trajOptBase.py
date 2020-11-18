@@ -117,6 +117,27 @@ class System(object):
                 yi = self.dyn(t, x, u, pp)
                 J[:, self.nx + self.nu + i] = (yi - y0) / System.fd_step
             return y0, J
+        else:
+            J = np.zeros((self.nx, 1 + self.nx + self.nu + self.np))
+            y0 = self.dyn(t, x, u, p)
+            for i in range(self.nx):
+                xp = x.copy()
+                xp[i] += System.fd_step
+                yi = self.dyn(t, xp, u, p)
+                J[:, 1 + i] = (yi - y0) / System.fd_step
+            # do it for u
+            for i in range(self.nu):
+                up = u.copy()
+                up[i] += System.fd_step
+                yi = self.dyn(t, x, up, p)
+                J[:, 1 + self.nx + i] = (yi - y0) / System.fd_step
+            # for p
+            for i in range(self.np):
+                pp = p.copy()
+                pp[i] += System.fd_step
+                yi = self.dyn(t, x, u, pp)
+                J[:, 1 + self.nx + self.nu + i] = (yi - y0) / System.fd_step
+            return y0, J
         raise NotImplementedError
 
 
