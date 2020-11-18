@@ -120,6 +120,8 @@ class System(object):
         else:
             J = np.zeros((self.nx, 1 + self.nx + self.nu + self.np))
             y0 = self.dyn(t, x, u, p)
+            yi = self.dyn(t + System.fd_step, x, u, p)
+            y[:, 0] = (yi - y0) / System.fd_step
             for i in range(self.nx):
                 xp = x.copy()
                 xp[i] += System.fd_step
